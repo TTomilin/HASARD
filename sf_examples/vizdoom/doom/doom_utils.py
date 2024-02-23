@@ -19,7 +19,7 @@ from sf_examples.vizdoom.doom.action_space import (
     doom_action_space_discretized_no_weap,
     doom_action_space_extended,
     doom_action_space_full_discretized,
-    doom_turn_and_attack_only,
+    doom_turn_and_attack_only, doom_turn_and_move_only,
 )
 from sf_examples.vizdoom.doom.doom_gym import VizdoomEnv
 from sf_examples.vizdoom.doom.wrappers.additional_input import DoomAdditionalInput
@@ -33,8 +33,11 @@ from sf_examples.vizdoom.doom.wrappers.reward_shaping import (
     true_objective_frags,
     true_objective_winning_the_game,
 )
-from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.collateral_damage_cost_function import DoomCollateralDamageCostFunction
+from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.collateral_damage_cost_function import \
+    DoomCollateralDamageCostFunction
 from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.gathering_reward_shaping import DoomGatheringRewardShaping
+from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.volcanic_venture_cost_function import \
+    VolcanicVentureCostFunction
 
 
 class DoomSpec:
@@ -134,10 +137,10 @@ DOOM_ENVS = [
     DoomSpec(
         'volcanic_venture',
         'volcanic_venture.cfg',
-        doom_action_space_basic(),
+        doom_turn_and_move_only(),
         1.0,
         2100,
-        # extra_wrappers=[(DoomCollateralDamageCostFunction, {})]
+        extra_wrappers=[(VolcanicVentureCostFunction, {})]
     ),
 
     # <==== Environments used in the paper ====>
