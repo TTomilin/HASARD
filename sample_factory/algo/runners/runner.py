@@ -120,7 +120,7 @@ class Runner(EventLoopObject, Configurable):
         self.total_train_seconds = 0
 
         self.last_report = time.time()
-        self.last_logged_episode = -1
+        self.last_logged_step = -1
 
         self.report_interval_sec = 5.0
         self.avg_stats_intervals = (2, 12, 60)  # by default: 10 seconds, 60 seconds, 5 minutes
@@ -458,15 +458,15 @@ class Runner(EventLoopObject, Configurable):
         for video_file in video_files:
             match = episode_pattern.search(video_file)
             if match:
-                episode_number = int(match.group(1))
-                if episode_number > self.last_logged_episode:
-                    new_videos.append((episode_number, video_file))
-                    self.last_logged_episode = max(self.last_logged_episode, episode_number)
+                step_number = int(match.group(1))
+                if step_number > self.last_logged_step:
+                    new_videos.append((step_number, video_file))
+                    self.last_logged_step = max(self.last_logged_step, step_number)
 
         # Log new videos to wandb
-        for episode_number, video_file in sorted(new_videos):
+        for step_number, video_file in sorted(new_videos):
             video_path = join(video_dir, video_file)
-            video_tag = f"video/episode_{episode_number}"
+            video_tag = f"video/episode_{step_number}"
             wandb.log({video_tag: wandb.Video(video_path, fps=30, format="mp4")})
 
     def _propagate_training_info(self):
