@@ -7,12 +7,11 @@ from gymnasium.spaces import Discrete
 
 from sample_factory.envs.env_wrappers import (
     PixelFormatChwWrapper,
-    RecordingWrapper,
     ResizeWrapper,
     RewardScalingWrapper,
     TimeLimitWrapper,
 )
-from sample_factory.utils.utils import debug_log_every_n
+from sample_factory.utils.utils import debug_log_every_n, experiment_dir
 from sf_examples.vizdoom.doom.action_space import (
     doom_action_space,
     doom_action_space_basic,
@@ -36,6 +35,7 @@ from sf_examples.vizdoom.doom.wrappers.reward_shaping import (
 from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.collateral_damage_cost_function import \
     DoomCollateralDamageCostFunction
 from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.gathering_reward_shaping import DoomGatheringRewardShaping
+from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.record_video import RecordVideo
 from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.volcanic_venture_cost_function import \
     VolcanicVentureCostFunction
 
@@ -86,6 +86,11 @@ DEATHMATCH_REWARD_SHAPING = (
     dict(reward_shaping_scheme=REWARD_SHAPING_DEATHMATCH_V1, true_objective_func=true_objective_winning_the_game),
 )
 
+
+def episode_trigger(episode):
+    return not episode % 1000
+
+
 DOOM_ENVS = [
     DoomSpec(
         "doom_basic",
@@ -134,6 +139,7 @@ DOOM_ENVS = [
         2100,
         extra_wrappers=[(DoomCollateralDamageCostFunction, {})]
     ),
+
     DoomSpec(
         'volcanic_venture',
         'volcanic_venture.cfg',
@@ -298,8 +304,10 @@ def make_doom_env_impl(
     elif env_config.worker_index == 0 and env_config.vector_index == 0 and (player_id is None or player_id == 0):
         should_record = True
 
-    if record_to is not None and should_record:
-        env = RecordingWrapper(env, record_to, player_id)
+    if cfg.record:
+        video_folder = os.path.join(experiment_dir(cfg), cfg.video_dir)
+        env = RecordVideo(env, video_folder=video_folder, name_prefix='doom', with_wandb=cfg.with_wandb,
+                          step_trigger=lambda step: not step % cfg.record_every, video_length=1000)
 
     env = MultiplayerStatsWrapper(env)
 

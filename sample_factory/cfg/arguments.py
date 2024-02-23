@@ -18,7 +18,7 @@ from sample_factory.cfg.cfg import (
 )
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
-from sample_factory.utils.utils import cfg_file, cfg_file_old, get_git_commit_hash, log
+from sample_factory.utils.utils import cfg_file, cfg_file_old, get_git_commit_hash, log, experiment_name
 
 
 def parse_sf_args(
@@ -235,7 +235,7 @@ def load_from_checkpoint(cfg: Config) -> AttrDict:
 
     if not os.path.isfile(cfg_filename):
         raise Exception(
-            f"Could not load saved parameters for experiment {cfg.experiment} "
+            f"Could not load saved parameters for experiment {experiment_name(cfg)} "
             f"(file {cfg_filename} not found). Check that you have the correct experiment name "
             f"and --train_dir is set correctly."
         )
@@ -280,7 +280,7 @@ def checkpoint_override_defaults(cfg: Config, parser) -> AttrDict:
 
     if not os.path.isfile(cfg_filename):
         raise Exception(
-            f"Could not load saved parameters for experiment {cfg.experiment} "
+            f"Could not load saved parameters for experiment {experiment_name(cfg)} "
             f"(file {cfg_filename} not found). Check that you have the correct experiment name "
             f"and --train_dir is set correctly."
         )

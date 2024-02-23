@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import re
 import shutil
 import time
 from collections import OrderedDict, deque
+from datetime import datetime
 from os.path import isdir, join
 from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
+import wandb
 from signal_slot.signal_slot import EventLoop, EventLoopObject, EventLoopStatus, Timer, process_name, signal
 from tensorboardX import SummaryWriter
 
@@ -100,6 +104,7 @@ class Runner(EventLoopObject, Configurable):
         self.sampler: Optional[AbstractSampler] = None
 
         self.timing = Timing("Runner profile")
+        self.cfg.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
         # env_steps counts total number of simulation steps per policy (including frameskipped)
         self.env_steps: Dict[PolicyID, int] = dict()
@@ -115,6 +120,7 @@ class Runner(EventLoopObject, Configurable):
         self.total_train_seconds = 0
 
         self.last_report = time.time()
+        self.last_logged_episode = -1
 
         self.report_interval_sec = 5.0
         self.avg_stats_intervals = (2, 12, 60)  # by default: 10 seconds, 60 seconds, 5 minutes
@@ -432,8 +438,36 @@ class Runner(EventLoopObject, Configurable):
 
             self._observers_call(AlgoObserver.extra_summaries, self, policy_id, writer, env_steps)
 
+        # Video logging
+        if self.cfg.with_wandb:
+            self.log_new_videos_to_wandb()
+        # Ensure to flush/write all accumulated wandb logs
+        wandb.log({})
+
         for w in self.writers.values():
             w.flush()
+
+    def log_new_videos_to_wandb(self):
+        # List all video files in the directory
+        video_dir = join(experiment_dir(cfg=self.cfg), self.cfg.video_dir)
+        video_files = [f for f in os.listdir(video_dir) if f.endswith('.mp4')]
+
+        # Filter files based on episode number being greater than last_logged_episode
+        episode_pattern = re.compile(r"doom-episode-(\d+).mp4")
+        new_videos = []
+        for video_file in video_files:
+            match = episode_pattern.search(video_file)
+            if match:
+                episode_number = int(match.group(1))
+                if episode_number > self.last_logged_episode:
+                    new_videos.append((episode_number, video_file))
+                    self.last_logged_episode = max(self.last_logged_episode, episode_number)
+
+        # Log new videos to wandb
+        for episode_number, video_file in sorted(new_videos):
+            video_path = join(video_dir, video_file)
+            video_tag = f"video/episode_{episode_number}"
+            wandb.log({video_tag: wandb.Video(video_path, fps=30, format="mp4")})
 
     def _propagate_training_info(self):
         """

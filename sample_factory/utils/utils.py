@@ -398,12 +398,16 @@ def project_tmp_dir(mkdir: bool = True) -> str:
     return maybe_ensure_dir_exists(join(tempfile.gettempdir(), tmp_dir_name), mkdir)
 
 
+def experiment_name(cfg):
+    return f'{cfg.algo}_{cfg.env}_{cfg.timestamp}'
+
+
 def experiments_dir(cfg, mkdir=True) -> str:
     return maybe_ensure_dir_exists(cfg.train_dir, mkdir)
 
 
 def experiment_dir(cfg, mkdir=True) -> str:
-    experiment = cfg.experiment
+    experiment = f'{cfg.algo}/{cfg.env}/{cfg.timestamp}'
     experiments_root = experiments_dir(cfg, mkdir)
     return maybe_ensure_dir_exists(join(experiments_root, experiment), mkdir)
 
