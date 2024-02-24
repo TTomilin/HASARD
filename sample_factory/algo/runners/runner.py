@@ -450,6 +450,9 @@ class Runner(EventLoopObject, Configurable):
     def log_new_videos_to_wandb(self):
         # List all video files in the directory
         video_dir = join(experiment_dir(cfg=self.cfg), self.cfg.video_dir)
+        # Ensure the directory exists
+        if not os.path.exists(video_dir):
+            return
         video_files = [f for f in os.listdir(video_dir) if f.endswith('.mp4')]
 
         # Filter files based on episode number being greater than last_logged_episode
