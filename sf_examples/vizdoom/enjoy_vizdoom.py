@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime
 
 from sample_factory.cfg.arguments import parse_full_cfg, parse_sf_args
 from sample_factory.enjoy import enjoy
@@ -17,6 +18,7 @@ def main():
     doom_override_defaults(parser)
     # second parsing pass yields the final configuration
     cfg = parse_full_cfg(parser)
+    cfg.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     status = enjoy(cfg)
     return status
 

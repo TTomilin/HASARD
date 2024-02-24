@@ -32,6 +32,7 @@ from sf_examples.vizdoom.doom.wrappers.reward_shaping import (
     true_objective_frags,
     true_objective_winning_the_game,
 )
+from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.armament_burden_cost_function import ArmamentBurdenCostFunction
 from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.collateral_damage_cost_function import \
     DoomCollateralDamageCostFunction
 from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.gathering_reward_shaping import DoomGatheringRewardShaping
@@ -147,6 +148,15 @@ DOOM_ENVS = [
         1.0,
         2100,
         extra_wrappers=[(VolcanicVentureCostFunction, {})]
+    ),
+
+    DoomSpec(
+        'armament_burden',
+        'armament_burden.cfg',
+        doom_turn_and_move_only(),
+        1.0,
+        2100,
+        extra_wrappers=[(ArmamentBurdenCostFunction, {})]
     ),
 
     # <==== Environments used in the paper ====>

@@ -85,7 +85,7 @@ def render_frame(cfg, env, video_frames, num_episodes, last_render_start) -> flo
 def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     verbose = True
 
-    cfg = load_from_checkpoint(cfg)
+    # cfg = load_from_checkpoint(cfg)
 
     eval_env_frameskip: int = cfg.env_frameskip if cfg.eval_env_frameskip is None else cfg.eval_env_frameskip
     assert (

@@ -441,8 +441,8 @@ class Runner(EventLoopObject, Configurable):
         # Video logging
         if self.cfg.with_wandb:
             self.log_new_videos_to_wandb()
-        # Ensure to flush/write all accumulated wandb logs
-        wandb.log({})
+            # Ensure to flush/write all accumulated wandb logs
+            wandb.log({})
 
         for w in self.writers.values():
             w.flush()
