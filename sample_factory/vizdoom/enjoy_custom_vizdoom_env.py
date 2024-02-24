@@ -2,9 +2,9 @@ import sys
 
 from sample_factory.cfg.arguments import parse_full_cfg, parse_sf_args
 from sample_factory.enjoy import enjoy
-from sf_examples.vizdoom.doom.doom_params import add_doom_env_args, add_doom_env_eval_args, doom_override_defaults
-from sf_examples.vizdoom.train_custom_vizdoom_env import add_custom_args, register_custom_doom_env
-from sf_examples.vizdoom.train_vizdoom import register_vizdoom_components
+from sample_factory.vizdoom.doom.doom_params import add_doom_env_args, add_doom_env_eval_args, doom_override_defaults
+from sample_factory.vizdoom.train_custom_vizdoom_env import add_custom_args, register_custom_doom_env
+from sample_factory.vizdoom.train_vizdoom import register_vizdoom_components
 
 
 def main():

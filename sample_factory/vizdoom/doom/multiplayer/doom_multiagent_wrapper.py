@@ -16,9 +16,9 @@ from filelock import FileLock
 from sample_factory.algo.utils.rl_utils import make_dones
 from sample_factory.envs.env_utils import RewardShapingInterface, get_default_reward_shaping
 from sample_factory.utils.utils import log
-from sf_examples.vizdoom.doom.doom_gym import doom_lock_file
-from sf_examples.vizdoom.doom.doom_render import concat_grid, cvt_doom_obs
-from sf_examples.vizdoom.doom.multiplayer.doom_multiagent import DEFAULT_UDP_PORT, find_available_port
+from sample_factory.vizdoom.doom.doom_gym import doom_lock_file
+from sample_factory.vizdoom.doom.doom_render import concat_grid
+from sample_factory.vizdoom.doom.multiplayer.doom_multiagent import DEFAULT_UDP_PORT, find_available_port
 
 
 def retry_doom(exception_class=Exception, num_attempts=3, sleep_time=1, should_reset=False):

@@ -12,7 +12,7 @@ from sample_factory.envs.env_wrappers import (
     TimeLimitWrapper,
 )
 from sample_factory.utils.utils import debug_log_every_n, experiment_dir
-from sf_examples.vizdoom.doom.action_space import (
+from sample_factory.vizdoom.doom.action_space import (
     doom_action_space,
     doom_action_space_basic,
     doom_action_space_discretized_no_weap,
@@ -20,11 +20,11 @@ from sf_examples.vizdoom.doom.action_space import (
     doom_action_space_full_discretized,
     doom_turn_and_attack_only, doom_turn_and_move_only,
 )
-from sf_examples.vizdoom.doom.doom_gym import VizdoomEnv
-from sf_examples.vizdoom.doom.wrappers.additional_input import DoomAdditionalInput
-from sf_examples.vizdoom.doom.wrappers.multiplayer_stats import MultiplayerStatsWrapper
-from sf_examples.vizdoom.doom.wrappers.observation_space import SetResolutionWrapper, resolutions
-from sf_examples.vizdoom.doom.wrappers.reward_shaping import (
+from sample_factory.vizdoom.doom.doom_gym import VizdoomEnv
+from sample_factory.vizdoom.doom.wrappers.additional_input import DoomAdditionalInput
+from sample_factory.vizdoom.doom.wrappers.multiplayer_stats import MultiplayerStatsWrapper
+from sample_factory.vizdoom.doom.wrappers.observation_space import SetResolutionWrapper, resolutions
+from sample_factory.vizdoom.doom.wrappers.reward_shaping import (
     REWARD_SHAPING_BATTLE,
     REWARD_SHAPING_DEATHMATCH_V0,
     REWARD_SHAPING_DEATHMATCH_V1,
@@ -32,12 +32,12 @@ from sf_examples.vizdoom.doom.wrappers.reward_shaping import (
     true_objective_frags,
     true_objective_winning_the_game,
 )
-from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.armament_burden_cost_function import ArmamentBurdenCostFunction
-from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.collateral_damage_cost_function import \
+from sample_factory.vizdoom.doom.wrappers.scenario_wrappers.armament_burden_cost_function import ArmamentBurdenCostFunction
+from sample_factory.vizdoom.doom.wrappers.scenario_wrappers.collateral_damage_cost_function import \
     DoomCollateralDamageCostFunction
-from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.gathering_reward_shaping import DoomGatheringRewardShaping
-from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.record_video import RecordVideo
-from sf_examples.vizdoom.doom.wrappers.scenario_wrappers.volcanic_venture_cost_function import \
+from sample_factory.vizdoom.doom.wrappers.scenario_wrappers.gathering_reward_shaping import DoomGatheringRewardShaping
+from sample_factory.vizdoom.doom.wrappers.scenario_wrappers.record_video import RecordVideo
+from sample_factory.vizdoom.doom.wrappers.scenario_wrappers.volcanic_venture_cost_function import \
     VolcanicVentureCostFunction
 
 
@@ -291,7 +291,7 @@ def make_doom_env_impl(
     else:
         timelimit = cfg.timelimit if cfg.timelimit is not None else doom_spec.timelimit
 
-        from sf_examples.vizdoom.doom.multiplayer.doom_multiagent import VizdoomEnvMultiplayer
+        from sample_factory.vizdoom.doom.multiplayer.doom_multiagent import VizdoomEnvMultiplayer
 
         env = VizdoomEnvMultiplayer(
             doom_spec.action_space,
@@ -390,7 +390,7 @@ def make_doom_multiplayer_env(doom_spec, cfg=None, env_config=None, render_mode:
     if is_multiagent:
         # create a wrapper that treats multiple game instances as a single multi-agent environment
 
-        from sf_examples.vizdoom.doom.multiplayer.doom_multiagent_wrapper import MultiAgentEnv
+        from sample_factory.vizdoom.doom.multiplayer.doom_multiagent_wrapper import MultiAgentEnv
 
         env = MultiAgentEnv(
             num_agents=num_agents,
@@ -401,7 +401,7 @@ def make_doom_multiplayer_env(doom_spec, cfg=None, env_config=None, render_mode:
         )
     else:
         # if we have only one agent, there's no need for multi-agent wrapper
-        from sf_examples.vizdoom.doom.multiplayer.doom_multiagent_wrapper import init_multiplayer_env
+        from sample_factory.vizdoom.doom.multiplayer.doom_multiagent_wrapper import init_multiplayer_env
 
         env = init_multiplayer_env(make_env_func, player_id=0, env_config=env_config)
 

@@ -3,8 +3,8 @@ from datetime import datetime
 
 from sample_factory.cfg.arguments import parse_full_cfg, parse_sf_args
 from sample_factory.enjoy import enjoy
-from sf_examples.vizdoom.doom.doom_params import add_doom_env_args, add_doom_env_eval_args, doom_override_defaults
-from sf_examples.vizdoom.train_vizdoom import register_vizdoom_components
+from sample_factory.vizdoom.doom.doom_params import add_doom_env_args, add_doom_env_eval_args, doom_override_defaults
+from sample_factory.vizdoom.train_vizdoom import register_vizdoom_components
 
 
 def main():

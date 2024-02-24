@@ -17,10 +17,10 @@ from os.path import join
 from sample_factory.cfg.arguments import parse_full_cfg, parse_sf_args
 from sample_factory.envs.env_utils import register_env
 from sample_factory.train import run_rl
-from sf_examples.vizdoom.doom.action_space import doom_action_space_extended
-from sf_examples.vizdoom.doom.doom_params import add_doom_env_args, doom_override_defaults
-from sf_examples.vizdoom.doom.doom_utils import DoomSpec, make_doom_env_from_spec
-from sf_examples.vizdoom.train_vizdoom import register_vizdoom_components
+from sample_factory.vizdoom.doom.action_space import doom_action_space_extended
+from sample_factory.vizdoom.doom.doom_params import add_doom_env_args, doom_override_defaults
+from sample_factory.vizdoom.doom.doom_utils import DoomSpec, make_doom_env_from_spec
+from sample_factory.vizdoom.train_vizdoom import register_vizdoom_components
 
 
 def add_custom_args(parser: argparse.ArgumentParser) -> None:

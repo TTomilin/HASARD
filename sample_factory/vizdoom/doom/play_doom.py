@@ -1,8 +1,8 @@
 import sys
 
-from sf_examples.vizdoom.doom.doom_gym import VizdoomEnv
-from sf_examples.vizdoom.doom.doom_utils import doom_env_by_name, make_doom_env_impl, make_doom_multiplayer_env
-from sf_examples.vizdoom.train_vizdoom import parse_vizdoom_cfg
+from sample_factory.vizdoom.doom.doom_gym import VizdoomEnv
+from sample_factory.vizdoom.doom.doom_utils import doom_env_by_name, make_doom_env_impl
+from sample_factory.vizdoom.train_vizdoom import parse_vizdoom_cfg
 
 
 def main():

@@ -8,7 +8,7 @@ import cv2
 
 from sample_factory.cfg.arguments import default_cfg
 from sample_factory.utils.utils import log
-from sf_examples.vizdoom.doom.doom_utils import doom_env_by_name, make_doom_env, make_doom_env_impl
+from sample_factory.vizdoom.doom.doom_utils import doom_env_by_name, make_doom_env, make_doom_env_impl
 
 
 def main():
