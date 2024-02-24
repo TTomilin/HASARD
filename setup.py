@@ -82,7 +82,8 @@ setup(
         # "dmlab": ["dm_env"],  <-- these are just auxiliary packages, the main package has to be built from sources
     },
     package_dir={"": "./"},
-    packages=setuptools.find_packages(where="./", include=["sample_factory*", "sf_examples*"]),
+    packages=setuptools.find_packages(),
+    # packages=setuptools.find_packages(where="./", include=["sample_factory*", "sf_examples*"]),
     include_package_data=True,
     python_requires=">=3.8",
 )
