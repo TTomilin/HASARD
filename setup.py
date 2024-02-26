@@ -12,14 +12,14 @@ with open("README.md", "r") as f:
 setup(
     # Information
     name="safety-doom",
-    description="High throughput asynchronous reinforcement learning framework",
+    description="Egocentric 3D safe reinforcement learning benchmark",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version="2.1.2",
+    version="1.0.0",
     url="https://github.com/TTomilin/safety-doom",
     author="Tristan Tomilin",
     license="MIT",
-    keywords=["safe rl", "reinforcement learning", "vizdoom", "benchmarking"],
+    keywords=["safe rl", "reinforcement learning", "vizdoom", "benchmarking", "safety"],
     install_requires=[
         "numpy>=1.18.1,<2.0",
         "torch>=1.9,<3.0,!=1.13.0",
