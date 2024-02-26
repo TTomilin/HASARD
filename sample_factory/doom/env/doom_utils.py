@@ -165,7 +165,7 @@ DOOM_ENVS = [
         'remedy_rush.cfg',
         doom_turn_and_move_only(),
         1.0,
-        200,
+        2100,
         extra_wrappers=[(RemedyRushCostFunction, {})]
     ),
 
