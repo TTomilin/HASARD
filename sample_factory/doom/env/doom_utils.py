@@ -36,7 +36,7 @@ from sample_factory.doom.env.wrappers.scenario_wrappers.armament_burden_cost_fun
 from sample_factory.doom.env.wrappers.scenario_wrappers.collateral_damage_cost_function import \
     DoomCollateralDamageCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.gathering_reward_shaping import DoomGatheringRewardShaping
-from sample_factory.doom.env.wrappers.scenario_wrappers.record_video import RecordVideo
+from sample_factory.doom.env.wrappers.record_video import RecordVideo
 from sample_factory.doom.env.wrappers.scenario_wrappers.remedy_rush_cost_function import RemedyRushCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.volcanic_venture_cost_function import \
     VolcanicVentureCostFunction
@@ -327,7 +327,8 @@ def make_doom_env_impl(
     if cfg.record:
         video_folder = os.path.join(experiment_dir(cfg), cfg.video_dir)
         env = RecordVideo(env, video_folder=video_folder, name_prefix='doom', with_wandb=cfg.with_wandb,
-                          step_trigger=lambda step: not step % cfg.record_every, video_length=1000)
+                          step_trigger=lambda step: not step % cfg.record_every, video_length=1000,
+                          dummy_env=env_config is None)
 
     env = MultiplayerStatsWrapper(env)
 

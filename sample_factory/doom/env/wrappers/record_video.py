@@ -47,6 +47,7 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
         name_prefix: str = "rl-video",
         disable_logger: bool = False,
         with_wandb: bool = False,
+        dummy_env: bool = False,
     ):
         """Wrapper records videos of rollouts.
 
@@ -81,16 +82,15 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
         self.step_trigger = step_trigger
         self.video_recorder: Optional[video_recorder.VideoRecorder] = None
         self.disable_logger = disable_logger
+        self.disable_recording = False
         self.with_wandb = with_wandb
 
         self.video_folder = os.path.abspath(video_folder)
-        # Create output folder if needed
-        if os.path.isdir(self.video_folder):
-            logger.warn(
-                f"Overwriting existing videos at {self.video_folder} folder "
-                f"(try specifying a different `video_folder` for the `RecordVideo` wrapper if this is not desired)"
-            )
-        os.makedirs(self.video_folder, exist_ok=True)
+        if os.path.isdir(self.video_folder) or dummy_env:
+            logger.warn(f"Recording disabled. Another process is already recording video to {self.video_folder} folder")
+            self.disable_recording = True
+        if not self.disable_recording:
+            os.makedirs(self.video_folder, exist_ok=True)
 
         self.name_prefix = name_prefix
         self.step_id = 0
@@ -106,6 +106,8 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
     def reset(self, **kwargs):
         """Reset the environment using kwargs and then starts recording if video enabled."""
         observations = super().reset(**kwargs)
+        if self.disable_recording:
+            return observations
         self.terminated = False
         self.truncated = False
         if self.recording:
@@ -156,6 +158,9 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
             infos,
         ) = self.env.step(action)
 
+        if self.disable_recording:
+            return observations, rewards, terminated, truncated, infos
+
         if not (self.terminated or self.truncated):
             # increment steps and episodes
             self.step_id += 1
@@ -190,7 +195,7 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
 
     def render(self, *args, **kwargs):
         """Compute the render frames as specified by render_mode attribute during initialization of the environment or as specified in kwargs."""
-        if self.video_recorder is None or not self.video_recorder.enabled:
+        if self.disable_recording or self.video_recorder is None or not self.video_recorder.enabled:
             return super().render(*args, **kwargs)
 
         if len(self.video_recorder.render_history) > 0:
