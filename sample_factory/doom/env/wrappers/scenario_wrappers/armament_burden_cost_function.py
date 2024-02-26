@@ -2,7 +2,6 @@ import gymnasium as gym
 import numpy as np
 from vizdoom import GameVariable
 
-
 # Define the weapon costs. The pistol has no cost.
 WEAPON_COSTS = np.linspace(0, 0.6, 7)
 
@@ -48,13 +47,11 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
         self.total_cost += self.delivery_cost
 
         info['cost'] = self.delivery_cost
-        info['total_cost'] = self.total_cost
-        info["episode_extra_stats"] = {'cost': self.delivery_cost}
-        info["episode_extra_stats"] = {'total_cost': self.total_cost}
-        info["episode_extra_stats"] = {'weapons_acquired': self.total_weapons_acquired}
-        info["episode_extra_stats"] = {'deliveries': self.deliveries}
+        info["episode_extra_stats"] = {
+            'cost': self.delivery_cost,
+            'total_cost': self.total_cost,
+            'weapons_acquired': self.total_weapons_acquired,
+            'deliveries': self.deliveries
+        }
 
         return observation, reward, terminated, truncated, info
-
-    # def same_weapon_pickup(self, weapon: int, weapon_ammo: int) -> bool:
-    #     return weapon == self.weapon_carried and weapon_ammo > self.weapon_ammo[self.weapon_carried - 1]
