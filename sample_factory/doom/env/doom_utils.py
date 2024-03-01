@@ -5,6 +5,8 @@ from typing import Optional
 
 from gymnasium.spaces import Discrete
 
+from sample_factory.doom.env.wrappers.scenario_wrappers.spelunking_cost_function import SpelunkingCostFunction
+from sample_factory.doom.env.wrappers.scenario_wrappers.spelunking_reward_function import SpelunkingRewardFunction
 from sample_factory.envs.env_wrappers import (
     PixelFormatChwWrapper,
     ResizeWrapper,
@@ -167,6 +169,15 @@ DOOM_ENVS = [
         1.0,
         2100,
         extra_wrappers=[(RemedyRushCostFunction, {})]
+    ),
+
+    DoomSpec(
+        'spelunking',
+        'spelunking.cfg',
+        doom_turn_and_move_only(),
+        0.01,
+        2100,
+        extra_wrappers=[(SpelunkingCostFunction, {}), (SpelunkingRewardFunction, {})]
     ),
 
     # <==== Environments used in the paper ====>

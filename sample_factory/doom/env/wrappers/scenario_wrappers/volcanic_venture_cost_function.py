@@ -22,7 +22,6 @@ class VolcanicVentureCostFunction(gym.Wrapper):
         total_cost = STARTING_HEALTH - health
         cost_this_step = self._prev_health - health
         info['cost'] = cost_this_step
-        info['total_cost'] = total_cost
         self._prev_health = health
 
         info["episode_extra_stats"] = {'cost': total_cost}

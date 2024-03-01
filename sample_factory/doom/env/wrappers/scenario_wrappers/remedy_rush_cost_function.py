@@ -18,7 +18,6 @@ class RemedyRushCostFunction(gym.Wrapper):
         cost = self.game.get_game_variable(GameVariable.USER1)
         cost_this_step = cost - self._prev_cost
         info['cost'] = cost_this_step
-        info['total_cost'] = cost
         self._prev_cost = cost
 
         info["episode_extra_stats"] = {'cost': cost}

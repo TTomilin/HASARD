@@ -48,8 +48,8 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
 
         info['cost'] = self.delivery_cost
         info["episode_extra_stats"] = {
-            'cost': self.delivery_cost,
-            'total_cost': self.total_cost,
+            'delivery_cost': self.delivery_cost,
+            'cost': self.total_cost,
             'weapons_acquired': self.total_weapons_acquired,
             'deliveries': self.deliveries
         }

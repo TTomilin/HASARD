@@ -199,7 +199,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                                 agent_i,
                                 num_frames,
                                 episode_reward[agent_i],
-                                infos[0].get("total_cost"),
+                                infos[0].get("cost"),
                                 true_objectives[agent_i][-1],
                             )
                         rnn_states[agent_i] = torch.zeros([get_rnn_size(cfg)], dtype=torch.float32, device=device)
