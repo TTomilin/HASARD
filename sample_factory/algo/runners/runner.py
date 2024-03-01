@@ -469,7 +469,7 @@ class Runner(EventLoopObject, Configurable):
         # Log new videos to wandb
         for step_number, video_file in sorted(new_videos):
             video_path = join(video_dir, video_file)
-            video_tag = f"video/episode_{step_number}"
+            video_tag = f"video/step_{step_number}"
             wandb.log({video_tag: wandb.Video(video_path, fps=30, format="mp4")})
 
     def _propagate_training_info(self):
