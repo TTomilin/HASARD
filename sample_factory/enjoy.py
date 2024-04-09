@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from sample_factory.algo.learning.learner import Learner
+from sample_factory.algo.learning.safe_learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
 from sample_factory.algo.utils.env_info import extract_env_info

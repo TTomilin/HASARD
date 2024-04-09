@@ -168,6 +168,8 @@ class VizdoomEnv(gym.Env):
 
         self._num_episodes = 0
 
+        self.safety_bound = self._get_safety_bound(self.config_path)
+
         self.mode = "algo"
 
         self.render_mode = render_mode
@@ -299,6 +301,16 @@ class VizdoomEnv(gym.Env):
                 break
 
         return variable_indices
+
+    @staticmethod
+    def _get_safety_bound(config):
+        with open(config, "r") as config_file:
+            lines = config_file.readlines()
+        for line in lines:
+            line = line.strip()
+            if line.startswith("safety_bound"):
+                return float(line.split()[-1])
+        raise ValueError(f"Safety Bound not configured in {config}")
 
     def _black_screen(self):
         if self.black_screen is None:

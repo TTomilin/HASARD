@@ -29,6 +29,7 @@ class EnvInfo:
     action_splits: List[int]  # in the case of tuple actions, the splits for the actions
     all_discrete: bool  # in the case of tuple actions, whether the actions are all discrete
     frameskip: int
+    safety_bound: float
     # potentially customizable reward shaping, a map of reward component names to their respective weights
     # this can be used by PBT to optimize the reward shaping towards a sparse final objective
     reward_shaping_scheme: Optional[Dict[str, float]] = None
@@ -65,6 +66,7 @@ def extract_env_info(env: BatchedVecEnv | NonBatchedVecEnv, cfg: Config) -> EnvI
         action_splits=action_splits,
         all_discrete=all_discrete,
         frameskip=frameskip,
+        safety_bound=env.safety_bound,
         reward_shaping_scheme=reward_shaping_scheme,
         env_info_protocol_version=ENV_INFO_PROTOCOL_VERSION,
     )
