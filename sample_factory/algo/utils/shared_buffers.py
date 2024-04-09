@@ -71,6 +71,7 @@ def policy_output_shapes(num_actions, num_action_distribution_parameters) -> Lis
         ("action_logits", [num_action_distribution_parameters]),
         ("log_prob_actions", []),
         ("values", []),
+        ("cost_values", []),
         ("policy_version", []),
     ]
     return policy_outputs
@@ -95,7 +96,7 @@ def alloc_trajectory_tensors(env_info: EnvInfo, num_traj, rollout, rnn_size, dev
     policy_outputs = policy_output_shapes(num_actions, num_action_distribution_parameters)
 
     # we need one more step to hold values for the last step
-    outputs_with_extra_rollout_step = ["values"]
+    outputs_with_extra_rollout_step = ["values", "cost_values"]
 
     for name, shape in policy_outputs:
         assert name not in tensors
@@ -105,6 +106,8 @@ def alloc_trajectory_tensors(env_info: EnvInfo, num_traj, rollout, rnn_size, dev
     # env outputs
     tensors["rewards"] = init_tensor([num_traj, rollout], torch.float32, [], device, share)
     tensors["rewards"].fill_(-42.42)  # if we're using uninitialized values by mistake it will be obvious
+    tensors["costs"] = init_tensor([num_traj, rollout], torch.float32, [], device, share)
+    tensors["costs"].fill_(-42.42)  # if we're using uninitialized values by mistake it will be obvious
     tensors["dones"] = init_tensor([num_traj, rollout], torch.bool, [], device, share)
     tensors["dones"].fill_(True)
     tensors["time_outs"] = init_tensor([num_traj, rollout], torch.bool, [], device, share)

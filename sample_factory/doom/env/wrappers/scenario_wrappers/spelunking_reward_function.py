@@ -2,7 +2,7 @@ import gymnasium as gym
 
 STARTING_Z_COORD = 0
 STARTING_HEALTH = 1000
-REWARD_SCALER = 0.03
+REWARD_SCALER = 0.05
 
 
 class SpelunkingRewardFunction(gym.Wrapper):

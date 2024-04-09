@@ -240,6 +240,18 @@ def add_rl_args(p: ArgumentParser):
 
     # more specific to policy gradient algorithms or PPO
     p.add_argument(
+        "--lambda_lagr",
+        default=0.78,
+        type=float,
+        help="Lambda coefficient for the Lagrange multiplier.",
+    )
+    p.add_argument(
+        "--lagrangian_coef_rate",
+        default=1e-2,
+        type=float,
+        help="Decay rate of the Lagrangian coefficient.",
+    )
+    p.add_argument(
         "--gae_lambda",
         default=0.95,
         type=float,

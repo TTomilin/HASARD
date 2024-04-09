@@ -10,7 +10,7 @@ from signal_slot.signal_slot import EventLoop, Timer, signal
 from torch import Tensor
 
 from sample_factory.algo.learning.batcher import Batcher
-from sample_factory.algo.learning.learner import Learner
+from sample_factory.algo.learning.safe_learner import Learner
 from sample_factory.algo.utils.context import SampleFactoryContext, set_global_context
 from sample_factory.algo.utils.env_info import EnvInfo
 from sample_factory.algo.utils.heartbeat import HeartbeatStoppableEventLoopObject

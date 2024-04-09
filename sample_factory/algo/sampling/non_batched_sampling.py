@@ -76,6 +76,7 @@ class ActorState:
         self.last_obs = None
         self.last_rnn_state = None
         self.last_value = None
+        self.last_cost_value = None
 
         self.ready = False  # whether this agent received actions from the policy and can act in the environment again
 
@@ -189,6 +190,7 @@ class ActorState:
         done = terminated | truncated
 
         self.curr_traj_buffer["rewards"][rollout_step] = float(reward)
+        self.curr_traj_buffer["costs"][rollout_step] = float(info.get("cost", 0.0))
         self.curr_traj_buffer["dones"][rollout_step] = done
         self.curr_traj_buffer["time_outs"][rollout_step] = truncated
 
@@ -491,6 +493,7 @@ class NonBatchedVectorEnvRunner(VectorEnvRunner):
                     # this is an rnn state for the next iteration in the rollout
                     actor_state.last_rnn_state = policy_outputs_dict["new_rnn_states"]
                     actor_state.last_value = policy_outputs_dict["values"].item()
+                    actor_state.last_cost_value = policy_outputs_dict["cost_values"].item()
 
                     actor_state.ready = True
                 elif not actor_state.ready:

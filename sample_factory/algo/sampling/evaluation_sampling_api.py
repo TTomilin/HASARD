@@ -10,7 +10,7 @@ import numpy as np
 from signal_slot.signal_slot import EventLoop, EventLoopObject, EventLoopStatus, signal
 from torch import Tensor
 
-from sample_factory.algo.learning.learner import Learner
+from sample_factory.algo.learning.safe_learner import Learner
 from sample_factory.algo.runners.runner import MsgHandler, PolicyMsgHandler
 from sample_factory.algo.sampling.sampler import AbstractSampler, ParallelSampler, SerialSampler
 from sample_factory.algo.sampling.stats import samples_stats_handler, stats_msg_handler, timing_msg_handler
