@@ -40,7 +40,7 @@ def init_wandb(cfg):
             id=wandb_unique_id,
             name=wandb_unique_id,
             group=wandb_group,
-            job_type=cfg.wandb_job_type,
+            job_type=cfg.algo,
             tags=cfg.wandb_tags,
             settings=wandb.Settings(start_method="fork"),
         )

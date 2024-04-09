@@ -7,7 +7,8 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from sample_factory.algo.learning.safe_learner import Learner
+from sample_factory.algo.learning.learner import Learner
+from sample_factory.algo.learning.safe_learner import SafeLearner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
 from sample_factory.algo.utils.env_info import extract_env_info
@@ -15,8 +16,6 @@ from sample_factory.algo.utils.make_env import make_env_func_batched
 from sample_factory.algo.utils.misc import ExperimentStatus
 from sample_factory.algo.utils.rl_utils import make_dones, prepare_and_normalize_obs
 from sample_factory.algo.utils.tensor_utils import unsqueeze_tensor
-from sample_factory.cfg.arguments import load_from_checkpoint
-from sample_factory.huggingface.huggingface_utils import generate_model_card, generate_replay_video, push_to_hf
 from sample_factory.model.actor_critic import create_actor_critic
 from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
@@ -89,7 +88,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
 
     eval_env_frameskip: int = cfg.env_frameskip if cfg.eval_env_frameskip is None else cfg.eval_env_frameskip
     assert (
-        cfg.env_frameskip % eval_env_frameskip == 0
+            cfg.env_frameskip % eval_env_frameskip == 0
     ), f"{cfg.env_frameskip=} must be divisible by {eval_env_frameskip=}"
     render_action_repeat: int = cfg.env_frameskip // eval_env_frameskip
     cfg.env_frameskip = cfg.eval_env_frameskip = eval_env_frameskip
@@ -120,7 +119,8 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
 
     policy_id = cfg.policy_index
     name_prefix = dict(latest="checkpoint", best="best")[cfg.load_checkpoint_kind]
-    checkpoints = Learner.get_checkpoints(Learner.checkpoint_dir(cfg, policy_id), f"{name_prefix}_*")
+    learner_cls = SafeLearner if cfg.algo == 'PPOLag' else Learner
+    checkpoints = learner_cls.get_checkpoints(learner_cls.checkpoint_dir(cfg, policy_id), f"{name_prefix}_*")
     # checkpoint_dict = Learner.load_checkpoint(checkpoints, device)
     # actor_critic.load_state_dict(checkpoint_dict["model"])
 
@@ -254,25 +254,6 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                 break
 
     env.close()
-
-    if cfg.save_video:
-        if cfg.fps > 0:
-            fps = cfg.fps
-        else:
-            fps = 30
-        generate_replay_video(experiment_dir(cfg=cfg), video_frames, fps, cfg)
-
-    if cfg.push_to_hub:
-        generate_model_card(
-            experiment_dir(cfg=cfg),
-            cfg.algo,
-            cfg.env,
-            cfg.hf_repository,
-            reward_list,
-            cfg.enjoy_script,
-            cfg.train_script,
-        )
-        push_to_hf(experiment_dir(cfg=cfg), cfg.hf_repository)
 
     return ExperimentStatus.SUCCESS, sum([sum(episode_rewards[i]) for i in range(env.num_agents)]) / sum(
         [len(episode_rewards[i]) for i in range(env.num_agents)]

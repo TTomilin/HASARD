@@ -20,7 +20,7 @@ from sample_factory.doom.env.action_space import (
     doom_action_space_discretized_no_weap,
     doom_action_space_extended,
     doom_action_space_full_discretized,
-    doom_turn_and_attack_only, doom_turn_and_move_only,
+    doom_turn_and_attack_only, doom_turn_and_move_only, doom_turn_move_jump_accelerate,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.additional_input import DoomAdditionalInput
@@ -147,7 +147,7 @@ DOOM_ENVS = [
     DoomSpec(
         'volcanic_venture',
         'volcanic_venture.cfg',
-        doom_turn_and_move_only(),
+        doom_turn_move_jump_accelerate(),
         1.0,
         2100,
         extra_wrappers=[(VolcanicVentureCostFunction, {})]

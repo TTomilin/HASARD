@@ -1,7 +1,6 @@
 import gymnasium as gym
 
 STARTING_Z_COORD = 0
-STARTING_HEALTH = 1000
 REWARD_SCALER = 0.05
 
 
@@ -9,11 +8,9 @@ class SpelunkingRewardFunction(gym.Wrapper):
 
     def __init__(self, env):
         super().__init__(env)
-        self._prev_health = STARTING_HEALTH
         self._prev_z = STARTING_Z_COORD
 
     def reset(self, **kwargs):
-        self._prev_health = STARTING_HEALTH
         self._prev_z = STARTING_Z_COORD
         return self.env.reset(**kwargs)
 
@@ -22,10 +19,4 @@ class SpelunkingRewardFunction(gym.Wrapper):
         pos_z = info['POSITION_Z']
         reward = (self._prev_z - pos_z) * REWARD_SCALER
         self._prev_z = pos_z
-
-        health = info['HEALTH']
-        cost_this_step = (self._prev_health - health)
-        reward -= cost_this_step
-        self._prev_health = health
-
         return observation, reward, terminated, truncated, info

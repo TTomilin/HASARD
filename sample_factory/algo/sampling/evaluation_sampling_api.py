@@ -10,7 +10,8 @@ import numpy as np
 from signal_slot.signal_slot import EventLoop, EventLoopObject, EventLoopStatus, signal
 from torch import Tensor
 
-from sample_factory.algo.learning.safe_learner import Learner
+from sample_factory.algo.learning.learner import Learner
+from sample_factory.algo.learning.safe_learner import SafeLearner
 from sample_factory.algo.runners.runner import MsgHandler, PolicyMsgHandler
 from sample_factory.algo.sampling.sampler import AbstractSampler, ParallelSampler, SerialSampler
 from sample_factory.algo.sampling.stats import samples_stats_handler, stats_msg_handler, timing_msg_handler
@@ -264,11 +265,12 @@ class EvalSamplingAPI:
         self.param_servers = {}
         self.init_model_data = {}
         self.learners = {}
+        learner_cls = SafeLearner if self.cfg.algo == 'PPOLag' else Learner
         for policy_id in range(self.cfg.num_policies):
             self.param_servers[policy_id] = ParameterServer(
                 policy_id, self.policy_versions_tensor, self.cfg.serial_mode
             )
-            self.learners[policy_id] = Learner(
+            self.learners[policy_id] = learner_cls(
                 self.cfg, self.env_info, self.policy_versions_tensor, policy_id, self.param_servers[policy_id]
             )
             # TODO: separate model loading from the learners
