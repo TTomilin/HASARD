@@ -225,22 +225,7 @@ class Learner(Configurable):
 
         params = list(self.actor_critic.parameters())
 
-        optimizer_cls = dict(adam=torch.optim.Adam, lamb=Lamb)
-        if self.cfg.optimizer not in optimizer_cls:
-            raise RuntimeError(f"Unknown optimizer {self.cfg.optimizer}")
-
-        optimizer_cls = optimizer_cls[self.cfg.optimizer]
-        log.debug(f"Using optimizer {optimizer_cls}")
-
-        optimizer_kwargs = dict(
-            lr=self.cfg.learning_rate,  # use default lr only in ctor, then we use the one loaded from the checkpoint
-            betas=(self.cfg.adam_beta1, self.cfg.adam_beta2),
-        )
-
-        if self.cfg.optimizer in ["adam", "lamb"]:
-            optimizer_kwargs["eps"] = self.cfg.adam_eps
-
-        self.optimizer = optimizer_cls(params, **optimizer_kwargs)
+        self.optimizer = self.create_optimizer(params)
 
         # self.load_from_checkpoint(self.policy_id)
         self.param_server.init(self.actor_critic, self.train_step, self.device)
@@ -253,6 +238,20 @@ class Learner(Configurable):
         self.is_initialized = True
 
         return model_initialization_data(self.cfg, self.policy_id, self.actor_critic, self.train_step, self.device)
+
+    def create_optimizer(self, params):
+        optimizer_cls = dict(adam=torch.optim.Adam, lamb=Lamb)
+        if self.cfg.optimizer not in optimizer_cls:
+            raise RuntimeError(f"Unknown optimizer {self.cfg.optimizer}")
+        optimizer_cls = optimizer_cls[self.cfg.optimizer]
+        log.debug(f"Using optimizer {optimizer_cls}")
+        optimizer_kwargs = dict(
+            lr=self.cfg.learning_rate,  # use default lr only in ctor, then we use the one loaded from the checkpoint
+            betas=(self.cfg.adam_beta1, self.cfg.adam_beta2),
+        )
+        if self.cfg.optimizer in ["adam", "lamb"]:
+            optimizer_kwargs["eps"] = self.cfg.adam_eps
+        return optimizer_cls(params, **optimizer_kwargs)
 
     @staticmethod
     def checkpoint_dir(cfg, policy_id):

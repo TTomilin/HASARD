@@ -238,7 +238,7 @@ def add_rl_args(p: ArgumentParser):
         "Empirically, symmetric KL-divergence yielded slightly better results on some problems.",
     )
 
-    # more specific to policy gradient algorithms or PPO
+    # Constrained optimization
     p.add_argument(
         "--lambda_lagr",
         default=0.0,
@@ -251,6 +251,32 @@ def add_rl_args(p: ArgumentParser):
         type=float,
         help="Change rate of the Lagrangian coefficient.",
     )
+    p.add_argument(
+        "--line_search_fraction",
+        default=0.5,
+        type=float,
+        help="Fraction of the line search.",
+    )
+    p.add_argument(
+        "--kl_threshold",
+        default=0.01,
+        type=float,
+        help="Threshold for the KL divergence between the old and new policy.",
+    )
+    p.add_argument(
+        "--fraction_coef",
+        default=0.1,
+        type=float,
+        help="Fraction coefficient for updating the model parameters.",
+    )
+    p.add_argument(
+        "--ls_step",
+        default=10,
+        type=float,
+        help="Fraction coefficient for updating the model parameters.",
+    )
+
+    # more specific to policy gradient algorithms or PPO
     p.add_argument(
         "--gae_lambda",
         default=0.95,

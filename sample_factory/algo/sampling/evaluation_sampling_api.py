@@ -10,6 +10,7 @@ import numpy as np
 from signal_slot.signal_slot import EventLoop, EventLoopObject, EventLoopStatus, signal
 from torch import Tensor
 
+from sample_factory.algo.learning.cpo_learner import CPOLearner
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.learning.safe_learner import SafeLearner
 from sample_factory.algo.runners.runner import MsgHandler, PolicyMsgHandler
@@ -265,7 +266,12 @@ class EvalSamplingAPI:
         self.param_servers = {}
         self.init_model_data = {}
         self.learners = {}
-        learner_cls = SafeLearner if self.cfg.algo == 'PPOLag' else Learner
+        if self.cfg.algo == 'PPOLag':
+            learner_cls = SafeLearner
+        elif self.cfg.algo == 'CPO':
+            learner_cls = CPOLearner
+        else:
+            learner_cls = Learner
         for policy_id in range(self.cfg.num_policies):
             self.param_servers[policy_id] = ParameterServer(
                 policy_id, self.policy_versions_tensor, self.cfg.serial_mode

@@ -10,6 +10,7 @@ from signal_slot.signal_slot import EventLoop, Timer, signal
 from torch import Tensor
 
 from sample_factory.algo.learning.batcher import Batcher
+from sample_factory.algo.learning.cpo_learner import CPOLearner
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.learning.safe_learner import SafeLearner
 from sample_factory.algo.utils.context import SampleFactoryContext, set_global_context
@@ -66,7 +67,12 @@ class LearnerWorker(HeartbeatStoppableEventLoopObject, Configurable):
         self.batcher: Batcher = batcher
         self.batcher_thread: Optional[Thread] = None
 
-        learner_cls = SafeLearner if cfg.algo == 'PPOLag' else Learner
+        if cfg.algo == 'PPOLag':
+            learner_cls = SafeLearner
+        elif cfg.algo == 'CPO':
+            learner_cls = CPOLearner
+        else:
+            learner_cls = Learner
         policy_versions_tensor: Tensor = buffer_mgr.policy_versions
         self.param_server = ParameterServer(policy_id, policy_versions_tensor, cfg.serial_mode)
         self.learner: Learner = learner_cls(cfg, env_info, policy_versions_tensor, policy_id, self.param_server)

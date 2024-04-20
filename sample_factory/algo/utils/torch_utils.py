@@ -43,6 +43,8 @@ def calc_num_elements(module, module_input_shape):
 def to_scalar(value):
     if isinstance(value, torch.Tensor):
         return value.item()
+    elif isinstance(value, bool):
+        return int(value)
     else:
         return value
 

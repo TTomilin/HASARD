@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from sample_factory.algo.learning.cpo_learner import CPOLearner
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.learning.safe_learner import SafeLearner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
@@ -119,7 +120,12 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
 
     policy_id = cfg.policy_index
     name_prefix = dict(latest="checkpoint", best="best")[cfg.load_checkpoint_kind]
-    learner_cls = SafeLearner if cfg.algo == 'PPOLag' else Learner
+    if cfg.algo == 'PPOLag':
+        learner_cls = SafeLearner
+    elif cfg.algo == 'CPO':
+        learner_cls = CPOLearner
+    else:
+        learner_cls = Learner
     checkpoints = learner_cls.get_checkpoints(learner_cls.checkpoint_dir(cfg, policy_id), f"{name_prefix}_*")
     # checkpoint_dict = Learner.load_checkpoint(checkpoints, device)
     # actor_critic.load_state_dict(checkpoint_dict["model"])

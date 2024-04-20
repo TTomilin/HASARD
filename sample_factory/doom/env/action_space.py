@@ -28,6 +28,17 @@ def doom_turn_and_attack_only():
     return space
 
 
+def doom_turn_and_move_only_single_action():
+    """
+    TURN_LEFT
+    TURN_RIGHT
+    MOVE_FORWARD
+    """
+    space = gym.spaces.Discrete(4)  # noop, turn left, turn right , move forward
+
+    return space
+
+
 def doom_turn_and_move_only():
     """
     TURN_LEFT
