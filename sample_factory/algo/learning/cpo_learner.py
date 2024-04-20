@@ -111,7 +111,7 @@ class CPOLearner(Learner):
         return kl_divergence
 
     def conjugate_gradient(self, mb, b, nsteps, residual_tol=1e-10):
-        x = torch.zeros(b.size()).to(device=self.cfg.device)
+        x = torch.zeros(b.size()).to(device=self.device)
         r = b.clone()
         p = b.clone()
         rdotr = torch.dot(r, r)
