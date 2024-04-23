@@ -216,30 +216,45 @@ class SafeActorCriticSharedWeights(ActorCriticSharedWeights):
         return result
 
 
-class Actor(nn.Module):
-    def __init__(self, model_factory, obs_space, action_space, cfg):
-        super(Actor, self).__init__()
+class ACBase(nn.Module):
+    def __init__(self, model_factory, obs_space, cfg, sequence_idx: int):
+        super(ACBase, self).__init__()
         self.encoder = model_factory.make_model_encoder_func(cfg, obs_space)
         self._core = model_factory.make_model_core_func(cfg, self.encoder.get_out_size())
         self.decoder = model_factory.make_model_decoder_func(cfg, self._core.get_out_size())
-        self.action_parameterization = self.get_action_parameterization(cfg, action_space, self.decoder.get_out_size())
+        self.sequence_idx = sequence_idx
+
+    @property
+    def out_head(self):
+        raise NotImplementedError()
 
     def head(self, inputs):
         return self.encoder(inputs)
 
     def core(self, head_output, rnn_states):
-        return self._core(head_output, rnn_states)
+        return self._core(head_output[self.sequence_idx], rnn_states[self.sequence_idx])
 
     def tail(self, core_output):
-        x = self.decoder(core_output)
-        return self.action_parameterization(x)
+        x = self.decoder(core_output[self.sequence_idx])
+        return self.out_head(x)
 
     def forward(self, inputs, rnn_states):
         head_output = self.head(inputs)
-        core_output = self.core(head_output, rnn_states)[0]
-        return self.tail(core_output)
+        core_output, new_rnn_states = self.core(head_output, rnn_states)
+        return self.tail(core_output), new_rnn_states
 
-    def get_action_parameterization(self, cfg, action_space, decoder_output_size: int):
+
+class Actor(ACBase):
+    def __init__(self, model_factory, obs_space, action_space, cfg, sequence_idx: int):
+        super(Actor, self).__init__(model_factory, obs_space, cfg, sequence_idx)
+        self.action_parameterization = self.get_action_parameterization(cfg, action_space, self.decoder.get_out_size())
+
+    @property
+    def out_head(self):
+        return self.action_parameterization
+
+    @staticmethod
+    def get_action_parameterization(cfg, action_space, decoder_output_size: int):
         if not cfg.adaptive_stddev and is_continuous_action_space(action_space):
             action_parameterization = ActionParameterizationContinuousNonAdaptiveStddev(
                 cfg,
@@ -252,23 +267,84 @@ class Actor(nn.Module):
         return action_parameterization
 
 
-class Critic(nn.Module):
-    def __init__(self, model_factory, obs_space, cfg):
-        super(Critic, self).__init__()
-        self.encoder = model_factory.make_model_encoder_func(cfg, obs_space)
-        self._core = model_factory.make_model_core_func(cfg, self.encoder.get_out_size())
-        self.decoder = model_factory.make_model_decoder_func(cfg, self._core.get_out_size())
+class Critic(ACBase):
+    def __init__(self, model_factory, obs_space, cfg, sequence_idx: int):
+        super(Critic, self).__init__(model_factory, obs_space, cfg, sequence_idx)
         self.linear = nn.Linear(self.decoder.get_out_size(), 1)
 
-    def head(self, inputs):
-        return self.encoder(inputs)
+    @property
+    def out_head(self):
+        return self.linear
 
-    def core(self, head_output, rnn_states):
-        return self._core(head_output, rnn_states)
 
-    def tail(self, core_output):
-        x = self.decoder(core_output)
-        return self.linear(x)
+class ActorCriticSeparateWeights(ActorCritic):
+
+    def __init__(self, model_factory, obs_space, action_space, cfg):
+        super(ActorCriticSeparateWeights, self).__init__(obs_space, action_space, cfg)
+        self.actor = Actor(model_factory, obs_space, action_space, cfg, 0)
+        self.critic = Critic(model_factory, obs_space, cfg, 1)
+        self.encoders = [self.actor.encoder, self.critic.encoder]
+
+    def forward_head(self, normalized_obs_dict: Dict[str, Tensor], values_only=False) -> Tensor:
+        critic_head = self.critic.head(normalized_obs_dict)
+        if values_only:
+            return torch.cat([torch.zeros_like(critic_head), critic_head], dim=1)
+        return torch.cat([self.actor.head(normalized_obs_dict), critic_head], dim=1)
+
+    def forward_core(self, head_output, rnn_states=None, values_only=False) -> Tuple[Tensor, Tensor]:
+        num_cores = len(self.encoders)
+
+        rnn_states_split = rnn_states.chunk(num_cores, dim=1)
+
+        if isinstance(head_output, PackedSequence):
+            # We cannot chunk PackedSequence directly, we first have to unpack it,
+            # chunk, then pack chunks again to be able to process then through the cores.
+            # Finally we have to return concatenated outputs so we repeat the process,
+            # but this time using concatenation - unpack, cat and pack.
+
+            unpacked_head_output, lengths = pad_packed_sequence(head_output)
+            unpacked_head_output_split = unpacked_head_output.chunk(num_cores, dim=2)
+
+            head_outputs_split = [
+                pack_padded_sequence(unpacked_head_output_split[i], lengths, enforce_sorted=False)
+                for i in range(num_cores)
+            ]
+
+            critic_core, new_rnn_states_critic = self.critic.core(head_outputs_split, rnn_states_split)
+            actor_core, new_rnn_states_actor = self.actor.core(head_outputs_split, rnn_states_split)
+
+            critic_sequence, critic_lengths = pad_packed_sequence(critic_core)
+            actor_sequence, actor_lengths = pad_packed_sequence(actor_core)
+
+            unpacked_outputs = torch.cat([critic_sequence, actor_sequence], dim=2)
+            outputs = pack_padded_sequence(unpacked_outputs, lengths, enforce_sorted=False)
+        else:
+            head_output = head_output.chunk(num_cores, dim=1)
+            critic_core, new_rnn_states_critic = self.critic.core(head_output, rnn_states_split)
+            if values_only:
+                return torch.cat([torch.zeros_like(critic_core), critic_core], dim=1), \
+                       torch.cat([torch.zeros_like(new_rnn_states_critic), new_rnn_states_critic], dim=1)
+            actor_core, new_rnn_states_actor = self.actor.core(head_output, rnn_states_split)
+            outputs = torch.cat([critic_core, actor_core], dim=1)
+        new_rnn_states = torch.cat([new_rnn_states_critic, new_rnn_states_actor], dim=1)
+        return outputs, new_rnn_states
+
+    def forward_tail(self, core_outputs, values_only: bool, sample_actions: bool) -> TensorDict:
+        core_outputs = core_outputs.chunk(len(self.encoders), dim=1)
+        values = self.critic.tail(core_outputs).squeeze()
+        result = TensorDict(values=values)
+        if values_only:
+            return result
+        result["action_logits"], self.last_action_distribution = self.actor.tail(core_outputs)
+        self._maybe_sample_actions(sample_actions, result)
+        return result
+
+    def forward(self, normalized_obs_dict, rnn_states=None, values_only=False):
+        head_outputs = self.forward_head(normalized_obs_dict, values_only)
+        core_outputs, new_rnn_states = self.forward_core(head_outputs, rnn_states, values_only)
+        result = self.forward_tail(core_outputs, values_only, sample_actions=True)
+        result["new_rnn_states"] = new_rnn_states
+        return result
 
 
 class SafeActorCriticSeparateWeights(ActorCritic):
@@ -278,7 +354,7 @@ class SafeActorCriticSeparateWeights(ActorCritic):
         self.actor = Actor(model_factory, obs_space, action_space, cfg)
         self.critic = Critic(model_factory, obs_space, cfg)
         self.cost_critic = Critic(model_factory, obs_space, cfg)
-        self.encoders = [self.actor.encoder, self.critic.encoder]
+        self.encoders = [self.actor.encoder, self.critic.encoder, self.cost_critic.encoder]
 
     def forward_head(self, normalized_obs_dict: Dict[str, Tensor], values_only=False) -> Tuple[Optional[Tensor], Tensor, Tensor]:
         critic_head = self.critic.head(normalized_obs_dict)
@@ -312,7 +388,7 @@ class SafeActorCriticSeparateWeights(ActorCritic):
         return result
 
 
-class ActorCriticSeparateWeights(ActorCritic):
+class ActorCriticSeparateWeightsOld(ActorCritic):
     def __init__(
         self,
         model_factory,
@@ -439,6 +515,8 @@ def default_make_actor_critic_func(cfg: Config, obs_space: ObsSpace, action_spac
     model_factory = global_model_factory()
 
     if cfg.algo == "CPO":
+        if cfg.actor_critic_share_weights:
+            raise ValueError("CPO does not support shared weights")
         return SafeActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
     elif cfg.algo == "PPOLag":
         return SafeActorCriticSharedWeights(model_factory, obs_space, action_space, cfg)

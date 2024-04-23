@@ -8,8 +8,9 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from sample_factory.algo.learning.learner import Learner
+from sample_factory.algo.learning.ppo_learner import PPOLearner
 from sample_factory.algo.learning.rnn_utils import build_core_out_from_seq, build_rnn_inputs
+from sample_factory.algo.utils.action_distributions import TupleActionDistribution
 from sample_factory.algo.utils.env_info import EnvInfo
 from sample_factory.algo.utils.model_sharing import ParameterServer
 from sample_factory.algo.utils.rl_utils import gae_advantages
@@ -22,7 +23,7 @@ from sample_factory.utils.typing import ActionDistribution, Config, InitModelDat
 from sample_factory.utils.utils import log
 
 
-class CPOLearner(Learner):
+class CPOLearner(PPOLearner):
     def __init__(
             self,
             cfg: Config,
@@ -31,7 +32,7 @@ class CPOLearner(Learner):
             policy_id: PolicyID,
             param_server: ParameterServer,
     ):
-        Learner.__init__(self, cfg, env_info, policy_versions_tensor, policy_id, param_server)
+        PPOLearner.__init__(self, cfg, env_info, policy_versions_tensor, policy_id, param_server)
         self.critic_optimizer = None
         self.cost_critic_optimizer = None
         self.optimizers = []
@@ -102,12 +103,14 @@ class CPOLearner(Learner):
         action_distribution = self.get_action_distribution(mb, new_actor)
         action_distribution_old = self.get_action_distribution(mb, old_actor)
 
-        # distribution = action_distribution.distributions  # TODO: support a tuple of distributions
-        # distribution_old = action_distribution_old.distributions  # TODO: support a tuple of distributions
-
-        kl_divergence = torch.sum(
-            action_distribution_old.probs * (action_distribution_old.log_probs - action_distribution.log_probs), dim=-1,
-            keepdim=True)
+        if isinstance(action_distribution, TupleActionDistribution):
+            kl_divergence = 0
+            for i in range(len(action_distribution.distributions)):
+                kl_divergence += self.kl_divergence_single(
+                    action_distribution.distributions[i], action_distribution_old.distributions[i]
+                )
+        else:
+            kl_divergence = self.kl_divergence_single(action_distribution, action_distribution_old)
         return kl_divergence
 
     def conjugate_gradient(self, mb, b, nsteps, residual_tol=1e-10):
@@ -813,3 +816,6 @@ class CPOLearner(Learner):
                 buff["log_prob_actions"][invalid_indices] = -1  # -1 seems like a safe value
 
             return buff, dataset_size, num_invalids
+
+    def kl_divergence_single(self, dist_new, dist_old):
+        return torch.sum(dist_old.probs * (dist_old.log_probs - dist_new.log_probs), dim=-1, keepdim=True)

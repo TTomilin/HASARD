@@ -8,8 +8,9 @@ import torch
 from torch import Tensor
 
 from sample_factory.algo.learning.cpo_learner import CPOLearner
-from sample_factory.algo.learning.learner import Learner
-from sample_factory.algo.learning.safe_learner import SafeLearner
+from sample_factory.algo.learning.ppo_detached_learner import PPODetachedLearner
+from sample_factory.algo.learning.ppo_learner import PPOLearner
+from sample_factory.algo.learning.ppo_lag_learner import PPOLagLearner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
 from sample_factory.algo.utils.env_info import extract_env_info
@@ -121,11 +122,13 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     policy_id = cfg.policy_index
     name_prefix = dict(latest="checkpoint", best="best")[cfg.load_checkpoint_kind]
     if cfg.algo == 'PPOLag':
-        learner_cls = SafeLearner
+        learner_cls = PPOLagLearner
     elif cfg.algo == 'CPO':
         learner_cls = CPOLearner
+    elif not cfg.actor_critic_share_weights:
+        learner_cls = PPODetachedLearner
     else:
-        learner_cls = Learner
+        learner_cls = PPOLearner
     checkpoints = learner_cls.get_checkpoints(learner_cls.checkpoint_dir(cfg, policy_id), f"{name_prefix}_*")
     # checkpoint_dict = Learner.load_checkpoint(checkpoints, device)
     # actor_critic.load_state_dict(checkpoint_dict["model"])

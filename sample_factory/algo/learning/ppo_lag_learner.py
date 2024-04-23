@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from sample_factory.algo.learning.learner import Learner
+from sample_factory.algo.learning.ppo_learner import PPOLearner
 from sample_factory.algo.learning.rnn_utils import build_core_out_from_seq, build_rnn_inputs
 from sample_factory.algo.utils.action_distributions import get_action_distribution
 from sample_factory.algo.utils.env_info import EnvInfo
@@ -21,7 +21,7 @@ from sample_factory.utils.typing import ActionDistribution, Config, InitModelDat
 from sample_factory.utils.utils import log
 
 
-class SafeLearner(Learner):
+class PPOLagLearner(PPOLearner):
     def __init__(
             self,
             cfg: Config,
@@ -30,11 +30,11 @@ class SafeLearner(Learner):
             policy_id: PolicyID,
             param_server: ParameterServer,
     ):
-        Learner.__init__(self, cfg, env_info, policy_versions_tensor, policy_id, param_server)
+        PPOLearner.__init__(self, cfg, env_info, policy_versions_tensor, policy_id, param_server)
         self.lambda_lagr = None
 
     def init(self) -> InitModelData:
-        init_res = super(SafeLearner, self).init()
+        init_res = super(PPOLagLearner, self).init()
         self.lambda_lagr = self.cfg.lambda_lagr
         return init_res
 

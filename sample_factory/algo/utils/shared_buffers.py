@@ -64,20 +64,21 @@ def action_info(env_info: EnvInfo) -> Tuple[int, int]:
     return num_actions, num_action_distribution_parameters
 
 
-def policy_output_shapes(num_actions, num_action_distribution_parameters) -> List[Tuple[str, List]]:
+def policy_output_shapes(algo: str, num_actions, num_action_distribution_parameters) -> List[Tuple[str, List]]:
     # policy outputs, this matches the expected output of the actor-critic
     policy_outputs = [
         ("actions", [num_actions]),
         ("action_logits", [num_action_distribution_parameters]),
         ("log_prob_actions", []),
         ("values", []),
-        ("cost_values", []),
         ("policy_version", []),
     ]
+    if algo in ['PPOLag', 'CPO']:
+        policy_outputs += [("cost_values", [])]  # cost values are only given in safe RL methods
     return policy_outputs
 
 
-def alloc_trajectory_tensors(env_info: EnvInfo, num_traj, rollout, rnn_size, device, share) -> TensorDict:
+def alloc_trajectory_tensors(algo: str, env_info: EnvInfo, num_traj, rollout, rnn_size, device, share) -> TensorDict:
     obs_space = env_info.obs_space
 
     tensors = TensorDict()
@@ -93,7 +94,7 @@ def alloc_trajectory_tensors(env_info: EnvInfo, num_traj, rollout, rnn_size, dev
     tensors["rnn_states"] = init_tensor([num_traj, rollout + 1], torch.float32, [rnn_size], device, share)
 
     num_actions, num_action_distribution_parameters = action_info(env_info)
-    policy_outputs = policy_output_shapes(num_actions, num_action_distribution_parameters)
+    policy_outputs = policy_output_shapes(algo, num_actions, num_action_distribution_parameters)
 
     # we need one more step to hold values for the last step
     outputs_with_extra_rollout_step = ["values", "cost_values"]
@@ -131,7 +132,7 @@ def alloc_policy_output_tensors(cfg, env_info: EnvInfo, rnn_size, device, share)
         policy_outputs_shape += [envs_per_split, num_agents]
 
     num_actions, num_action_distribution_parameters = action_info(env_info)
-    policy_outputs = policy_output_shapes(num_actions, num_action_distribution_parameters)
+    policy_outputs = policy_output_shapes(cfg.algo, num_actions, num_action_distribution_parameters)
     policy_outputs += [("new_rnn_states", [rnn_size])]  # different name so we don't override current step rnn_state
 
     output_names, output_shapes = list(zip(*policy_outputs))
@@ -216,6 +217,7 @@ class BufferMgr(Configurable):
             self.traj_buffer_queues[device] = get_queue(cfg.serial_mode)
 
             self.traj_tensors_torch[device] = alloc_trajectory_tensors(
+                cfg.algo,
                 env_info,
                 num_buffers,
                 cfg.rollout,

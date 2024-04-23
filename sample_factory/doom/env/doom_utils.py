@@ -157,8 +157,7 @@ DOOM_ENVS = [
     DoomSpec(
         'armament_burden',
         'armament_burden.cfg',
-        # doom_turn_and_move_only(),
-        doom_turn_and_move_only_single_action(),
+        doom_turn_and_move_only(),
         1.0,
         2100,
         extra_wrappers=[(ArmamentBurdenCostFunction, {})]

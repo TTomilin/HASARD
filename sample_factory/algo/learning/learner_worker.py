@@ -11,8 +11,9 @@ from torch import Tensor
 
 from sample_factory.algo.learning.batcher import Batcher
 from sample_factory.algo.learning.cpo_learner import CPOLearner
-from sample_factory.algo.learning.learner import Learner
-from sample_factory.algo.learning.safe_learner import SafeLearner
+from sample_factory.algo.learning.ppo_detached_learner import PPODetachedLearner
+from sample_factory.algo.learning.ppo_learner import PPOLearner
+from sample_factory.algo.learning.ppo_lag_learner import PPOLagLearner
 from sample_factory.algo.utils.context import SampleFactoryContext, set_global_context
 from sample_factory.algo.utils.env_info import EnvInfo
 from sample_factory.algo.utils.heartbeat import HeartbeatStoppableEventLoopObject
@@ -68,14 +69,16 @@ class LearnerWorker(HeartbeatStoppableEventLoopObject, Configurable):
         self.batcher_thread: Optional[Thread] = None
 
         if cfg.algo == 'PPOLag':
-            learner_cls = SafeLearner
+            learner_cls = PPOLagLearner
         elif cfg.algo == 'CPO':
             learner_cls = CPOLearner
+        elif not cfg.actor_critic_share_weights:
+            learner_cls = PPODetachedLearner
         else:
-            learner_cls = Learner
+            learner_cls = PPOLearner
         policy_versions_tensor: Tensor = buffer_mgr.policy_versions
         self.param_server = ParameterServer(policy_id, policy_versions_tensor, cfg.serial_mode)
-        self.learner: Learner = learner_cls(cfg, env_info, policy_versions_tensor, policy_id, self.param_server)
+        self.learner: PPOLearner = learner_cls(cfg, env_info, policy_versions_tensor, policy_id, self.param_server)
 
         # total number of full training iterations (potentially multiple minibatches/epochs per iteration)
         self.training_iteration_since_resume: int = 0
