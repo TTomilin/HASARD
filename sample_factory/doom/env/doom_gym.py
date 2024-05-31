@@ -83,6 +83,7 @@ class VizdoomEnv(gym.Env):
         self,
         action_space,
         config_file,
+        constraint='soft',
         coord_limits=None,
         max_histogram_length=200,
         show_automap=False,
@@ -130,6 +131,10 @@ class VizdoomEnv(gym.Env):
                     config_file,
                     scenarios_dir,
                 )
+
+        base_path = self.config_path.replace('.cfg', '')
+        self.hard_constraint = constraint == 'hard'
+        self.scenario_path = f"{base_path}_hard.wad" if self.hard_constraint else f"{base_path}.wad"
 
         self.variable_indices = self._parse_variable_indices(self.config_path)
 
@@ -204,6 +209,7 @@ class VizdoomEnv(gym.Env):
         screen_res = ScreenResolution.RES_1600X1200 if self.render_mode == 'human' else self.screen_resolution
 
         self.game.load_config(self.config_path)
+        self.game.set_doom_scenario_path(self.scenario_path)
         self.game.set_screen_resolution(screen_res)
         self.game.set_seed(self.curr_seed)
 

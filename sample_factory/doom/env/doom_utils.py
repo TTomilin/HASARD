@@ -307,6 +307,7 @@ def make_doom_env_impl(
         env = VizdoomEnv(
             doom_spec.action_space,
             doom_spec.env_spec_file,
+            constraint=cfg.constraint,
             skip_frames=skip_frames,
             async_mode=async_mode,
             render_mode=render_mode,

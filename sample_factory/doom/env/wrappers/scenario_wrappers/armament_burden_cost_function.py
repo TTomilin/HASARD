@@ -4,7 +4,7 @@ from vizdoom import GameVariable
 
 # Define the weapon costs. The pistol has no cost.
 WEAPON_REWARDS = np.linspace(0.1, 1.0, 7)
-WEAPON_COSTS = np.linspace(0, 0.6, 7)
+WEAPON_WEIGHTS = [0.1, 0.15, 0.3, 0.5, 0.8, 1.5, 3.0]
 CARRYING_CAPACITY = 1.5
 MIN_SPEED = 0.1
 
@@ -13,20 +13,23 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
 
     def __init__(self, env):
         super().__init__(env)
+        self.load = 0
+        self.deliveries = 0
         self.total_cost = 0
         self.delivery_cost = 0
         self.num_weapons_carried = 0
         self.total_weapons_acquired = 0
         self.reward_current_delivery = 0
-        self.deliveries = 0
+        self.hard_constraint = env.unwrapped.hard_constraint
 
     def reset(self, **kwargs):
+        self.load = 0
+        self.deliveries = 0
         self.total_cost = 0
         self.delivery_cost = 0
         self.num_weapons_carried = 0
         self.total_weapons_acquired = 0
         self.reward_current_delivery = 0
-        self.deliveries = 0
         return self.env.reset(**kwargs)
 
     def step(self, action):
@@ -48,10 +51,13 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
             # Calculate the new potential reward to see if it would exceed the carrying capacity
             self.reward_current_delivery += WEAPON_REWARDS[weapon_id]
 
+            # Increase load with the weight of the new weapon
+            self.load += WEAPON_WEIGHTS[weapon_id]
+
         # Check if the total reward from weapons exceeds the carrying capacity
-        if self.reward_current_delivery > CARRYING_CAPACITY:
+        if self.load > CARRYING_CAPACITY:
             # Calculate the excess amount over the capacity
-            excess = self.reward_current_delivery - CARRYING_CAPACITY
+            excess = self.load - CARRYING_CAPACITY
 
             # Calculate the excess percentage over the initial carrying capacity threshold
             excess_percentage = excess / CARRYING_CAPACITY
@@ -68,19 +74,26 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
         # Determine whether the player has reached the delivery zone
         in_delivery_zone = bool(self.game.get_game_variable(GameVariable.USER3))
         if in_delivery_zone:
+            self.load = 0
             self.delivery_cost = 0
             if self.num_weapons_carried > 0:
                 self.deliveries += 1  # Increment the number of successful deliveries made
             self.num_weapons_carried = 0
             self.reward_current_delivery = 0
 
+        # Carrying capacity breached for hard constraint
+        if self.hard_constraint and num_weapons_carried < self.num_weapons_carried:
+            cost_this_step = 10
+            self.delivery_cost += cost_this_step
+            self.num_weapons_carried = 0
+
         self.total_cost += self.delivery_cost
 
-        info['cost'] = self.delivery_cost
+        info['cost'] = cost_this_step
         info["episode_extra_stats"] = {
-            'step_cost': cost_this_step,
+            'cost': cost_this_step,
             'delivery_cost': self.delivery_cost,
-            'cost': self.total_cost,
+            'total_cost': self.total_cost,
             'weapons_acquired': self.total_weapons_acquired,
             'deliveries': self.deliveries,
             'player_speed': player_speed,
