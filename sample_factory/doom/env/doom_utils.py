@@ -5,6 +5,7 @@ from typing import Optional
 
 from gymnasium.spaces import Discrete
 
+from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
 from sample_factory.doom.env.wrappers.scenario_wrappers.spelunking_cost_function import SpelunkingCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.spelunking_reward_function import SpelunkingRewardFunction
 from sample_factory.envs.env_wrappers import (
@@ -379,6 +380,9 @@ def make_doom_env_impl(
 
     if doom_spec.reward_scaling != 1.0:
         env = RewardScalingWrapper(env, doom_spec.reward_scaling)
+
+    if cfg.algo == 'PPOCost':
+        env = CostPenalty(env)
 
     return env
 
