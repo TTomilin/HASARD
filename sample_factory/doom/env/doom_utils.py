@@ -152,7 +152,7 @@ DOOM_ENVS = [
         'volcanic_venture',
         'volcanic_venture.cfg',
         doom_turn_move_jump_accelerate(),
-        penalty_scaling=1.0,
+        penalty_scaling=0.1,
         default_timeout=2100,
         extra_wrappers=[(VolcanicVentureCostFunction, {})]
     ),
@@ -170,7 +170,7 @@ DOOM_ENVS = [
         'remedy_rush',
         'remedy_rush.cfg',
         doom_turn_and_move_only(),
-        penalty_scaling=1.0,
+        penalty_scaling=0.1,
         default_timeout=2100,
         extra_wrappers=[(RemedyRushCostFunction, {})]
     ),

@@ -173,7 +173,7 @@ class VizdoomEnv(gym.Env):
 
         self._num_episodes = 0
 
-        self.safety_bound = self._get_safety_bound(self.config_path)
+        self.safety_bound = 0.0 if self.hard_constraint else self._get_safety_bound(self.config_path)
 
         self.mode = "algo"
 
