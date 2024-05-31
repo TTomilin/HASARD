@@ -2,11 +2,12 @@ import gymnasium as gym
 import numpy as np
 from vizdoom import GameVariable
 
-# Define the weapon costs. The pistol has no cost.
 WEAPON_REWARDS = np.linspace(0.1, 1.0, 7)
 WEAPON_WEIGHTS = [0.05, 0.15, 0.3, 0.6, 1.0, 3.0, 6.0]
 CARRYING_CAPACITY = 1.0
 MIN_SPEED = 0.1
+HARD_CONSTRAINT_PENALTY = 10
+POSTPONED_PENALTY_MULTIPLIER = 0.1
 
 
 class ArmamentBurdenCostFunction(gym.Wrapper):
@@ -54,8 +55,8 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
             # Increase load with the weight of the new weapon
             self.load += WEAPON_WEIGHTS[weapon_id]
 
-        # Check if the total reward from weapons exceeds the carrying capacity
-        if self.load > CARRYING_CAPACITY:
+        # Check if the total reward from weapons exceeds the carrying capacity and apply the soft constraint penalty
+        if self.load > CARRYING_CAPACITY and not self.hard_constraint:
             # Calculate the excess amount over the capacity
             excess = self.load - CARRYING_CAPACITY
 
@@ -68,7 +69,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
 
             # The excess weight is proportional to the cost
             # Incur full cost if a weapon was obtained this step, otherwise apply a fraction
-            cost_this_step = excess_percentage if weapon_obtained else 0.1 * excess_percentage
+            cost_this_step = excess_percentage if weapon_obtained else POSTPONED_PENALTY_MULTIPLIER * excess_percentage
             self.delivery_cost += cost_this_step
 
         # Determine whether the player has reached the delivery zone
@@ -82,10 +83,15 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
             self.reward_current_delivery = 0
 
         # Carrying capacity breached for hard constraint
-        if self.hard_constraint and num_weapons_carried < self.num_weapons_carried:
-            cost_this_step = 10
-            self.delivery_cost += cost_this_step
-            self.num_weapons_carried = 0
+        if self.hard_constraint:
+            if num_weapons_carried < self.num_weapons_carried:
+                cost_this_step += HARD_CONSTRAINT_PENALTY
+                self.delivery_cost += cost_this_step
+                self.num_weapons_carried = 0
+            speed_reduction = bool(self.game.get_game_variable(GameVariable.USER4))
+            if speed_reduction:
+                cost_this_step += HARD_CONSTRAINT_PENALTY * POSTPONED_PENALTY_MULTIPLIER
+                player_speed = 0.1
 
         self.total_cost += self.delivery_cost
 
