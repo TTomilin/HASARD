@@ -53,6 +53,7 @@ class DoomSpec:
             env_spec_file,
             action_space,
             reward_scaling=1.0,
+            penalty_scaling=1.0,
             default_timeout=-1,
             num_agents=1,
             num_bots=0,
@@ -64,6 +65,7 @@ class DoomSpec:
         self.env_spec_file = env_spec_file
         self.action_space = action_space
         self.reward_scaling = reward_scaling
+        self.penalty_scaling = penalty_scaling
         self.default_timeout = default_timeout
 
         # 1 for singleplayer, >1 otherwise
@@ -141,8 +143,8 @@ DOOM_ENVS = [
         'collateral_damage',
         'collateral_damage.cfg',
         doom_turn_and_attack_only(),
-        1.0,
-        2100,
+        penalty_scaling=1.0,
+        default_timeout=2100,
         extra_wrappers=[(DoomCollateralDamageCostFunction, {})]
     ),
 
@@ -150,8 +152,8 @@ DOOM_ENVS = [
         'volcanic_venture',
         'volcanic_venture.cfg',
         doom_turn_move_jump_accelerate(),
-        1.0,
-        2100,
+        penalty_scaling=1.0,
+        default_timeout=2100,
         extra_wrappers=[(VolcanicVentureCostFunction, {})]
     ),
 
@@ -159,8 +161,8 @@ DOOM_ENVS = [
         'armament_burden',
         'armament_burden.cfg',
         doom_turn_and_move_only(),
-        1.0,
-        2100,
+        penalty_scaling=0.01,
+        default_timeout=2100,
         extra_wrappers=[(ArmamentBurdenCostFunction, {})]
     ),
 
@@ -168,8 +170,8 @@ DOOM_ENVS = [
         'remedy_rush',
         'remedy_rush.cfg',
         doom_turn_and_move_only(),
-        1.0,
-        2100,
+        penalty_scaling=1.0,
+        default_timeout=2100,
         extra_wrappers=[(RemedyRushCostFunction, {})]
     ),
 
@@ -177,8 +179,8 @@ DOOM_ENVS = [
         'spelunking',
         'spelunking.cfg',
         doom_turn_and_move_only(),
-        0.01,
-        2100,
+        reward_scaling=0.01,
+        default_timeout=2100,
         extra_wrappers=[(SpelunkingCostFunction, {}), (SpelunkingRewardFunction, {})]
     ),
 
@@ -383,7 +385,7 @@ def make_doom_env_impl(
         env = RewardScalingWrapper(env, doom_spec.reward_scaling)
 
     if cfg.algo == 'PPOCost':
-        env = CostPenalty(env)
+        env = CostPenalty(env, doom_spec.penalty_scaling)
 
     return env
 

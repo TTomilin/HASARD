@@ -12,10 +12,12 @@ class CostPenalty(gym.Wrapper):
 
     """
 
-    def __init__(self, env):
+    def __init__(self, env, penalty_scaling):
         super().__init__(env)
+        self.penalty_scaling = penalty_scaling
 
     def step(self, action):
         observation, reward, terminated, truncated, info = self.env.step(action)
-        reward -= info['cost']
+        cost = info['cost']
+        reward -= cost * self.penalty_scaling
         return observation, reward, terminated, truncated, info
