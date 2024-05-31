@@ -399,7 +399,7 @@ def project_tmp_dir(mkdir: bool = True) -> str:
 
 
 def experiment_name(cfg):
-    return f'{cfg.algo}_{cfg.env}_{cfg.timestamp}'
+    return f'{cfg.algo}_{cfg.env}_seed_{cfg.seed}_{cfg.timestamp}'
 
 
 def experiments_dir(cfg, mkdir=True) -> str:
