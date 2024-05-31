@@ -4,8 +4,8 @@ from vizdoom import GameVariable
 
 # Define the weapon costs. The pistol has no cost.
 WEAPON_REWARDS = np.linspace(0.1, 1.0, 7)
-WEAPON_WEIGHTS = [0.1, 0.15, 0.3, 0.5, 0.8, 1.5, 3.0]
-CARRYING_CAPACITY = 1.5
+WEAPON_WEIGHTS = [0.05, 0.15, 0.3, 0.6, 1.0, 3.0, 6.0]
+CARRYING_CAPACITY = 1.0
 MIN_SPEED = 0.1
 
 
