@@ -279,15 +279,27 @@ class InferenceWorker(HeartbeatStoppableEventLoopObject, Configurable):
 
         with self.timing.add_time("to_cpu"):
             for key, output_value in policy_outputs.items():
-                policy_outputs[key] = output_value.to(device)
+                if isinstance(output_value, List):
+                    for i, value in enumerate(output_value):
+                        policy_outputs[key][i] = value.to(device)
+                else:
+                    policy_outputs[key] = output_value.to(device)
 
         # concat all tensors into a single tensor for performance
         output_tensors = []
         for name in self.buffer_mgr.output_names:
-            output_value = policy_outputs[name].float()
-            while output_value.dim() <= 1:
-                output_value.unsqueeze_(-1)
-            output_tensors.append(output_value)
+            output_value = policy_outputs[name]
+            if isinstance(output_value, List):
+                for i, value in enumerate(output_value):
+                    output_value[i] = value.float()
+                    while output_value[i].dim() <= 1:
+                        output_value[i].unsqueeze_(-1)
+                    output_tensors.append(output_value[i])
+            else:
+                output_value = output_value.float()
+                while output_value.dim() <= 1:
+                    output_value.unsqueeze_(-1)
+                output_tensors.append(output_value)
 
         output_tensors = torch.cat(output_tensors, dim=1)
 

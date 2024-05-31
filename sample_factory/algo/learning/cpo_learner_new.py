@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from itertools import chain
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -233,8 +233,8 @@ class CPOLearner(PPOLearner):
         # Visualize the graph
         dot = make_dot(values)
         dot.render('values', format='png')
-        dot = make_dot(cost_values)
-        dot.render('cost_values', format='png')
+        dot2 = make_dot(cost_values)
+        dot2.render('values_cost', format='png')
 
         with self.timing.add_time("critic_update"):
             # Following advice from https://youtu.be/9mS1fIYj1So set grad to None instead of optimizer.zero_grad()
@@ -422,16 +422,15 @@ class CPOLearner(PPOLearner):
         # calculate policy head outside of recurrent loop
         with self.timing.add_time("forward_head"):
             head_outputs = actor_critic.forward_head(mb.normalized_obs)
-            minibatch_size: int = head_outputs[0].size(0)
+            minibatch_size: int = head_outputs.size(0)
         # initial rnn states
         with self.timing.add_time("bptt_initial"):
             if self.cfg.use_rnn:
                 # this is the only way to stop RNNs from backpropagating through invalid timesteps
                 # (i.e. experience collected by another policy)
                 done_or_invalid = torch.logical_or(mb.dones_cpu, ~mb.valids.cpu()).float()
-                concat_head_output = torch.cat(head_outputs, dim=1)
                 head_output_seq, rnn_states, inverted_select_inds = build_rnn_inputs(
-                    concat_head_output,
+                    head_outputs,
                     done_or_invalid,
                     mb.rnn_states,
                     self.cfg.recurrence,
@@ -444,20 +443,15 @@ class CPOLearner(PPOLearner):
             if self.cfg.use_rnn:
                 with self.timing.add_time("bptt_forward_core"):
                     core_output_seq, _ = actor_critic.forward_core(head_output_seq, rnn_states)
-                if isinstance(core_output_seq, List):
-                    core_outputs = []
-                    for core_output in core_output_seq:
-                        core_outputs.append(build_core_out_from_seq(core_output, inverted_select_inds))
-                else:
-                    core_outputs = build_core_out_from_seq(core_output_seq, inverted_select_inds)
+                core_outputs = build_core_out_from_seq(core_output_seq, inverted_select_inds)
                 del core_output_seq
             else:
-                core_outputs = self.actor_critic.forward_core(head_outputs, rnn_states)
+                core_outputs, _ = self.actor_critic.forward_core(head_outputs, rnn_states)
 
             del head_outputs
 
         num_trajectories = minibatch_size // self.cfg.recurrence
-        assert core_outputs[0].shape[0] == minibatch_size
+        assert core_outputs.shape[0] == minibatch_size
 
         with self.timing.add_time("tail"):
             # calculate policy tail outside of recurrent loop

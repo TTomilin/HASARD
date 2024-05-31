@@ -40,8 +40,6 @@ def main():  # pragma: no cover
     """Script entry point."""
     register_vizdoom_components()
     cfg = parse_vizdoom_cfg()
-    if cfg.algo == 'CPO':
-        cfg.use_rnn = False  # RNN is currently not supported in CPO
     status = run_rl(cfg)
     return status
 

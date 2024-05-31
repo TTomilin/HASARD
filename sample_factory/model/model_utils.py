@@ -19,7 +19,8 @@ def get_rnn_size(cfg):
 
     if not cfg.actor_critic_share_weights:
         # actor and critic need separate states
-        size *= 2
+        multiplier = 3 if cfg.algo == "CPO" else 2  # CPO also has a cost critic
+        size *= multiplier
 
     return size
 
