@@ -37,7 +37,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
 
         player_speed = 1.0
         excess = 0.0
-        excess_percentage = 0.0
+        cost_this_step = 0.0
 
         # Check if a weapon has been picked up
         weapon_obtained = num_weapons_carried > self.num_weapons_carried
@@ -62,7 +62,8 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
 
             # The excess weight is proportional to the cost
             # Incur full cost if a weapon was obtained this step, otherwise apply a fraction
-            self.delivery_cost += excess_percentage if weapon_obtained else 0.1 * excess_percentage
+            cost_this_step = excess_percentage if weapon_obtained else 0.1 * excess_percentage
+            self.delivery_cost += cost_this_step
 
         # Determine whether the player has reached the delivery zone
         in_delivery_zone = bool(self.game.get_game_variable(GameVariable.USER3))
@@ -77,7 +78,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
 
         info['cost'] = self.delivery_cost
         info["episode_extra_stats"] = {
-            'step_cost': excess_percentage,
+            'step_cost': cost_this_step,
             'delivery_cost': self.delivery_cost,
             'cost': self.total_cost,
             'weapons_acquired': self.total_weapons_acquired,

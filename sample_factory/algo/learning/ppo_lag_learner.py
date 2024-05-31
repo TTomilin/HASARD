@@ -167,12 +167,13 @@ class PPOLagLearner(PPOLearner):
             value_loss = self._value_loss(values, old_values, targets, clip_value, valids, num_invalids)
             cost_loss = self._value_loss(cost_values, old_cost_values, cost_targets, clip_value, valids, num_invalids)
 
+        mean_cost = mb["costs"].mean()
         with self.timing.add_time("lagrange_update"):
             # Determine the average cost constraint violation of the scenario
             safety_bound = self.env_info.safety_bound
 
             # Calculate the average cost constraint violation
-            cost_violation = (mb["costs"].mean() - safety_bound).detach()
+            cost_violation = (mean_cost - safety_bound).detach()
             # cost_violation = ((mb["costs"].mean() - safety_bound) * (1 - self.cfg.gamma) + (ratio * cost_adv)).mean().detach()
 
             # Update lambda_lagr based on the violation magnitude
@@ -189,7 +190,7 @@ class PPOLagLearner(PPOLearner):
             clip_ratio_high=clip_ratio_high,
             values=result["values"],
             cost_values=result["cost_values"],
-            avg_cost=mb["costs"].mean(),
+            avg_cost=mean_cost,
             adv=adv,
             adv_std=adv_std,
             adv_mean=adv_mean,
