@@ -57,32 +57,32 @@ def store_data(run: Run, args: argparse.Namespace) -> None:
     config = run.config
     run_id = run.id
     seed = config['seed']
+    env = config['env']
+    algo = config['algo']
 
     base_path = args.output  # Directory to store the data
 
-    for env in envs:
-        for algo in algos:
-            for metric in metrics:
-                # Construct folder path for each configuration
-                folder_path = os.path.join(base_path, env, algo, f"seed_{seed}")
-                os.makedirs(folder_path, exist_ok=True)  # Ensure the directory exists
+    for metric in metrics:
+        # Construct folder path for each configuration
+        folder_path = os.path.join(base_path, env, algo, f"seed_{seed}")
+        os.makedirs(folder_path, exist_ok=True)  # Ensure the directory exists
 
-                # Filename based on metric
-                metric_name = metric.split('/')[-1]
-                file_path = os.path.join(folder_path, f"{metric_name}.json")
+        # Filename based on metric
+        metric_name = metric.split('/')[-1]
+        file_path = os.path.join(folder_path, f"{metric_name}.json")
 
-                # Attempt to retrieve and save the data
-                try:
-                    values = run.history(keys=[metric])
-                    metric_data = values[metric].dropna().tolist()
+        # Attempt to retrieve and save the data
+        try:
+            values = run.history(keys=[metric])
+            metric_data = values[metric].dropna().tolist()
 
-                    # Write the metric data to file
-                    with open(file_path, 'w') as f:
-                        json.dump(metric_data, f)
-                        print(f"Successfully stored: {run_id}: {metric_name}")
-                except Exception as e:
-                    print(f"Error downloading data for run: {run_id}, {metric_name}", e)
-                    continue
+            # Write the metric data to file
+            with open(file_path, 'w') as f:
+                json.dump(metric_data, f)
+                print(f"Successfully stored: {run_id}: {metric_name}")
+        except Exception as e:
+            print(f"Error downloading data for run: {run_id}, {metric_name}", e)
+            continue
 
 
 def common_dl_args() -> argparse.ArgumentParser:
@@ -93,9 +93,9 @@ def common_dl_args() -> argparse.ArgumentParser:
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage"],
                         help="Environments to download/plot")
-    # parser.add_argument("--metrics", type=str, default=['reward/reward', 'policy_stats/average_cost'], help="Name of the metrics to download/plot")
     parser.add_argument("--output", type=str, default='data', help="Base output directory to store the data")
-    parser.add_argument("--metrics", type=str, default=['reward/reward'], help="Name of the metrics to download/plot")
+    parser.add_argument("--metrics", type=str, default=['reward/reward', 'policy_stats/avg_cost'],
+                        help="Name of the metrics to download/plot")
     parser.add_argument("--project", type=str, required=True, help="Name of the WandB project")
     parser.add_argument("--wandb_tags", type=str, nargs='+', default=[], help="WandB tags to filter runs")
     parser.add_argument("--overwrite", default=False, action='store_true', help="Overwrite existing files")

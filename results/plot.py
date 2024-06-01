@@ -31,27 +31,31 @@ def load_data(base_path, environments, methods, seeds, metrics):
 
 
 def plot_metrics(data, args):
-    fig, axs = plt.subplots(2, 2, figsize=(15, 10))  # Create a 2x2 grid of subplots
-    axs = axs.flatten()
-    env_mapping = dict(zip(args.envs, axs))
-    for env in args.envs:
-        ax = env_mapping[env]
-        for method in args.algos:
-            for metric in args.metrics:
+    for metric in args.metrics:
+        fig, axs = plt.subplots(2, 2, figsize=(15, 10))  # Create a 2x2 grid of subplots
+        axs = axs.flatten()
+        env_mapping = dict(zip(args.envs, axs))
+        for env in args.envs:
+            ax = env_mapping[env]
+            for method in args.algos:
                 key = (env, method, metric)
                 if key in data and data[key]:
-                    all_runs = np.array(data[key])
-                    mean = np.mean(all_runs, axis=0)
-                    ci = 1.96 * np.std(all_runs, axis=0) / np.sqrt(len(all_runs))
-                    x = np.arange(len(mean))
-                    ax.plot(x, mean, label=f'{method} - {metric}')
-                    ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
-        ax.set_title(env)
-        ax.set_xlabel('Steps (thousands)')
-        ax.set_ylabel('Value')
-        ax.legend()
-    plt.tight_layout()
-    plt.show()
+                    try:
+                        all_runs = np.array(data[key])
+                        mean = np.mean(all_runs, axis=0)
+                        ci = 1.96 * np.std(all_runs, axis=0) / np.sqrt(len(all_runs))
+                        x = np.arange(len(mean))
+                        ax.plot(x, mean, label=method)
+                        ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
+                    except Exception as e:
+                        print(f"Failed to plot {key}: {e}")
+                        continue
+            ax.set_title(env)
+            ax.set_xlabel('Steps (thousands)')
+            ax.set_ylabel('Value')
+            ax.legend()
+        plt.tight_layout()
+        plt.show()
 
 
 def common_plot_args() -> argparse.ArgumentParser:
@@ -63,7 +67,8 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage"],
                         help="Environments to download/plot")
-    parser.add_argument("--metrics", type=str, default=['reward'], help="Name of the metrics to download/plot")
+    parser.add_argument("--metrics", type=str, default=['reward', 'avg_cost'], help="Name of the metrics to download/plot")
+    # parser.add_argument("--metrics", type=str, default=['avg_cost'], help="Name of the metrics to download/plot")
     return parser
 
 
