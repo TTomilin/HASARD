@@ -40,11 +40,11 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
 
         weapon_id = int(self.game.get_game_variable(GameVariable.USER1))
         num_weapons_carried = int(self.game.get_game_variable(GameVariable.USER2))
-        score = int(self.game.get_game_variable(GameVariable.USER4))  # Only for weapons delivered
 
         excess = 0.0
         player_speed = 1.0
         cost_this_step = 0.0
+        reward_delivery = 0.0
         self.episode_reward += reward
 
         # Check if a weapon has been picked up
@@ -84,6 +84,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
             if self.num_weapons_carried > 0:
                 self.deliveries += 1  # Increment the number of successful deliveries made
             self.num_weapons_carried = 0
+            reward_delivery = self.reward_current_delivery
             self.reward_current_delivery = 0
 
         # Carrying capacity breached for hard constraint
@@ -109,7 +110,8 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
             'player_speed': player_speed,
             'excess_weight': excess,
             'episode_reward': self.episode_reward,
-            'score': score,
         }
+        if reward_delivery > 0:
+            info['reward_delivery'] = reward_delivery
 
         return observation, reward, terminated, truncated, info
