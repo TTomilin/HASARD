@@ -4,7 +4,7 @@ STARTING_HEALTH = 1000
 COST_SCALER = 0.1
 
 
-class SpelunkingCostFunction(gym.Wrapper):
+class PrecipicePlungeCostFunction(gym.Wrapper):
 
     def __init__(self, env):
         super().__init__(env)

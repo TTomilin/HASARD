@@ -6,8 +6,8 @@ from typing import Optional
 from gymnasium.spaces import Discrete
 
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
-from sample_factory.doom.env.wrappers.scenario_wrappers.spelunking_cost_function import SpelunkingCostFunction
-from sample_factory.doom.env.wrappers.scenario_wrappers.spelunking_reward_function import SpelunkingRewardFunction
+from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_cost_function import PrecipicePlungeCostFunction
+from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_reward_function import PrecipicePlungeRewardFunction
 from sample_factory.envs.env_wrappers import (
     PixelFormatChwWrapper,
     ResizeWrapper,
@@ -176,12 +176,12 @@ DOOM_ENVS = [
     ),
 
     DoomSpec(
-        'spelunking',
-        'spelunking.cfg',
+        'precipice_plunge',
+        'precipice_plunge.cfg',
         doom_turn_and_move_only(),
         reward_scaling=0.01,
         default_timeout=2100,
-        extra_wrappers=[(SpelunkingCostFunction, {}), (SpelunkingRewardFunction, {})]
+        extra_wrappers=[(PrecipicePlungeCostFunction, {}), (PrecipicePlungeRewardFunction, {})]
     ),
 
     # <==== Environments used in the paper ====>

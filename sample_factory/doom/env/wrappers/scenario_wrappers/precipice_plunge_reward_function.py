@@ -4,7 +4,7 @@ STARTING_Z_COORD = 0
 REWARD_SCALER = 0.05
 
 
-class SpelunkingRewardFunction(gym.Wrapper):
+class PrecipicePlungeRewardFunction(gym.Wrapper):
 
     def __init__(self, env):
         super().__init__(env)
