@@ -1,7 +1,11 @@
 import argparse
+import json
+import os
 
 import wandb
 from wandb.apis.public import Run
+
+FORBIDDEN_TAGS = ['TEST']
 
 
 def main(args: argparse.Namespace) -> None:
@@ -13,50 +17,93 @@ def main(args: argparse.Namespace) -> None:
             store_data(run, args)
 
 
+def suitable_run(run, args: argparse.Namespace) -> bool:
+    try:
+        # Check whether the run is in the list of runs to include by exception
+        if any(logs in run.name for logs in args.include_runs):
+            return True
+        # Check whether the provided method corresponds to the run
+        config = run.config
+        if args.algos and config['algo'] not in args.algos:
+            return False
+        # Check whether the provided environment corresponds to the run
+        if args.envs and config['env'] not in args.envs:
+            return False
+        # Check whether the run corresponds to one of the provided seeds
+        if args.seeds and config['seed'] not in args.seeds:
+            return False
+        # Check whether the wandb tags are suitable
+        if args.wandb_tags:
+            if 'wandb_tags' not in config:
+                return False
+            tags = config['wandb_tags']
+            # Check whether the run includes one of the provided tags
+            if args.wandb_tags and not any(tag in tags for tag in args.wandb_tags):
+                return False
+            # Check whether the run includes one of the forbidden tags which is not in the provided tags
+            if any(tag in tags for tag in FORBIDDEN_TAGS) and not any(tag in tags for tag in args.wandb_tags):
+                return False
+        if run.state != "finished":
+            return False
+        # All filters have been passed
+        return True
+    except Exception as e:
+        print(f"Failed to check suitability for run: {run.id}", e)
+        return False
+
+
 def store_data(run: Run, args: argparse.Namespace) -> None:
-    sequence, metric, data_type, tags = args.sequence, args.metric, args.type, args.wandb_tags
-    config = json.loads(run.json_config)
-    seq_len = 1 if data_type == 'train' else 4 if sequence in ['CD4', 'CO4'] else 8
-    for env_idx in range(seq_len):
-        task = SEQUENCES[sequence][env_idx]
-        if metric == 'env':
-            metric = METRICS[task]
-        env = f'run_and_gun-{task}' if sequence in ['CD4', 'CD8', 'CD16'] else f'{task}-{ENVS[sequence]}'
-        log_key = f'test/stochastic/{env_idx}/{env}/{metric}' if data_type == 'test' else f'train/{metric}'
-        history = list(iter(run.scan_history(keys=[log_key])))
+    algos, envs, metrics = args.algos, args.envs, args.metrics
+    config = run.config
+    run_id = run.id
+    seed = config['seed']
 
-        values = [item[log_key] for item in history]
-        method = get_cl_method(run)
-        seed = max(run.config["seed"], 1)
-        wandb_tags = config['wandb_tags']['value']
-        tag = f'{next((tag for tag in tags if tag in wandb_tags), None).lower()}/' if tags and any(tag in tags for tag in SEPARATE_STORAGE_TAGS) else ''
-        path = f'{tag}{sequence}/{method}/seed_{seed}'
-        if not os.path.exists(path):
-            os.makedirs(path)
-            print(f"Created new directory {path}")
+    base_path = args.output  # Directory to store the data
 
-        file_name = f'{task}_{metric}.json' if data_type == 'test' else f'train_{metric}.json'
-        file_path = f'{path}/{file_name}'
-        if args.overwrite or not os.path.exists(file_path):
-            print(f'Saving {run.id} --- {path}/{file_name}')
-            with open(f'{path}/{file_name}', 'w') as f:
-                json.dump(values, f)
+    for env in envs:
+        for algo in algos:
+            for metric in metrics:
+                # Construct folder path for each configuration
+                folder_path = os.path.join(base_path, env, algo, f"seed_{seed}")
+                os.makedirs(folder_path, exist_ok=True)  # Ensure the directory exists
+
+                # Filename based on metric
+                metric_name = metric.split('/')[-1]
+                file_path = os.path.join(folder_path, f"{metric_name}.json")
+
+                # Attempt to retrieve and save the data
+                try:
+                    values = run.history(keys=[metric])
+                    metric_data = values[metric].dropna().tolist()
+
+                    # Write the metric data to file
+                    with open(file_path, 'w') as f:
+                        json.dump(metric_data, f)
+                        print(f"Successfully stored: {run_id}: {metric_name}")
+                except Exception as e:
+                    print(f"Error downloading data for run: {run_id}, {metric_name}", e)
+                    continue
+
 
 def common_dl_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3, 4, 5], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--metric", type=str, default='success', help="Name of the metric to store/plot")
-    parser.add_argument("--task_length", type=int, default=200, help="Number of iterations x 1000 per task")
-    parser.add_argument("--test_envs", type=int, nargs='+', help="Test environment ID of the actions to download/plot")
+    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag"],
+                        help="Algorithms to download/plot")
+    parser.add_argument("--envs", type=str, nargs='+',
+                        default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage"],
+                        help="Environments to download/plot")
+    # parser.add_argument("--metrics", type=str, default=['reward/reward', 'policy_stats/average_cost'], help="Name of the metrics to download/plot")
+    parser.add_argument("--output", type=str, default='data', help="Base output directory to store the data")
+    parser.add_argument("--metrics", type=str, default=['reward/reward'], help="Name of the metrics to download/plot")
     parser.add_argument("--project", type=str, required=True, help="Name of the WandB project")
-    parser.add_argument("--method", type=str, help="Optional filter by CL method")
-    parser.add_argument("--type", type=str, default='test', choices=['train', 'test'], help="Type of data to download")
     parser.add_argument("--wandb_tags", type=str, nargs='+', default=[], help="WandB tags to filter runs")
     parser.add_argument("--overwrite", default=False, action='store_true', help="Overwrite existing files")
     parser.add_argument("--include_runs", type=str, nargs="+", default=[],
                         help="List of runs that shouldn't be filtered out")
     return parser
 
+
 if __name__ == "__main__":
-    parser = common_args()
+    parser = common_dl_args()
     main(parser.parse_args())
