@@ -23,6 +23,9 @@ class SpelunkingCostFunction(gym.Wrapper):
         info['cost'] = cost_this_step
         self._prev_health = health
 
-        info["episode_extra_stats"] = {'cost': total_cost}
+        info["episode_extra_stats"] = {
+            'cost': total_cost,
+            'original_reward': reward,
+        }
 
         return observation, reward, terminated, truncated, info

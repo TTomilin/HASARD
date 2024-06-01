@@ -104,6 +104,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
             'deliveries': self.deliveries,
             'player_speed': player_speed,
             'excess_weight': excess,
+            'original_reward': reward,
         }
 
         return observation, reward, terminated, truncated, info

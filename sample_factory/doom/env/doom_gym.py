@@ -206,7 +206,7 @@ class VizdoomEnv(gym.Env):
     def _create_doom_game(self, mode):
         self.game = DoomGame()
 
-        screen_res = ScreenResolution.RES_1600X1200 if self.render_mode == 'human' else self.screen_resolution
+        screen_res = ScreenResolution.RES_1600X1000 if self.render_mode == 'human' else self.screen_resolution
 
         self.game.load_config(self.config_path)
         self.game.set_doom_scenario_path(self.scenario_path)

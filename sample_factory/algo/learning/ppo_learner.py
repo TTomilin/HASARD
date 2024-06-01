@@ -652,11 +652,14 @@ class PPOLearner(Configurable):
             old_values = mb["values"]
             value_loss = self._value_loss(values, old_values, targets, clip_value, valids, num_invalids)
 
+        mean_cost = mb["costs"].mean()
+
         loss_summaries = dict(
             ratio=ratio,
             clip_ratio_low=clip_ratio_low,
             clip_ratio_high=clip_ratio_high,
             values=result["values"],
+            avg_cost=mean_cost,
             adv=adv,
             adv_std=adv_std,
             adv_mean=adv_mean,

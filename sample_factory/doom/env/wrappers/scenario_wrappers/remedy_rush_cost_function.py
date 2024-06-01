@@ -20,6 +20,9 @@ class RemedyRushCostFunction(gym.Wrapper):
         info['cost'] = cost_this_step
         self._prev_cost = cost
 
-        info["episode_extra_stats"] = {'cost': cost}
+        info["episode_extra_stats"] = {
+            'cost': cost,
+            'original_reward': reward,
+        }
 
         return observation, reward, terminated, truncated, info
