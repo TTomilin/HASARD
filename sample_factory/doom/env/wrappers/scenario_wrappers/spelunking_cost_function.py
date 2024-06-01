@@ -9,9 +9,11 @@ class SpelunkingCostFunction(gym.Wrapper):
     def __init__(self, env):
         super().__init__(env)
         self._prev_health = STARTING_HEALTH
+        self.episode_reward = 0
 
     def reset(self, **kwargs):
         self._prev_health = STARTING_HEALTH
+        self.episode_reward = 0
         return self.env.reset(**kwargs)
 
     def step(self, action):
@@ -23,9 +25,11 @@ class SpelunkingCostFunction(gym.Wrapper):
         info['cost'] = cost_this_step
         self._prev_health = health
 
+        self.episode_reward += reward
+
         info["episode_extra_stats"] = {
             'cost': total_cost,
-            'original_reward': reward,
+            'episode_reward': self.episode_reward,
         }
 
         return observation, reward, terminated, truncated, info

@@ -18,6 +18,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
         self.deliveries = 0
         self.total_cost = 0
         self.delivery_cost = 0
+        self.episode_reward = 0
         self.num_weapons_carried = 0
         self.total_weapons_acquired = 0
         self.reward_current_delivery = 0
@@ -28,6 +29,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
         self.deliveries = 0
         self.total_cost = 0
         self.delivery_cost = 0
+        self.episode_reward = 0
         self.num_weapons_carried = 0
         self.total_weapons_acquired = 0
         self.reward_current_delivery = 0
@@ -38,10 +40,12 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
 
         weapon_id = int(self.game.get_game_variable(GameVariable.USER1))
         num_weapons_carried = int(self.game.get_game_variable(GameVariable.USER2))
+        score = int(self.game.get_game_variable(GameVariable.USER4))  # Only for weapons delivered
 
-        player_speed = 1.0
         excess = 0.0
+        player_speed = 1.0
         cost_this_step = 0.0
+        self.episode_reward += reward
 
         # Check if a weapon has been picked up
         weapon_obtained = num_weapons_carried > self.num_weapons_carried
@@ -88,7 +92,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
                 cost_this_step += HARD_CONSTRAINT_PENALTY
                 self.delivery_cost += cost_this_step
                 self.num_weapons_carried = 0
-            speed_reduction = bool(self.game.get_game_variable(GameVariable.USER4))
+            speed_reduction = bool(self.game.get_game_variable(GameVariable.USER5))
             if speed_reduction:
                 cost_this_step += HARD_CONSTRAINT_PENALTY * POSTPONED_PENALTY_MULTIPLIER
                 player_speed = 0.1
@@ -104,7 +108,8 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
             'deliveries': self.deliveries,
             'player_speed': player_speed,
             'excess_weight': excess,
-            'original_reward': reward,
+            'episode_reward': self.episode_reward,
+            'score': score,
         }
 
         return observation, reward, terminated, truncated, info

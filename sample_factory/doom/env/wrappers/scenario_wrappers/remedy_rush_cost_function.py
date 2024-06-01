@@ -7,9 +7,11 @@ class RemedyRushCostFunction(gym.Wrapper):
     def __init__(self, env):
         super().__init__(env)
         self._prev_cost = 0
+        self.episode_reward = 0
 
     def reset(self, **kwargs):
         self._prev_cost = 0
+        self.episode_reward = 0
         return self.env.reset(**kwargs)
 
     def step(self, action):
@@ -20,9 +22,11 @@ class RemedyRushCostFunction(gym.Wrapper):
         info['cost'] = cost_this_step
         self._prev_cost = cost
 
+        self.episode_reward += reward
+
         info["episode_extra_stats"] = {
             'cost': cost,
-            'original_reward': reward,
+            'episode_reward': self.episode_reward,
         }
 
         return observation, reward, terminated, truncated, info
