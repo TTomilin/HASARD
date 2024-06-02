@@ -153,7 +153,7 @@ class PopulationBasedTraining(AlgoObserver, EventLoopObject):
             else:
                 self.policy_cfg[policy_id] = dict()
                 for param_name in HYPERPARAMS_TO_TUNE:
-                    self.policy_cfg[policy_id][param_name] = self.cfg[param_name]
+                    self.policy_cfg[policy_id][param_name] = getattr(self.cfg, param_name)
 
                 if policy_id > 0:  # keep one policy with default settings in the beginning
                     log.debug("Initial cfg mutation for policy %d", policy_id)

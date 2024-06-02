@@ -390,9 +390,9 @@ class PPOLearner(Configurable):
     def _maybe_update_cfg(self) -> None:
         if self.new_cfg is not None:
             for key, value in self.new_cfg.items():
-                if self.cfg[key] != value:
+                if getattr(self.cfg, key) != value:
                     log.debug("Learner %d replacing cfg parameter %r with new value %r", self.policy_id, key, value)
-                    self.cfg[key] = value
+                    setattr(self.cfg, key, value)
 
             if self.cfg.lr_schedule == "constant" and self.curr_lr != self.cfg.learning_rate:
                 # PBT-optimized learning rate, only makes sense if we use constant LR
