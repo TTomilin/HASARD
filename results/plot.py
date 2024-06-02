@@ -6,6 +6,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+TRANSLATIONS = {
+    'armament_burden': 'Armament Burden',
+    'volcanic_venture': 'Volcanic Venture',
+    'remedy_rush': 'Remedy Rush',
+    'collateral_damage': 'Collateral Damage',
+    'reward': 'Reward',
+    'avg_cost': 'Cost',
+}
+
+
 def main(args):
     data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics)
     plot_metrics(data, args)
@@ -31,8 +41,10 @@ def load_data(base_path, environments, methods, seeds, metrics):
 
 
 def plot_metrics(data, args):
+    # print(plt.style.available)
+    plt.style.use('seaborn-v0_8-muted')
     for metric in args.metrics:
-        fig, axs = plt.subplots(2, 2, figsize=(15, 10))  # Create a 2x2 grid of subplots
+        fig, axs = plt.subplots(2, 2, figsize=(8, 6))  # Create a 2x2 grid of subplots
         axs = axs.flatten()
         env_mapping = dict(zip(args.envs, axs))
         for env in args.envs:
@@ -42,17 +54,23 @@ def plot_metrics(data, args):
                 if key in data and data[key]:
                     try:
                         all_runs = np.array(data[key])
+                        if all_runs.size == 0:
+                            continue  # Skip if there's no data
+                        num_data_points = all_runs.shape[1]  # Get the number of data points from the shape of all_runs
+                        iterations_per_point = args.total_iterations / num_data_points  # Calculate iterations per data point dynamically
                         mean = np.mean(all_runs, axis=0)
                         ci = 1.96 * np.std(all_runs, axis=0) / np.sqrt(len(all_runs))
-                        x = np.arange(len(mean))
+                        x = np.arange(len(mean)) * iterations_per_point  # Scale x-values by iterations per data point
                         ax.plot(x, mean, label=method)
                         ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
+                        ax.set_xlim(-args.total_iterations / 60, args.total_iterations)
+                        ax.set_ylim(0, None)
                     except Exception as e:
                         print(f"Failed to plot {key}: {e}")
                         continue
-            ax.set_title(env)
-            ax.set_xlabel('Steps (thousands)')
-            ax.set_ylabel('Value')
+            ax.set_title(TRANSLATIONS[env])
+            ax.set_xlabel('Environment Iterations')
+            ax.set_ylabel(TRANSLATIONS[metric])
             ax.legend()
         plt.tight_layout()
         plt.show()
@@ -68,7 +86,8 @@ def common_plot_args() -> argparse.ArgumentParser:
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage"],
                         help="Environments to download/plot")
     parser.add_argument("--metrics", type=str, default=['reward', 'avg_cost'], help="Name of the metrics to download/plot")
-    # parser.add_argument("--metrics", type=str, default=['avg_cost'], help="Name of the metrics to download/plot")
+    parser.add_argument("--total_iterations", type=int, default=3e8,
+                        help="Total number of environment iterations corresponding to 500 data points")
     return parser
 
 

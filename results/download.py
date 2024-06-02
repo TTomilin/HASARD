@@ -68,8 +68,13 @@ def store_data(run: Run, args: argparse.Namespace) -> None:
         os.makedirs(folder_path, exist_ok=True)  # Ensure the directory exists
 
         # Filename based on metric
-        metric_name = metric.split('/')[-1]
+        metric_name = metric.split('/')[-1].split('_')[-1]
         file_path = os.path.join(folder_path, f"{metric_name}.json")
+
+        # If the file already exists and we don't want to overwrite, skip
+        if not args.overwrite and os.path.exists(file_path):
+            print(f"Skipping: {run_id}: {metric_name}")
+            continue
 
         # Attempt to retrieve and save the data
         try:
@@ -94,7 +99,8 @@ def common_dl_args() -> argparse.ArgumentParser:
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage"],
                         help="Environments to download/plot")
     parser.add_argument("--output", type=str, default='data', help="Base output directory to store the data")
-    parser.add_argument("--metrics", type=str, default=['reward/reward', 'policy_stats/avg_cost'],
+    parser.add_argument("--metrics", type=str, nargs='+',
+                        default=['policy_stats/avg_episode_reward', 'policy_stats/avg_cost'],
                         help="Name of the metrics to download/plot")
     parser.add_argument("--project", type=str, required=True, help="Name of the WandB project")
     parser.add_argument("--wandb_tags", type=str, nargs='+', default=[], help="WandB tags to filter runs")
