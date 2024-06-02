@@ -179,7 +179,8 @@ DOOM_ENVS = [
         'precipice_plunge',
         'precipice_plunge.cfg',
         doom_turn_and_move_only(),
-        reward_scaling=0.01,
+        reward_scaling=0.1,
+        penalty_scaling=0.01,
         default_timeout=2100,
         extra_wrappers=[(PrecipicePlungeCostFunction, {}), (PrecipicePlungeRewardFunction, {})]
     ),
