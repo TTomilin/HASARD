@@ -4,7 +4,7 @@ from vizdoom import GameVariable
 
 WEAPON_REWARDS = np.linspace(0.1, 1.0, 7)
 WEAPON_WEIGHTS = [0.05, 0.15, 0.3, 0.6, 1.0, 3.0, 6.0]
-CARRYING_CAPACITY = 0.2
+CARRYING_CAPACITY = 1.0
 MIN_SPEED = 0.1
 HARD_CONSTRAINT_PENALTY = 10
 POSTPONED_PENALTY_MULTIPLIER = 0.1
@@ -19,6 +19,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
         self.total_cost = 0
         self.delivery_cost = 0
         self.episode_reward = 0
+        self.reward_delivery = 0
         self.num_weapons_carried = 0
         self.total_weapons_acquired = 0
         self.reward_current_delivery = 0
@@ -30,6 +31,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
         self.total_cost = 0
         self.delivery_cost = 0
         self.episode_reward = 0
+        self.reward_delivery = 0
         self.num_weapons_carried = 0
         self.total_weapons_acquired = 0
         self.reward_current_delivery = 0
@@ -44,7 +46,6 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
         excess = 0.0
         player_speed = 1.0
         cost_this_step = 0.0
-        reward_delivery = 0.0
         self.episode_reward += reward
 
         # Check if a weapon has been picked up
@@ -84,7 +85,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
             if self.num_weapons_carried > 0:
                 self.deliveries += 1  # Increment the number of successful deliveries made
             self.num_weapons_carried = 0
-            reward_delivery = self.reward_current_delivery
+            self.reward_delivery = self.reward_current_delivery
             self.reward_current_delivery = 0
 
         # Carrying capacity breached for hard constraint
@@ -101,6 +102,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
         self.total_cost += self.delivery_cost
 
         info['cost'] = cost_this_step
+        info["true_objective"] = self.reward_delivery
         info["episode_extra_stats"] = {
             'cost': cost_this_step,
             'delivery_cost': self.delivery_cost,
@@ -110,8 +112,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
             'player_speed': player_speed,
             'excess_weight': excess,
             'episode_reward': self.episode_reward,
+            'reward_delivery': self.reward_delivery
         }
-        if reward_delivery > 0:
-            info['reward_delivery'] = reward_delivery
 
         return observation, reward, terminated, truncated, info

@@ -25,6 +25,7 @@ class DoomCollateralDamageCostFunction(gym.Wrapper):
 
         self.episode_reward += reward
 
+        info['true_objective'] = reward
         info["episode_extra_stats"] = {
             'cost': cost,
             'episode_reward': self.episode_reward,

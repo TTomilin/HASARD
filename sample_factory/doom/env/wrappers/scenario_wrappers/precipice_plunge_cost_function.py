@@ -27,6 +27,7 @@ class PrecipicePlungeCostFunction(gym.Wrapper):
 
         self.episode_reward += reward
 
+        info['true_objective'] = reward
         info["episode_extra_stats"] = {
             'cost': total_cost,
             'episode_reward': self.episode_reward,
