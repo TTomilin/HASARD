@@ -55,6 +55,23 @@ def doom_turn_and_move_only():
     return space
 
 
+def doom_turn_and_move_forward_backward():
+    """
+    TURN_LEFT
+    TURN_RIGHT
+    MOVE_FORWARD
+    MOVE_BACKWARD
+    """
+    space = gym.spaces.Tuple(
+        (
+            Discrete(3),
+            Discrete(3),
+        )
+    )  # noop, turn left, turn right  # noop, move forward, move backward
+
+    return space
+
+
 def doom_turn_move_jump_accelerate():
     """
     TURN_LEFT

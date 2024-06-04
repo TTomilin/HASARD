@@ -12,7 +12,7 @@ from sample_factory.doom.env.action_space import (
     doom_action_space_extended,
     doom_action_space_full_discretized,
     doom_turn_and_attack_only, doom_turn_and_move_only, doom_turn_move_jump_accelerate,
-    doom_turn_move_jump_accelerate_attack,
+    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_forward_backward,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.additional_input import DoomAdditionalInput
@@ -182,11 +182,10 @@ DOOM_ENVS = [
     DoomSpec(
         'precipice_plunge',
         'precipice_plunge.cfg',
-        doom_turn_and_move_only(),
-        reward_scaling=0.1,
-        penalty_scaling=0.01,
+        doom_turn_and_move_forward_backward(),
+        penalty_scaling=1.0,
         default_timeout=2100,
-        extra_wrappers=[(PrecipicePlungeCostFunction, {}), (PrecipicePlungeRewardFunction, {})]
+        extra_wrappers=[(PrecipicePlungeRewardFunction, {}), (PrecipicePlungeCostFunction, {})]
     ),
 
     DoomSpec(
