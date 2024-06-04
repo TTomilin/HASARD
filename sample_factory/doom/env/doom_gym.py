@@ -80,17 +80,17 @@ def key_to_action_default(key):
 
 class VizdoomEnv(gym.Env):
     def __init__(
-        self,
-        action_space,
-        config_file,
-        constraint='soft',
-        coord_limits=None,
-        max_histogram_length=200,
-        show_automap=False,
-        skip_frames=1,
-        async_mode=False,
-        record_to=None,
-        render_mode: Optional[str] = None,
+            self,
+            action_space,
+            config_file,
+            constraint='soft',
+            coord_limits=None,
+            max_histogram_length=200,
+            show_automap=False,
+            skip_frames=1,
+            async_mode=False,
+            record_to=None,
+            render_mode: Optional[str] = None,
     ):
         self.initialized = False
 
@@ -493,7 +493,7 @@ class VizdoomEnv(gym.Env):
             if mode == "rgb_array":
                 return img
             elif mode == "human":
-                time.sleep(0.003)
+                time.sleep(0.01)
 
             h, w = img.shape[:2]
             render_h, render_w = h, w
