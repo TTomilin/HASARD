@@ -69,7 +69,8 @@ def store_data(run: Run, args: argparse.Namespace) -> None:
 
         # Filename based on metric
         metric_name = metric.split('/')[-1].split('_')[-1]
-        file_path = os.path.join(folder_path, f"{metric_name}.json")
+        file_name = f"{metric_name}_hard.json" if args.hard_constraint else f"{metric_name}.json"
+        file_path = os.path.join(folder_path, file_name)
 
         # If the file already exists and we don't want to overwrite, skip
         if not args.overwrite and os.path.exists(file_path):
@@ -103,6 +104,7 @@ def common_dl_args() -> argparse.ArgumentParser:
                         default=['policy_stats/avg_episode_reward', 'policy_stats/avg_cost'],
                         help="Name of the metrics to download/plot")
     parser.add_argument("--project", type=str, required=True, help="Name of the WandB project")
+    parser.add_argument('--hard_constraint', default=False, action='store_true', help='Soft/Hard safety constraint')
     parser.add_argument("--wandb_tags", type=str, nargs='+', default=[], help="WandB tags to filter runs")
     parser.add_argument("--overwrite", default=False, action='store_true', help="Overwrite existing files")
     parser.add_argument("--include_runs", type=str, nargs="+", default=[],

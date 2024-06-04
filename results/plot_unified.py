@@ -34,7 +34,8 @@ def load_data(base_path, environments, methods, seeds, metrics):
         for method in methods:
             for seed in seeds:
                 for metric in metrics:
-                    file_path = os.path.join(base_path, env, method, f"seed_{seed}", f"{metric}.json")
+                    metric_name = f"{metric}_hard" if args.hard_constraint else metric
+                    file_path = os.path.join(base_path, env, method, f"seed_{seed}", f"{metric_name}.json")
                     key = (env, method, metric)
                     if key not in data:
                         data[key] = []
@@ -97,7 +98,7 @@ def plot_metrics(data, args):
                         lines.append(line[0])
                         labels.append(method)
                     # Draw the safety threshold line if plotting 'cost'
-                    if metric == 'cost':
+                    if metric == 'cost' and not args.hard_constraint:
                         threshold_line = ax.axhline(y=SAFETY_THRESHOLDS[env], color='red', linestyle='--',
                                                     label='Safety Threshold')
                         ax.text(0.5, SAFETY_THRESHOLDS[env], 'Safety Threshold', horizontalalignment='center',
@@ -110,9 +111,10 @@ def plot_metrics(data, args):
     fig.legend(lines, labels, loc='upper center', ncol=len(args.algos) + 1, fontsize=12, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.075))
 
-    os.makedirs('plots', exist_ok=True)
-    plt.savefig('plots/soft.png')
-    plt.savefig('plots/soft.pdf', dpi=300)
+    folder = 'plots'
+    file = 'hard' if args.hard_constraint else 'soft'
+    os.makedirs(folder, exist_ok=True)
+    plt.savefig(f'{folder}/{file}.pdf', dpi=300)
     plt.show()
 
 
@@ -126,6 +128,7 @@ def common_plot_args() -> argparse.ArgumentParser:
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage"],
                         help="Environments to download/plot")
     parser.add_argument("--metrics", type=str, default=['reward', 'cost'], help="Name of the metrics to download/plot")
+    parser.add_argument('--hard_constraint', default=False, action='store_true', help='Soft/Hard safety constraint')
     parser.add_argument("--total_iterations", type=int, default=3e8,
                         help="Total number of environment iterations corresponding to 500 data points")
     return parser
