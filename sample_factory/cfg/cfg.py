@@ -120,7 +120,7 @@ def add_rl_args(p: ArgumentParser):
     )
     p.add_argument(
         "--num_envs_per_worker",
-        default=2,
+        default=10,
         type=int,
         help="Number of envs on a single CPU actor, in high-throughput configurations this should be in 10-30 range for Atari/VizDoom"
         "Must be even for double-buffered sampling!",
