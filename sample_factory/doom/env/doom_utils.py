@@ -5,16 +5,6 @@ from typing import Optional
 
 from gymnasium.spaces import Discrete
 
-from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
-from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_cost_function import PrecipicePlungeCostFunction
-from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_reward_function import PrecipicePlungeRewardFunction
-from sample_factory.envs.env_wrappers import (
-    PixelFormatChwWrapper,
-    ResizeWrapper,
-    RewardScalingWrapper,
-    TimeLimitWrapper,
-)
-from sample_factory.utils.utils import debug_log_every_n, experiment_dir
 from sample_factory.doom.env.action_space import (
     doom_action_space,
     doom_action_space_basic,
@@ -22,12 +12,14 @@ from sample_factory.doom.env.action_space import (
     doom_action_space_extended,
     doom_action_space_full_discretized,
     doom_turn_and_attack_only, doom_turn_and_move_only, doom_turn_move_jump_accelerate,
-    doom_turn_and_move_only_single_action,
+    doom_turn_move_jump_accelerate_attack,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.additional_input import DoomAdditionalInput
+from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
 from sample_factory.doom.env.wrappers.multiplayer_stats import MultiplayerStatsWrapper
 from sample_factory.doom.env.wrappers.observation_space import SetResolutionWrapper, resolutions
+from sample_factory.doom.env.wrappers.record_video import RecordVideo
 from sample_factory.doom.env.wrappers.reward_shaping import (
     REWARD_SHAPING_BATTLE,
     REWARD_SHAPING_DEATHMATCH_V0,
@@ -39,11 +31,23 @@ from sample_factory.doom.env.wrappers.reward_shaping import (
 from sample_factory.doom.env.wrappers.scenario_wrappers.armament_burden_cost_function import ArmamentBurdenCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.collateral_damage_cost_function import \
     DoomCollateralDamageCostFunction
+from sample_factory.doom.env.wrappers.scenario_wrappers.detonators_dilemma_cost_function import \
+    DoomDetonatorsDilemmaCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.gathering_reward_shaping import DoomGatheringRewardShaping
-from sample_factory.doom.env.wrappers.record_video import RecordVideo
+from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_cost_function import \
+    PrecipicePlungeCostFunction
+from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_reward_function import \
+    PrecipicePlungeRewardFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.remedy_rush_cost_function import RemedyRushCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.volcanic_venture_cost_function import \
     VolcanicVentureCostFunction
+from sample_factory.envs.env_wrappers import (
+    PixelFormatChwWrapper,
+    ResizeWrapper,
+    RewardScalingWrapper,
+    TimeLimitWrapper,
+)
+from sample_factory.utils.utils import debug_log_every_n, experiment_dir
 
 
 class DoomSpec:
@@ -161,7 +165,7 @@ DOOM_ENVS = [
         'armament_burden',
         'armament_burden.cfg',
         doom_turn_and_move_only(),
-        penalty_scaling=0.01,
+        penalty_scaling=0.1,
         default_timeout=2100,
         extra_wrappers=[(ArmamentBurdenCostFunction, {})]
     ),
@@ -183,6 +187,15 @@ DOOM_ENVS = [
         penalty_scaling=0.01,
         default_timeout=2100,
         extra_wrappers=[(PrecipicePlungeCostFunction, {}), (PrecipicePlungeRewardFunction, {})]
+    ),
+
+    DoomSpec(
+        'detonators_dilemma',
+        'detonators_dilemma.cfg',
+        doom_turn_move_jump_accelerate_attack(),
+        penalty_scaling=1.0,
+        default_timeout=2100,
+        extra_wrappers=[(DoomDetonatorsDilemmaCostFunction, {})]
     ),
 
     # <==== Environments used in the paper ====>

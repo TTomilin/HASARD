@@ -70,7 +70,29 @@ def doom_turn_move_jump_accelerate():
             Discrete(2),
             Discrete(2),
         )
-    )  # noop, turn left, turn right  # noop, move forward
+    )
+
+    return space
+
+
+def doom_turn_move_jump_accelerate_attack():
+    """
+    TURN_LEFT
+    TURN_RIGHT
+    MOVE_FORWARD
+    JUMP
+    SPEED
+    ATTACK
+    """
+    space = gym.spaces.Tuple(
+        (
+            Discrete(3),
+            Discrete(2),
+            Discrete(2),
+            Discrete(2),
+            Discrete(2),
+        )
+    )
 
     return space
 
