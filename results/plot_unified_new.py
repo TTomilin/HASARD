@@ -10,6 +10,8 @@ SAFETY_THRESHOLDS = {
     "volcanic_venture": 50,
     "remedy_rush": 5,
     "collateral_damage": 5,
+    "precipice_plunge": 10,
+    "detonators_dilemma": 1,
 }
 
 TRANSLATIONS = {
@@ -17,6 +19,8 @@ TRANSLATIONS = {
     'volcanic_venture': 'Volcanic Venture',
     'remedy_rush': 'Remedy Rush',
     'collateral_damage': 'Collateral Damage',
+    'precipice_plunge': 'Precipice Plunge',
+    'detonators_dilemma': 'Detonator\'s Dilemma',
     'reward': 'Reward',
     'cost': 'Cost',
 }
@@ -50,10 +54,11 @@ def load_data(base_path, environments, methods, seeds, metrics):
 def plot_metrics(data, args):
     # print(plt.style.available)
     plt.style.use('seaborn-v0_8-notebook')
-    fig, axs = plt.subplots(2, 4, figsize=(14, 6))  # Create a figure and a 2x4 grid of subplots
+    fig, axs = plt.subplots(3, 4, figsize=(14, 8))  # Create a figure and a 2x4 grid of subplots
 
     # Adjust subplot parameters for more space between environments
-    fig.subplots_adjust(left=0.05, right=0.99, top=0.95, bottom=0.15, hspace=0.4, wspace=0.25)
+    fig.subplots_adjust(left=0.05, right=0.99, top=0.95, bottom=0.15, hspace=0.4,
+                        wspace=0.25)  # Tighten left and right margins
 
     lines = []  # To hold legend handles
     labels = []  # To hold legend labels
@@ -125,7 +130,8 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag"],
                         help="Algorithms to download/plot")
     parser.add_argument("--envs", type=str, nargs='+',
-                        default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage"],
+                        default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
+                                 "precipice_plunge", "detonators_dilemma"],
                         help="Environments to download/plot")
     parser.add_argument("--metrics", type=str, default=['reward', 'cost'], help="Name of the metrics to download/plot")
     parser.add_argument('--hard_constraint', default=False, action='store_true', help='Soft/Hard safety constraint')
