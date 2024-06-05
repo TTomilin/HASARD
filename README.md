@@ -1,1 +1,1 @@
-# Safety DOOM
+# HASARD: A Benchmark for Harnessing Safe Reinforcement Learning with Doom
