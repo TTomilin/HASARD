@@ -11,7 +11,7 @@ SAFETY_THRESHOLDS = {
     "remedy_rush": 5,
     "collateral_damage": 5,
     "precipice_plunge": 10,
-    "detonators_dilemma": 1,
+    "detonators_dilemma": 5,
 }
 
 TRANSLATIONS = {
@@ -52,19 +52,15 @@ def load_data(base_path, environments, methods, seeds, metrics):
 
 
 def plot_metrics(data, args):
-    # print(plt.style.available)
-    plt.style.use('seaborn-v0_8-notebook')
-    fig, axs = plt.subplots(3, 4, figsize=(14, 8))  # Create a figure and a 2x4 grid of subplots
+    plt.style.use('seaborn-v0_8-paper')
+    fig, axs = plt.subplots(3, 4, figsize=(12, 8))  # Adjust figsize for better fit
 
-    # Adjust subplot parameters for more space between environments
-    fig.subplots_adjust(left=0.05, right=0.99, top=0.95, bottom=0.15, hspace=0.4,
-                        wspace=0.25)  # Tighten left and right margins
+    fig.subplots_adjust(left=0.055, right=0.99, top=0.95, bottom=0.12, hspace=0.5, wspace=0.3)
 
-    lines = []  # To hold legend handles
-    labels = []  # To hold legend labels
+    lines = []
+    labels = []
 
-    # Creating an extra axis for environment titles
-    title_axes = [fig.add_subplot(2, 2, i + 1, frame_on=False) for i in range(4)]
+    title_axes = [fig.add_subplot(3, 2, i + 1, frame_on=False) for i in range(6)]  # Update to match the number of environments
     for ax in title_axes:
         ax.set_xticks([])
         ax.set_yticks([])
@@ -74,10 +70,9 @@ def plot_metrics(data, args):
         ax.spines['bottom'].set_visible(False)
 
     for env_index, env in enumerate(args.envs):
-        row = env_index // 2  # Calculate the row of the subplot based on the environment index
-        col_base = (env_index % 2) * 2  # Calculate the base column index for this row
+        row = env_index // 2  # Keeps same row indexing
+        col_base = (env_index % 2) * 2  # Same as before
 
-        # Set the central title for each pair of plots
         title_axes[env_index].set_title(TRANSLATIONS[env], fontsize=14)
 
         for metric_index, metric in enumerate(args.metrics):
@@ -87,7 +82,7 @@ def plot_metrics(data, args):
                 if key in data and data[key]:
                     all_runs = np.array(data[key])
                     if all_runs.size == 0 or len(all_runs.shape) < 2:
-                        continue  # Skip if there's no data
+                        continue
                     num_data_points = all_runs.shape[1]
                     iterations_per_point = args.total_iterations / num_data_points
                     mean = np.mean(all_runs, axis=0)
@@ -96,13 +91,19 @@ def plot_metrics(data, args):
                     line = ax.plot(x, mean, label=method)
                     ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
                     ax.set_xlim(-args.total_iterations / 60, args.total_iterations)
-                    ax.set_ylim(0, None)
+
+                    # Small hack, something is wrong with the plotting
+                    if args.hard_constraint and env == 'precipice_plunge':
+                        y_lim_upper = 200 if metric == 'reward' else 11
+                    else:
+                        y_lim_upper = None
+
+                    ax.set_ylim(0, y_lim_upper)
                     ax.set_xlabel('Steps', fontsize=12)
                     ax.set_ylabel(TRANSLATIONS[metric], fontsize=12)
-                    if env_index == 1 and metric_index == 1:  # Add legend items once
+                    if env_index == 1 and metric_index == 1:  # Adjust if needed
                         lines.append(line[0])
                         labels.append(method)
-                    # Draw the safety threshold line if plotting 'cost'
                     if metric == 'cost' and not args.hard_constraint:
                         threshold_line = ax.axhline(y=SAFETY_THRESHOLDS[env], color='red', linestyle='--',
                                                     label='Safety Threshold')
@@ -110,17 +111,15 @@ def plot_metrics(data, args):
                                 verticalalignment='top', transform=ax.get_yaxis_transform(), fontsize=10,
                                 style='italic', color='darkred')
 
-    # Add a centralized legend at the bottom of the figure
-    # lines.append(threshold_line)  # Adding the threshold line separately for specific styling in legend
-    # labels.append('Safety Threshold')  # Adding a styled label in the legend
-    fig.legend(lines, labels, loc='upper center', ncol=len(args.algos) + 1, fontsize=12, fancybox=True, shadow=True,
-               bbox_to_anchor=(0.5, 0.075))
+    fig.legend(lines, labels, loc='lower center', ncol=len(args.algos), fontsize=12, fancybox=True, shadow=True,
+               bbox_to_anchor=(0.5, 0.0))
 
     folder = 'plots'
     file = 'hard' if args.hard_constraint else 'soft'
     os.makedirs(folder, exist_ok=True)
     plt.savefig(f'{folder}/{file}.pdf', dpi=300)
     plt.show()
+
 
 
 def common_plot_args() -> argparse.ArgumentParser:

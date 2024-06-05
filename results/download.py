@@ -43,7 +43,7 @@ def suitable_run(run, args: argparse.Namespace) -> bool:
             # Check whether the run includes one of the forbidden tags which is not in the provided tags
             if any(tag in tags for tag in FORBIDDEN_TAGS) and not any(tag in tags for tag in args.wandb_tags):
                 return False
-        if run.state != "finished":
+        if run.state not in ["finished", "crashed"]:
             return False
         # All filters have been passed
         return True
