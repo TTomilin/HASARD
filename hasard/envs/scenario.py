@@ -8,11 +8,11 @@ import numpy as np
 import vizdoom as vzd
 from vizdoom import ScreenResolution, GameVariable
 
-from safety_doom.env.base import BaseEnv
-from safety_doom.utils.utils import get_screen_resolution
+from hasard.envs.base import BaseEnv
+from hasard.utils.utils import get_screen_resolution
 
 
-class SafetyDoomEnv(BaseEnv):
+class DoomEnv(BaseEnv):
     """
     A foundational class for creating Doom-based environments in the context of reinforcement learning.
 
@@ -20,13 +20,9 @@ class SafetyDoomEnv(BaseEnv):
     including game initialization, state management, and rendering.
 
     Attributes:
-        env_name (str): Identifier for the specific Doom environment scenario.
-        task_idx (int): Index of the current task.
         scenario (str): Name of the scenario module.
-        n_tasks (int): Total number of tasks within the environment.
         frame_skip (int): Number of frames to skip for each action.
         record_every (int): Frequency of recording episodes.
-        metadata (Dict): Metadata for the environment, including supported render modes.
         game (vzd.DoomGame): Instance of the ViZDoom game engine.
         game_res (Tuple[int, int, int]): Resolution of the game screen.
         _action_space (gymnasium.spaces.Discrete): The action space of the environment.
@@ -35,10 +31,8 @@ class SafetyDoomEnv(BaseEnv):
         game_variable_buffer (deque): A buffer for storing recent game variables for statistics.
 
     Args:
-        env (str): Name of the specific Doom environment scenario.
+        level (int): Level of the task.
         action_space_fn (Callable): Function to generate the action space.
-        task_idx (int): Index of the current task.
-        num_tasks (int): Total number of tasks.
         frame_skip (int): Number of frames to skip for each action.
         record_every (int): Frequency of recording episodes.
         seed (int): Seed for random number generators.
@@ -50,10 +44,9 @@ class SafetyDoomEnv(BaseEnv):
     """
 
     def __init__(self,
-                 env: str = 'default',
+                 level: int,
+                 constraint: str,
                  action_space_fn: Callable = None,
-                 task_idx: int = 0,
-                 num_tasks: int = 1,
                  frame_skip: int = 4,
                  record_every: int = 100,
                  seed: int = 0,
@@ -63,10 +56,9 @@ class SafetyDoomEnv(BaseEnv):
                  resolution: str = None,
                  variable_queue_length: int = 5):
         super().__init__()
-        self.env_name = env
-        self.task_idx = task_idx
-        self.scenario = self.__module__.split('.')[-1]
-        self.n_tasks = num_tasks
+        self.level = level
+        self.constraint = constraint
+        self.scenario = self.__module__.split('.')[-2]
         self.frame_skip = frame_skip
 
         # Recording
@@ -74,12 +66,12 @@ class SafetyDoomEnv(BaseEnv):
         self.record_every = record_every
 
         # Determine the directory of the doom scenario
-        scenario_dir = f'{Path(__file__).parent.resolve()}/scenarios/{self.scenario}'
+        scenario_dir = f'{Path(__file__).parent.resolve()}/{self.scenario}'
 
         # Initialize the Doom game instance
         self.game = vzd.DoomGame()
         self.game.load_config(f"{scenario_dir}/conf.cfg")
-        self.game.set_doom_scenario_path(f"{scenario_dir}/{env}.wad")
+        self.game.set_doom_scenario_path(f"{scenario_dir}/level_{level}_{constraint.lower()}.wad")
         self.game.set_seed(seed)
         self.render_sleep = render_sleep
         self.render_enabled = render
@@ -114,24 +106,8 @@ class SafetyDoomEnv(BaseEnv):
         return f'{self.scenario}-{self.env_name}'
 
     @property
-    def task_id(self):
-        return self.task_idx
-
-    @property
-    def num_tasks(self) -> int:
-        return self.n_tasks
-
-    @property
     def user_vars(self) -> List[GameVariable]:
         return []
-
-    @property
-    def performance_upper_bound(self) -> float:
-        raise NotImplementedError
-
-    @property
-    def performance_lower_bound(self) -> float:
-        raise NotImplementedError
 
     @property
     def action_space(self) -> gymnasium.spaces.Discrete:
@@ -206,20 +182,7 @@ class SafetyDoomEnv(BaseEnv):
         Returns:
             metrics (Dict[str, float]): A dictionary containing statistical data.
         """
-        metrics = self.extra_statistics(mode)
-        metrics[f'{mode}/success'] = self.get_success()
-        return metrics
-
-    def get_success(self) -> float:
-        """
-        Calculates and returns a normalized success metric between [0, 1] for the current environment state.
-
-        Returns:
-            success_norm (float): Normalized success metric.
-        """
-        success_norm = (self.get_success_metric() - self.performance_lower_bound) / (
-                self.performance_upper_bound - self.performance_lower_bound)
-        return float(np.clip(success_norm, 0.0, 1.0))
+        return self.extra_statistics(mode)
 
     def extra_statistics(self, mode: str = '') -> Dict[str, float]:
         """
@@ -242,30 +205,21 @@ class SafetyDoomEnv(BaseEnv):
         """
         pass
 
-    def get_success_metric(self) -> float:
+    def reward_wrappers(self) -> List[gymnasium.RewardWrapper]:
         """
-        Retrieves the success metric based on the current state of the environment.
-
-        Returns:
-            success_metric (float): The calculated success metric.
-        """
-        raise NotImplementedError
-
-    def reward_wrappers_dense(self) -> List[gymnasium.RewardWrapper]:
-        """
-        Returns a list of reward wrapper classes for the dense reward setting.
+        Returns a list of reward wrapper classes.
 
         Returns:
             List[gymnasium.RewardWrapper]: A list of reward wrapper classes.
         """
         raise NotImplementedError
 
-    def reward_wrappers_sparse(self) -> List[gymnasium.RewardWrapper]:
+    def cost_wrappers(self) -> List[gymnasium.RewardWrapper]:
         """
-        Returns a list of reward wrapper classes for the sparse reward setting.
+        Returns a list of cost wrapper classes.
 
         Returns:
-            List[gymnasium.RewardWrapper]: A list of reward wrapper classes.
+            List[gymnasium.RewardWrapper]: A list of cost wrapper classes.
         """
         raise NotImplementedError
 
@@ -331,12 +285,3 @@ class SafetyDoomEnv(BaseEnv):
         Performs cleanup and closes the environment.
         """
         self.game.close()
-
-    def get_active_env(self):
-        """
-        Returns the currently active environment.
-
-        Returns:
-            The active environment instance.
-        """
-        return self
