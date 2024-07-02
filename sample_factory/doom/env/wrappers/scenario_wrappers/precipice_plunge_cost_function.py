@@ -2,7 +2,7 @@ import gymnasium as gym
 from vizdoom import GameVariable
 
 STARTING_HEALTH = 500
-COST_SCALER = 0.1
+COST_SCALER = 1.0
 
 
 class PrecipicePlungeCostFunction(gym.Wrapper):
