@@ -11,15 +11,15 @@ with open("README.md", "r") as f:
 
 setup(
     # Information
-    name="safety-doom",
-    description="Egocentric 3D safe reinforcement learning benchmark",
+    name="hasard",
+    description="Egocentric 3D Safe Reinforcement Learning Benchmark",
     long_description=long_description,
     long_description_content_type="text/markdown",
     version="1.0.0",
-    url="https://github.com/TTomilin/safety-doom",
-    author="Tristan Tomilin",
+    # url="https://github.com/TTomilin/safety-doom",
+    # author="Tristan Tomilin",
     license="MIT",
-    keywords=["safe rl", "reinforcement learning", "vizdoom", "benchmarking", "safety"],
+    keywords=["safe rl", "reinforcement learning", "vizdoom", "benchmark", "safety"],
     install_requires=[
         "numpy>=1.18.1,<2.0",
         "torch>=1.9,<3.0,!=1.13.0",
@@ -41,7 +41,6 @@ setup(
     ],
     package_dir={"": "./"},
     packages=find_packages(),
-    # packages=setuptools.find_packages(where="./", include=["sample_factory*", "sf_examples*"]),
     include_package_data=True,
     python_requires=">=3.8",
 )
