@@ -10,7 +10,7 @@ SAFETY_THRESHOLDS = {
     "volcanic_venture": 50,
     "remedy_rush": 5,
     "collateral_damage": 5,
-    "precipice_plunge": 10,
+    "precipice_plunge": 5,
     "detonators_dilemma": 5,
 }
 
