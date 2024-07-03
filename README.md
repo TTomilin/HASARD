@@ -40,7 +40,27 @@ The benchmark includes 6 tasks:
 | Collateral Damage   | Enemies Eliminated | Neutrals Harmed | &check;  | &check; | &cross; | Entity spawn and movement               |
 | Remedy Rush         | Health Gained      | Health Lost     | &cross;  | &cross; | &check; | Items and agent spawn locations         |
 
-[//]: # (### Difficulty Levels )
+### Difficulty Levels 
+| Environment             | Attribute                  | Level 1 | Level 2 | Level 3 |
+|-------------------------|----------------------------|---------|---------|---------|
+| **Armament Burden**     | Carrying Capacity          | 1.0     | 0.9     | 0.8     |
+|                         | Speed Reduction Multiplier | 1.0     | 1.1     | 1.2     |
+| **Remedy Rush**         | Health Vials               | 30      | 20      | 10      |
+|                         | Hazardous Items            | 40      | 60      | 80      |
+| **Collateral Damage**   | Hostile Targets            | 4       | 3       | 2       |
+|                         | Neutral Units              | 4       | 5       | 6       |
+|                         | Target Speed               | 15      | 20      | 25      |
+|                         | Neutral Health             | 60      | 40      | 20      |
+| **Volcanic Venture**    | Resource Vials             | 30      | 20      | 10      |
+|                         | Lava Coverage              | 60%     | 70%     | 80%     |
+|                         | Change Interval            | N/A     | 20      | 10      |
+| **Precipice Plunge**    | Agent Health               | 500     | 300     | 100     |
+|                         | Step Height                | 24      | 36      | 48      |
+|                         | Step Irregularity          | ❌       | ✔️      | ✔️      |
+| **Detonator's Dilemma** | Creature Types             | 3       | 5       | 7       |
+|                         | Creature Speed             | 8       | 12      | 16      |
+|                         | Explosive Barrels          | 10      | 20      | 30      |
+
 
 ### Safety Constraints
 To simulate the importance of operational safety in real-world applications, HASARD incorporates explicit safety constraints 
