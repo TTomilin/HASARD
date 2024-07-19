@@ -1,6 +1,6 @@
 from collections import deque
 from pathlib import Path
-from typing import Dict, Tuple, Any, List, Optional, Callable
+from typing import Dict, Tuple, Any, List, Optional
 
 import cv2
 import gymnasium
@@ -46,7 +46,6 @@ class DoomEnv(BaseEnv):
     def __init__(self,
                  level: int,
                  constraint: str,
-                 action_space_fn: Callable = None,
                  frame_skip: int = 4,
                  record_every: int = 100,
                  seed: int = 0,
@@ -57,7 +56,7 @@ class DoomEnv(BaseEnv):
                  variable_queue_length: int = 5):
         super().__init__()
         self.level = level
-        self.constraint = constraint
+        self.constraint = constraint.lower()
         self.scenario = self.__module__.split('.')[-2]
         self.frame_skip = frame_skip
 
@@ -71,7 +70,7 @@ class DoomEnv(BaseEnv):
         # Initialize the Doom game instance
         self.game = vzd.DoomGame()
         self.game.load_config(f"{scenario_dir}/conf.cfg")
-        self.game.set_doom_scenario_path(f"{scenario_dir}/level_{level}_{constraint.lower()}.wad")
+        self.game.set_doom_scenario_path(f"{scenario_dir}/level_{level}_{self.constraint}.wad")
         self.game.set_seed(seed)
         self.render_sleep = render_sleep
         self.render_enabled = render
@@ -88,7 +87,7 @@ class DoomEnv(BaseEnv):
         self._observation_space = gymnasium.spaces.Box(low=0, high=255, shape=self.game_res, dtype=np.uint8)
 
         # Define the action space
-        self.available_actions = action_space_fn()
+        self.available_actions = self.get_available_actions()
         self._action_space = gymnasium.spaces.Discrete(len(self.available_actions))
 
         # Initialize the user variable dictionary
@@ -96,10 +95,6 @@ class DoomEnv(BaseEnv):
 
         # Initialize the game variable queue
         self.game_variable_buffer = deque(maxlen=variable_queue_length)
-
-    @property
-    def task(self) -> str:
-        return self.env_name
 
     @property
     def name(self) -> str:
@@ -116,6 +111,16 @@ class DoomEnv(BaseEnv):
     @property
     def observation_space(self) -> gymnasium.spaces.Box:
         return self._observation_space
+
+    @property
+    def hard_constraint(self) -> bool:
+        return self.constraint == 'hard'
+
+    def get_available_actions(self) -> List[List[bool]]:
+        raise NotImplementedError
+
+    def calculate_cost(self) -> float:
+        raise NotImplementedError
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None, ) -> Tuple[
         np.ndarray, Dict[str, Any]]:
@@ -163,79 +168,17 @@ class DoomEnv(BaseEnv):
         reward = 0.0
         done = self.game.is_player_dead() or self.game.is_episode_finished() or not state
         truncated = False
-        info = {}
+        cost, cost_stats = self.calculate_cost()
+        info = {
+            'cost': cost,
+            'cost_stats': cost_stats,
+        }
 
         observation = np.transpose(state.screen_buffer, [1, 2, 0]) if state else np.float32(np.zeros(self.game_res))
         if not done:
             self.game_variable_buffer.append(state.game_variables)
 
-        self.store_statistics(self.game_variable_buffer)
         return observation, reward, done, truncated, info
-
-    def get_statistics(self, mode: str = '') -> Dict[str, float]:
-        """
-        Retrieves statistics about the environment's performance or state.
-
-        Args:
-            mode (str): A specifier for the type of statistics to retrieve.
-
-        Returns:
-            metrics (Dict[str, float]): A dictionary containing statistical data.
-        """
-        return self.extra_statistics(mode)
-
-    def extra_statistics(self, mode: str = '') -> Dict[str, float]:
-        """
-        Retrieves additional statistics specific to the scenario. Mostly game variables.
-
-        Args:
-            mode (str): A specifier to distinguish which environment the statistic is for (train/test).
-
-        Returns:
-            statistics (Dict[str, float]): A dictionary containing additional statistical data.
-        """
-        return {}
-
-    def store_statistics(self, game_vars: deque) -> None:
-        """
-        Stores statistics based on the game variables.
-
-        Args:
-            game_vars (deque): A deque containing game variables for statistics.
-        """
-        pass
-
-    def reward_wrappers(self) -> List[gymnasium.RewardWrapper]:
-        """
-        Returns a list of reward wrapper classes.
-
-        Returns:
-            List[gymnasium.RewardWrapper]: A list of reward wrapper classes.
-        """
-        raise NotImplementedError
-
-    def cost_wrappers(self) -> List[gymnasium.RewardWrapper]:
-        """
-        Returns a list of cost wrapper classes.
-
-        Returns:
-            List[gymnasium.RewardWrapper]: A list of cost wrapper classes.
-        """
-        raise NotImplementedError
-
-    def get_and_update_user_var(self, game_var: GameVariable) -> int:
-        """
-        Retrieves and updates a user-defined variable from the game.
-
-        Args:
-            game_var (GameVariable): The game variable to retrieve and update.
-
-        Returns:
-            prev_var (int): The previous value of the specified game variable.
-        """
-        prev_var = self.user_variables[game_var]
-        self.user_variables[game_var] = self.game.get_game_variable(game_var)
-        return prev_var
 
     def render(self, mode="human"):
         """

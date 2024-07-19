@@ -4,6 +4,8 @@ import gymnasium
 from gymnasium import Env
 from gymnasium.envs.registration import register
 
+from hasard.wrappers.cost import CostWrapper
+
 LEVELS = [1, 2, 3]
 CONSTRAINTS = ["Soft", "Hard"]
 
@@ -33,11 +35,7 @@ for scenario_enum in Scenario:
             register_environment(scenario_enum, level, constraint)
 
 
-def wrap_env(env: Env, **kwargs):
-    for wrapper in env.unwrapped.reward_wrappers():
-        env = wrapper.wrapper_class(env, **wrapper.kwargs)
-    return env
-
-
 def make(env_id, **kwargs) -> Env:
-    return wrap_env(gymnasium.make(env_id, **kwargs.get('doom', {})), **kwargs.get('wrap', {}))
+    env = gymnasium.make(env_id, **kwargs)
+    env = CostWrapper(env)
+    return env
