@@ -18,7 +18,7 @@ from sample_factory.cfg.cfg import (
 )
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
-from sample_factory.utils.utils import cfg_file, cfg_file_old, get_git_commit_hash, log, experiment_name
+from sample_factory.utils.utils import cfg_file, get_git_commit_hash, log, experiment_name
 
 
 def parse_sf_args(
@@ -226,12 +226,6 @@ def default_cfg(algo="APPO", env="env", experiment="test"):
 
 def load_from_checkpoint(cfg: Config) -> AttrDict:
     cfg_filename = cfg_file(cfg)
-    cfg_filename_old = cfg_file_old(cfg)
-
-    if not os.path.isfile(cfg_filename) and os.path.isfile(cfg_filename_old):
-        # rename old config file
-        log.warning(f"Loading legacy config file {cfg_filename_old} instead of {cfg_filename}")
-        os.rename(cfg_filename_old, cfg_filename)
 
     if not os.path.isfile(cfg_filename):
         raise Exception(
