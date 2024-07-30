@@ -18,6 +18,7 @@ from sample_factory.algo.utils.make_env import make_env_func_batched
 from sample_factory.algo.utils.misc import ExperimentStatus
 from sample_factory.algo.utils.rl_utils import make_dones, prepare_and_normalize_obs
 from sample_factory.algo.utils.tensor_utils import unsqueeze_tensor
+from sample_factory.cfg.arguments import load_from_checkpoint
 from sample_factory.model.actor_critic import create_actor_critic
 from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
@@ -86,7 +87,9 @@ def render_frame(cfg, env, video_frames, num_episodes, last_render_start) -> flo
 def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     verbose = True
 
-    # cfg = load_from_checkpoint(cfg)
+    train_dir = cfg.train_dir
+    cfg = load_from_checkpoint(cfg)
+    cfg.train_dir = train_dir  # Ensure we are running on the correct machine
 
     eval_env_frameskip: int = cfg.env_frameskip if cfg.eval_env_frameskip is None else cfg.eval_env_frameskip
     assert (
@@ -130,8 +133,8 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     else:
         learner_cls = PPOLearner
     checkpoints = learner_cls.get_checkpoints(learner_cls.checkpoint_dir(cfg, policy_id), f"{name_prefix}_*")
-    # checkpoint_dict = Learner.load_checkpoint(checkpoints, device)
-    # actor_critic.load_state_dict(checkpoint_dict["model"])
+    checkpoint_dict = learner_cls.load_checkpoint(checkpoints, device)
+    actor_critic.load_state_dict(checkpoint_dict["model"])
 
     episode_rewards = [deque([], maxlen=100) for _ in range(env.num_agents)]
     true_objectives = [deque([], maxlen=100) for _ in range(env.num_agents)]
