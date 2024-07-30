@@ -19,19 +19,17 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 import numpy as np
-import safety_gymnasium
+import torch
 from gymnasium.spaces import Tuple
 
-import safety_doom
-import torch
-
+import hasard
 from omnisafe.envs.core import CMDP, env_register
 from omnisafe.typing import DEVICE_CPU, Box
 
 
 @env_register
-class SafetyDoomEnv(CMDP):
-    """Safety Doom Environment.
+class HasardEnv(CMDP):
+    """HASARD Environment.
 
     Args:
         env_id (str): Environment id.
@@ -64,11 +62,11 @@ class SafetyDoomEnv(CMDP):
     ]
 
     def __init__(
-        self,
-        env_id: str,
-        num_envs: int = 1,
-        device: torch.device = DEVICE_CPU,
-        **kwargs: Any,
+            self,
+            env_id: str,
+            num_envs: int = 1,
+            device: torch.device = DEVICE_CPU,
+            **kwargs: Any,
     ) -> None:
         """Initialize an instance of :class:`SafetyGymnasiumEnv`."""
         super().__init__(env_id)
@@ -79,7 +77,7 @@ class SafetyDoomEnv(CMDP):
             # TODO implement
             raise NotImplementedError('Only support a single environment for now.')
         else:
-            self._env = safety_doom.make(env_id, **kwargs)
+            self._env = hasard.make(env_id, **kwargs)
             assert isinstance(self._env.action_space, Tuple), 'Only support a MultiDiscrete action space.'
             assert isinstance(self._env.observation_space, Box), 'Only support a Box observation space.'
             self._action_space = self._env.action_space
@@ -87,8 +85,8 @@ class SafetyDoomEnv(CMDP):
         self._metadata = self._env.metadata
 
     def step(
-        self,
-        action: torch.Tensor,
+            self,
+            action: torch.Tensor,
     ) -> tuple[
         torch.Tensor,
         torch.Tensor,
@@ -141,9 +139,9 @@ class SafetyDoomEnv(CMDP):
         return obs, reward, cost, terminated, truncated, info
 
     def reset(
-        self,
-        seed: int | None = None,
-        options: dict[str, Any] | None = None,
+            self,
+            seed: int | None = None,
+            options: dict[str, Any] | None = None,
     ) -> tuple[torch.Tensor, dict[str, Any]]:
         """Reset the environment.
 
