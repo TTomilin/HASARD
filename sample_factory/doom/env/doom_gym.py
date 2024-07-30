@@ -99,7 +99,8 @@ class VizdoomEnv(gym.Env):
         self.state = None
         self.curr_seed = 0
         self.rng = None
-        self.skip_frames = 1 if self.render_mode == 'human' else skip_frames
+        # self.skip_frames = 1 if self.render_mode == 'human' else skip_frames
+        self.skip_frames = skip_frames
         self.async_mode = async_mode
 
         # optional - for topdown view rendering and visitation heatmaps
@@ -206,7 +207,10 @@ class VizdoomEnv(gym.Env):
     def _create_doom_game(self, mode):
         self.game = DoomGame()
 
-        screen_res = ScreenResolution.RES_1600X1000 if self.render_mode == 'human' else self.screen_resolution
+        # screen_res = ScreenResolution.RES_1600X1000 if self.render_mode == 'human' else self.screen_resolution
+        # screen_res = ScreenResolution.RES_640X480 if self.render_mode == 'human' else self.screen_resolution
+        screen_res = ScreenResolution.RES_160X120 if self.render_mode == 'human' else self.screen_resolution
+        # screen_res = self.screen_resolution
 
         self.game.load_config(self.config_path)
         self.game.set_doom_scenario_path(self.scenario_path)
@@ -218,7 +222,7 @@ class VizdoomEnv(gym.Env):
         elif mode == "human" or mode == "replay":
             self.game.add_game_args("+freelook 1")
             self.game.set_window_visible(True)
-            self.frame_skip = 1
+            # self.frame_skip = 1
         else:
             raise Exception("Unsupported mode")
 
@@ -492,8 +496,8 @@ class VizdoomEnv(gym.Env):
             img = np.transpose(img, [1, 2, 0])
             if mode == "rgb_array":
                 return img
-            elif mode == "human":
-                time.sleep(0.01)
+            # elif mode == "human":
+            #     time.sleep(0.01)
 
             h, w = img.shape[:2]
             render_h, render_w = h, w
