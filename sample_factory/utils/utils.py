@@ -420,11 +420,6 @@ def cfg_file(cfg: Config) -> str:
     return join(experiment_dir(cfg=cfg), "config.json")
 
 
-def cfg_file_old(cfg: Config) -> str:
-    """Filename used before SF 2.0.2. Keep for compatibility."""
-    return join(experiment_dir(cfg=cfg), "cfg.json")
-
-
 def git_root():
     """:returns None if we're not in the git repo, otherwise full path to the root of the repo."""
     cwd = os.getcwd()
