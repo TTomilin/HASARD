@@ -318,40 +318,16 @@ def make_doom_env_impl(
     fps = cfg.fps if "fps" in cfg else None
     async_mode = fps == 0
 
-    if player_id is None:
-        env = VizdoomEnv(
-            doom_spec.action_space,
-            doom_spec.env_spec_file,
-            constraint=cfg.constraint,
-            skip_frames=skip_frames,
-            async_mode=async_mode,
-            render_mode=render_mode,
-        )
-    else:
-        timelimit = cfg.timelimit if cfg.timelimit is not None else doom_spec.timelimit
-
-        from sample_factory.doom.env.multiplayer.doom_multiagent import VizdoomEnvMultiplayer
-
-        env = VizdoomEnvMultiplayer(
-            doom_spec.action_space,
-            doom_spec.env_spec_file,
-            player_id=player_id,
-            num_agents=num_agents,
-            max_num_players=max_num_players,
-            num_bots=num_bots,
-            skip_frames=skip_frames,
-            async_mode=async_mode,
-            respawn_delay=doom_spec.respawn_delay,
-            timelimit=timelimit,
-            render_mode=render_mode,
-        )
+    env = VizdoomEnv(
+        doom_spec.action_space,
+        doom_spec.env_spec_file,
+        constraint=cfg.constraint,
+        skip_frames=skip_frames,
+        async_mode=async_mode,
+        render_mode=render_mode,
+    )
 
     record_to = cfg.record_to if "record_to" in cfg else None
-    should_record = False
-    if env_config is None:
-        should_record = True
-    elif env_config.worker_index == 0 and env_config.vector_index == 0 and (player_id is None or player_id == 0):
-        should_record = True
 
     if cfg.record:
         video_folder = os.path.join(experiment_dir(cfg), cfg.video_dir)
@@ -360,11 +336,6 @@ def make_doom_env_impl(
                           dummy_env=env_config is None)
 
     env = MultiplayerStatsWrapper(env)
-
-    # # BotDifficultyWrapper no longer in use
-    # if num_bots > 0:
-    #     bot_difficulty = cfg.start_bot_difficulty if "start_bot_difficulty" in cfg else None
-    #     env = BotDifficultyWrapper(env, bot_difficulty)
 
     resolution = custom_resolution
     if resolution is None:
