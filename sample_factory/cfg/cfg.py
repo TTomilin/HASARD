@@ -11,6 +11,13 @@ def add_basic_cli_args(p: ArgumentParser):
     p.add_argument("--algo", type=str, default="APPO", help="Algorithm to use")
     p.add_argument("--env", type=str, default=None, required=True, help="Name of the environment to use")
     p.add_argument(
+        "--timestamp",
+        type=str,
+        default=None,
+        required=False,
+        help="Provide the timestamp to resume training an existing experiment or enjoy a trained model"
+    )
+    p.add_argument(
         "--experiment",
         type=str,
         default="default_experiment",
