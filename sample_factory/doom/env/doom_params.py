@@ -35,6 +35,7 @@ def add_doom_env_args(parser):
         type=str2bool,
         help="If true render wide aspect ratio (slower but gives better FOV to the agent)",
     )
+    p.add_argument('--level', type=int, default=1, choices=[1, 2, 3], help='Difficulty level')
     p.add_argument('--constraint', type=str, default='soft', choices=['soft', 'hard'], help='Soft/Hard safety constraint')
     p.add_argument('--render_mode', type=str, default='rgb_array', help='Rendering mode')
     p.add_argument("--video_dir", default='videos', type=str, help="Record episodes to this folder after an internval.")
