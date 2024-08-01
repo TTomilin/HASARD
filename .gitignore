@@ -151,3 +151,4 @@ sf_examples/vizdoom/doom/multiplayer/tests/_vizdoom/
 /sample_factory/doom/env/scenarios/remedy_rush_local.wad
 /sample_factory/doom/env/scenarios/precipice_plunge_steep.wad
 /results/data/
+*.bak
