@@ -325,6 +325,7 @@ def make_doom_env_impl(
         skip_frames=skip_frames,
         async_mode=async_mode,
         render_mode=render_mode,
+        resolution=cfg.resolution,
     )
 
     record_to = cfg.record_to if "record_to" in cfg else None
@@ -337,7 +338,7 @@ def make_doom_env_impl(
 
     env = MultiplayerStatsWrapper(env)
 
-    resolution = custom_resolution
+    resolution = cfg.resolution
     if resolution is None:
         resolution = "256x144" if cfg.wide_aspect_ratio else "160x120"
 
@@ -374,54 +375,6 @@ def make_doom_env_impl(
     return env
 
 
-def make_doom_multiplayer_env(doom_spec, cfg=None, env_config=None, render_mode: Optional[str] = None, **kwargs):
-    skip_frames = cfg.env_frameskip
-
-    if cfg.num_bots < 0:
-        num_bots = doom_spec.num_bots
-    else:
-        num_bots = cfg.num_bots
-
-    num_agents = doom_spec.num_agents if cfg.num_agents <= 0 else cfg.num_agents
-    max_num_players = num_agents + cfg.num_humans
-
-    is_multiagent = num_agents > 1
-
-    def make_env_func(player_id):
-        return make_doom_env_impl(
-            doom_spec,
-            cfg=cfg,
-            player_id=player_id,
-            num_agents=num_agents,
-            max_num_players=max_num_players,
-            num_bots=num_bots,
-            skip_frames=1 if is_multiagent else skip_frames,  # multi-agent skipped frames are handled by the wrapper
-            env_config=env_config,
-            render_mode=render_mode,
-            **kwargs,
-        )
-
-    if is_multiagent:
-        # create a wrapper that treats multiple game instances as a single multi-agent environment
-
-        from sample_factory.doom.env.multiplayer.doom_multiagent_wrapper import MultiAgentEnv
-
-        env = MultiAgentEnv(
-            num_agents=num_agents,
-            make_env_func=make_env_func,
-            env_config=env_config,
-            skip_frames=skip_frames,
-            render_mode=render_mode,
-        )
-    else:
-        # if we have only one agent, there's no need for multi-agent wrapper
-        from sample_factory.doom.env.multiplayer.doom_multiagent_wrapper import init_multiplayer_env
-
-        env = init_multiplayer_env(make_env_func, player_id=0, env_config=env_config)
-
-    return env
-
-
 def make_doom_env(env_name, cfg, env_config, render_mode: Optional[str] = None, **kwargs):
     spec = doom_env_by_name(env_name)
     return make_doom_env_from_spec(spec, env_name, cfg, env_config, render_mode, **kwargs)
@@ -442,8 +395,4 @@ def make_doom_env_from_spec(spec, _env_name, cfg, env_config, render_mode: Optio
     else:
         cfg.record_to = None
 
-    if spec.num_agents > 1 or spec.num_bots > 0:
-        # requires multiplayer setup (e.g. at least a host, not a singleplayer game)
-        return make_doom_multiplayer_env(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, **kwargs)
-    else:
-        return make_doom_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, **kwargs)
+    return make_doom_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, **kwargs)

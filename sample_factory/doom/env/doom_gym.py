@@ -17,6 +17,12 @@ from vizdoom import AutomapMode, DoomGame, Mode, ScreenResolution
 from sample_factory.algo.utils.spaces.discretized import Discretized
 from sample_factory.utils.utils import log, project_tmp_dir
 
+resolutions = {'1600x1200': ScreenResolution.RES_1600X1200,
+               '800x600': ScreenResolution.RES_800X600,
+               '640x480': ScreenResolution.RES_640X480,
+               '320x240': ScreenResolution.RES_320X240,
+               '160x120': ScreenResolution.RES_160X120}
+
 
 def doom_lock_file(max_parallel):
     """
@@ -78,6 +84,12 @@ def key_to_action_default(key):
     return action_table.get(key, None)
 
 
+def get_screen_resolution(resolution: str) -> ScreenResolution:
+    if resolution not in resolutions:
+        raise ValueError(f'Invalid resolution: {resolution}')
+    return resolutions[resolution]
+
+
 class VizdoomEnv(gym.Env):
     def __init__(
             self,
@@ -90,6 +102,7 @@ class VizdoomEnv(gym.Env):
             skip_frames=1,
             async_mode=False,
             record_to=None,
+            resolution: str = None,
             render_mode: Optional[str] = None,
     ):
         self.initialized = False
@@ -99,7 +112,6 @@ class VizdoomEnv(gym.Env):
         self.state = None
         self.curr_seed = 0
         self.rng = None
-        # self.skip_frames = 1 if self.render_mode == 'human' else skip_frames
         self.skip_frames = skip_frames
         self.async_mode = async_mode
 
@@ -109,7 +121,7 @@ class VizdoomEnv(gym.Env):
 
         # can be adjusted after the environment is created (but before any reset() call) via observation space wrapper
         self.screen_w, self.screen_h, self.channels = 640, 480, 3
-        self.screen_resolution = ScreenResolution.RES_640X480
+        self.resolution = resolution
         self.calc_observation_space()
 
         self.black_screen = None
@@ -206,23 +218,17 @@ class VizdoomEnv(gym.Env):
 
     def _create_doom_game(self, mode):
         self.game = DoomGame()
-
-        # screen_res = ScreenResolution.RES_1600X1000 if self.render_mode == 'human' else self.screen_resolution
-        # screen_res = ScreenResolution.RES_640X480 if self.render_mode == 'human' else self.screen_resolution
-        screen_res = ScreenResolution.RES_160X120 if self.render_mode == 'human' else self.screen_resolution
-        # screen_res = self.screen_resolution
-
+        self.game.set_screen_resolution(get_screen_resolution(self.resolution))
         self.game.load_config(self.config_path)
         self.game.set_doom_scenario_path(self.scenario_path)
-        self.game.set_screen_resolution(screen_res)
         self.game.set_seed(self.curr_seed)
 
-        if mode == "algo":
-            self.game.set_window_visible(False)
-        elif mode == "human" or mode == "replay":
+        if mode == "human" or mode == "replay" or self.render_mode == 'human':
             self.game.add_game_args("+freelook 1")
             self.game.set_window_visible(True)
-            # self.frame_skip = 1
+            self.frame_skip = 1
+        elif mode == "algo":
+            self.game.set_window_visible(False)
         else:
             raise Exception("Unsupported mode")
 
@@ -496,8 +502,8 @@ class VizdoomEnv(gym.Env):
             img = np.transpose(img, [1, 2, 0])
             if mode == "rgb_array":
                 return img
-            # elif mode == "human":
-            #     time.sleep(0.01)
+            elif mode == "human":
+                time.sleep(0.01)
 
             h, w = img.shape[:2]
             render_h, render_w = h, w
