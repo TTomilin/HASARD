@@ -17,7 +17,9 @@ from vizdoom import AutomapMode, DoomGame, Mode, ScreenResolution
 from sample_factory.algo.utils.spaces.discretized import Discretized
 from sample_factory.utils.utils import log, project_tmp_dir
 
-resolutions = {'1600x1200': ScreenResolution.RES_1600X1200,
+resolutions = {'1920x1080': ScreenResolution.RES_1920X1080,
+               '1600x1200': ScreenResolution.RES_1600X1200,
+               '1280x720': ScreenResolution.RES_1280X720,
                '800x600': ScreenResolution.RES_800X600,
                '640x480': ScreenResolution.RES_640X480,
                '320x240': ScreenResolution.RES_320X240,
@@ -103,6 +105,7 @@ class VizdoomEnv(gym.Env):
             async_mode=False,
             record_to=None,
             resolution: str = None,
+            seed: Optional[int] = None,
             render_mode: Optional[str] = None,
     ):
         self.initialized = False
@@ -192,7 +195,7 @@ class VizdoomEnv(gym.Env):
 
         self.render_mode = render_mode
 
-        self.seed()
+        self.seed(seed)
 
     def seed(self, seed: Optional[int] = None):
         """
@@ -348,7 +351,7 @@ class VizdoomEnv(gym.Env):
         return demo_path_
 
     def reset(self, **kwargs) -> Tuple[np.ndarray, Dict]:
-        if "seed" in kwargs:
+        if "seed" in kwargs and kwargs["seed"]:
             self.seed(kwargs["seed"])
 
         self._ensure_initialized()
@@ -483,7 +486,7 @@ class VizdoomEnv(gym.Env):
         reward = self.game.make_action(actions_flattened, self.skip_frames)
         state = self.game.get_state()
         done = self.game.is_episode_finished()
-        self.render()
+        # self.render()
 
         observation, done, info = self._process_game_step(state, done, default_info)
 

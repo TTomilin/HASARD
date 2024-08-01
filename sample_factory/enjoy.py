@@ -3,6 +3,7 @@ from collections import deque
 from typing import Dict, Tuple
 
 import gymnasium as gym
+import imageio
 import numpy as np
 import torch
 from torch import Tensor
@@ -84,6 +85,13 @@ def render_frame(cfg, env, video_frames, num_episodes, last_render_start) -> flo
     return render_start
 
 
+def save_video(frames, file_path):
+    writer = imageio.get_writer(file_path, fps=25)  # Assuming 25 FPS for playback
+    for frame in frames:
+        writer.append_data(frame)
+    writer.close()
+
+
 def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     verbose = True
 
@@ -110,11 +118,16 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     env = make_env_func_batched(
         cfg, env_config=AttrDict(worker_index=0, vector_index=0, env_id=0), render_mode=render_mode
     )
+    cfg.resolution = cfg.resolution_eval
+    env_render = make_env_func_batched(
+        cfg, env_config=AttrDict(worker_index=0, vector_index=0, env_id=0), render_mode=render_mode
+    )
     env_info = extract_env_info(env, cfg)
 
     if hasattr(env.unwrapped, "reset_on_init"):
         # reset call ruins the demo recording for VizDoom
         env.unwrapped.reset_on_init = False
+        env_render.unwrapped.reset_on_init = False
 
     actor_critic = create_actor_critic(cfg, env.observation_space, env.action_space)
     actor_critic.eval()
@@ -148,6 +161,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     reward_list = []
 
     obs, infos = env.reset()
+    _, _ = env_render.reset()
     rnn_states = torch.zeros([env.num_agents, get_rnn_size(cfg)], dtype=torch.float32, device=device)
     episode_reward = None
     episode_cost = 0
@@ -179,9 +193,11 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
             rnn_states = policy_outputs["new_rnn_states"]
 
             for _ in range(render_action_repeat):
-                last_render_start = render_frame(cfg, env, video_frames, num_episodes, last_render_start)
+                # last_render_start = render_frame(cfg, env, video_frames, num_episodes, last_render_start)
+                last_render_start = render_frame(cfg, env_render, video_frames, num_episodes, last_render_start)
 
                 obs, rew, terminated, truncated, infos = env.step(actions)
+                _, _, _, _, _ = env_render.step(actions)
                 cost = infos[0]['cost']
                 dones = make_dones(terminated, truncated)
                 infos = [{} for _ in range(env_info.num_agents)] if infos is None else infos
@@ -227,7 +243,8 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
 
                 # if episode terminated synchronously for all agents, pause a bit before starting a new one
                 if all(dones):
-                    render_frame(cfg, env, video_frames, num_episodes, last_render_start)
+                    # render_frame(cfg, env, video_frames, num_episodes, last_render_start)
+                    render_frame(cfg, env_render, video_frames, num_episodes, last_render_start)
                     time.sleep(0.05)
 
                 if all(finished_episode):
@@ -256,6 +273,12 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                 break
 
     env.close()
+
+    # Save the video if frames were collected
+    if cfg.save_video and video_frames:
+        video_file_path = f"{experiment_dir(cfg)}/video_eval_{cfg.resolution_eval}.mp4"
+        save_video(video_frames, video_file_path)
+        log.info(f"Video saved to {video_file_path}")
 
     return ExperimentStatus.SUCCESS, sum([sum(episode_rewards[i]) for i in range(env.num_agents)]) / sum(
         [len(episode_rewards[i]) for i in range(env.num_agents)]
