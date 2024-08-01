@@ -12,7 +12,7 @@ from sample_factory.doom.env.action_space import (
     doom_action_space_extended,
     doom_action_space_full_discretized,
     doom_turn_and_attack_only, doom_turn_and_move_only, doom_turn_move_jump_accelerate,
-    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_forward_backward,
+    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.additional_input import DoomAdditionalInput
@@ -182,7 +182,7 @@ DOOM_ENVS = [
     DoomSpec(
         'precipice_plunge',
         'precipice_plunge.cfg',
-        doom_turn_and_move_forward_backward(),
+        doom_turn_and_move_and_look(),
         penalty_scaling=1.0,
         default_timeout=2100,
         extra_wrappers=[(PrecipicePlungeRewardFunction, {}), (PrecipicePlungeCostFunction, {})]
@@ -326,6 +326,7 @@ def make_doom_env_impl(
         async_mode=async_mode,
         render_mode=render_mode,
         resolution=cfg.resolution,
+        seed=cfg.seed,
     )
 
     record_to = cfg.record_to if "record_to" in cfg else None
