@@ -137,7 +137,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     actor_critic.load_state_dict(checkpoint_dict["model"])
 
     episode_rewards = [deque([], maxlen=100) for _ in range(env.num_agents)]
-    true_objectives = [deque([], maxlen=100) for _ in range(env.num_agents)]
+    episode_costs = [deque([], maxlen=100) for _ in range(env.num_agents)]
     num_frames = 0
 
     last_render_start = time.time()
@@ -150,6 +150,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     obs, infos = env.reset()
     rnn_states = torch.zeros([env.num_agents, get_rnn_size(cfg)], dtype=torch.float32, device=device)
     episode_reward = None
+    episode_cost = 0
     finished_episode = [False for _ in range(env.num_agents)]
 
     video_frames = []
@@ -181,6 +182,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                 last_render_start = render_frame(cfg, env, video_frames, num_episodes, last_render_start)
 
                 obs, rew, terminated, truncated, infos = env.step(actions)
+                cost = infos[0]['cost']
                 dones = make_dones(terminated, truncated)
                 infos = [{} for _ in range(env_info.num_agents)] if infos is None else infos
 
@@ -188,6 +190,8 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                     episode_reward = rew.float().clone()
                 else:
                     episode_reward += rew.float()
+
+                episode_cost += cost
 
                 num_frames += 1
                 if num_frames % 100 == 0:
@@ -199,23 +203,19 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                         finished_episode[agent_i] = True
                         rew = episode_reward[agent_i].item()
                         episode_rewards[agent_i].append(rew)
-
-                        true_objective = rew
-                        if isinstance(infos, (list, tuple)):
-                            true_objective = infos[agent_i].get("true_objective", rew)
-                        true_objectives[agent_i].append(true_objective)
+                        episode_costs[agent_i].append(episode_cost)
 
                         if verbose:
                             log.info(
-                                "Episode finished for agent %d at %d frames. Reward: %.3f, cost: %.3f, true_objective: %.3f",
+                                "Episode finished for agent %d at %d frames. Reward: %.3f, cost: %.3f",
                                 agent_i,
                                 num_frames,
                                 episode_reward[agent_i],
-                                infos[0].get("cost"),
-                                true_objectives[agent_i][-1],
+                                episode_cost,
                             )
                         rnn_states[agent_i] = torch.zeros([get_rnn_size(cfg)], dtype=torch.float32, device=device)
                         episode_reward[agent_i] = 0
+                        episode_cost = 0
 
                         if cfg.use_record_episode_statistics:
                             # we want the scores from the full episode not a single agent death (due to EpisodicLifeEnv wrapper)
@@ -224,7 +224,6 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                                 reward_list.append(infos[agent_i]["episode"]["r"])
                         else:
                             num_episodes += 1
-                            reward_list.append(true_objective)
 
                 # if episode terminated synchronously for all agents, pause a bit before starting a new one
                 if all(dones):
@@ -233,34 +232,25 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
 
                 if all(finished_episode):
                     finished_episode = [False] * env.num_agents
-                    avg_episode_rewards_str, avg_true_objective_str = "", ""
+                    avg_episode_rewards_str, avg_cost_str = "", ""
                     for agent_i in range(env.num_agents):
                         avg_rew = np.mean(episode_rewards[agent_i])
-                        avg_true_obj = np.mean(true_objectives[agent_i])
+                        avg_cost = np.mean(episode_costs[agent_i])
 
                         if not np.isnan(avg_rew):
                             if avg_episode_rewards_str:
                                 avg_episode_rewards_str += ", "
                             avg_episode_rewards_str += f"#{agent_i}: {avg_rew:.3f}"
-                        if not np.isnan(avg_true_obj):
-                            if avg_true_objective_str:
-                                avg_true_objective_str += ", "
-                            avg_true_objective_str += f"#{agent_i}: {avg_true_obj:.3f}"
+                        if not np.isnan(avg_cost):
+                            if avg_cost_str:
+                                avg_cost_str += ", "
+                            avg_cost_str += f"#{agent_i}: {avg_cost:.3f}"
 
                     log.info(
-                        "Avg episode rewards: %s, true rewards: %s", avg_episode_rewards_str, avg_true_objective_str
-                    )
-                    log.info(
-                        "Avg episode reward: %.3f, avg true_objective: %.3f",
+                        "Avg episode reward: %.3f, avg cost: %.3f",
                         np.mean([np.mean(episode_rewards[i]) for i in range(env.num_agents)]),
-                        np.mean([np.mean(true_objectives[i]) for i in range(env.num_agents)]),
+                        np.mean([np.mean(episode_costs[i]) for i in range(env.num_agents)]),
                     )
-
-                # VizDoom multiplayer stuff
-                # for player in [1, 2, 3, 4, 5, 6, 7, 8]:
-                #     key = f'PLAYER{player}_FRAGCOUNT'
-                #     if key in infos[0]:
-                #         log.debug('Score for player %d: %r', player, infos[0][key])
 
             if num_episodes >= cfg.max_num_episodes:
                 break
