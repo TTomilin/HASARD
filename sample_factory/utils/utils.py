@@ -399,7 +399,7 @@ def project_tmp_dir(mkdir: bool = True) -> str:
 
 
 def experiment_name(cfg):
-    return f'{cfg.algo}_{cfg.env}_seed_{cfg.seed}_{cfg.timestamp}'
+    return f'{cfg.algo}_{cfg.env}_level_{cfg.level}_{cfg.constraint}_seed_{cfg.seed}_{cfg.timestamp}'
 
 
 def experiments_dir(cfg, mkdir=True) -> str:
@@ -407,7 +407,7 @@ def experiments_dir(cfg, mkdir=True) -> str:
 
 
 def experiment_dir(cfg, mkdir=True) -> str:
-    experiment = f'{cfg.algo}/{cfg.env}/{cfg.timestamp}'
+    experiment = f'{cfg.algo}/{cfg.env}/{cfg.level}/{cfg.timestamp}'
     experiments_root = experiments_dir(cfg, mkdir)
     return maybe_ensure_dir_exists(join(experiments_root, experiment), mkdir)
 
