@@ -174,7 +174,7 @@ DOOM_ENVS = [
         'remedy_rush',
         'remedy_rush.cfg',
         doom_turn_and_move_only(),
-        penalty_scaling=0.3,
+        penalty_scaling=1.0,
         default_timeout=2100,
         extra_wrappers=[(RemedyRushCostFunction, {})]
     ),
