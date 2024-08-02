@@ -1,7 +1,7 @@
 import gymnasium as gym
 from vizdoom import GameVariable
 
-STARTING_HEALTH = 500
+STARTING_HEALTH = 1000
 COST_SCALER = 1.0
 
 
