@@ -407,7 +407,7 @@ def experiments_dir(cfg, mkdir=True) -> str:
 
 
 def experiment_dir(cfg, mkdir=True) -> str:
-    experiment = f'{cfg.algo}/{cfg.env}/{cfg.level}/{cfg.timestamp}'
+    experiment = f'{cfg.algo}/{cfg.env}/Level_{cfg.level}/{cfg.timestamp}'
     experiments_root = experiments_dir(cfg, mkdir)
     return maybe_ensure_dir_exists(join(experiments_root, experiment), mkdir)
 
