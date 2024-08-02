@@ -276,7 +276,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
 
     # Save the video if frames were collected
     if cfg.save_video and video_frames:
-        video_file_path = f"{experiment_dir(cfg)}/video_eval_{cfg.resolution_eval}.mp4"
+        video_file_path = f"{experiment_dir(cfg)}/{cfg.algo}.mp4"
         save_video(video_frames, video_file_path)
         log.info(f"Video saved to {video_file_path}")
 
