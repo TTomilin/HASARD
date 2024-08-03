@@ -12,7 +12,7 @@ from sample_factory.doom.env.action_space import (
     doom_action_space_extended,
     doom_action_space_full_discretized,
     doom_turn_and_attack_only, doom_turn_move_jump_accelerate,
-    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use,
+    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use_jump,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.additional_input import DoomAdditionalInput
@@ -164,7 +164,7 @@ DOOM_ENVS = [
     DoomSpec(
         'armament_burden',
         'armament_burden.cfg',
-        doom_turn_move_use(),
+        doom_turn_move_use_jump(),
         penalty_scaling=0.1,
         default_timeout=2100,
         extra_wrappers=[(ArmamentBurdenCostFunction, {})]
