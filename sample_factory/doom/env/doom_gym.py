@@ -487,7 +487,6 @@ class VizdoomEnv(gym.Env):
         reward = self.game.make_action(actions_flattened, self.skip_frames)
         state = self.game.get_state()
         done = self.game.is_episode_finished()
-        # self.render()
 
         observation, done, info = self._process_game_step(state, done, default_info)
 
