@@ -5,11 +5,11 @@ import os
 import numpy as np
 
 SAFETY_THRESHOLDS = {
-    "armament_burden": 0.13,
+    "armament_burden": 0.1,
     "volcanic_venture": 50,
     "remedy_rush": 5,
     "collateral_damage": 5,
-    "precipice_plunge": 10,
+    "precipice_plunge": 50,
     "detonators_dilemma": 5,
 }
 
@@ -26,8 +26,8 @@ TRANSLATIONS = {
 
 
 # Data Loading
-def load_data(base_path, environment, method, seed, metric_key):
-    file_path = os.path.join(base_path, environment, method, f"seed_{seed}", f"{metric_key}.json")
+def load_data(base_path, environment, method, seed, level, metric_key):
+    file_path = os.path.join(base_path, environment, method, f"level_{level}", f"seed_{seed}", f"{metric_key}.json")
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
             data = json.load(file)
@@ -36,54 +36,81 @@ def load_data(base_path, environment, method, seed, metric_key):
 
 
 # Data Processing
-def process_data(base_path, environments, methods, seeds, metrics):
+def process_data(base_path, environments, methods, seeds, levels, metrics, constraints, n_data_points):
     results = {}
     for env in environments:
         results[env] = {}
         for method in methods:
             results[env][method] = {}
-            for metric in metrics:
-                process_metric(results, base_path, env, method, seeds, metric)
+            for level in levels:
+                for metric in metrics:
+                    process_metric(results, base_path, env, method, seeds, level, metric, constraints, n_data_points)
     return results
 
 
-def process_metric(results, base_path, env, method, seeds, metric):
-    # Process both standard and hard metrics
-    for suffix in ['', '_hard']:
+def process_metric(results, base_path, env, method, seeds, level, metric, constraints, n_data_points):
+    for constraint in constraints:
+        suffix = '' if constraint == 'Soft' else '_hard'
         metric_key = f"{metric}{suffix}"
         metric_values = []
+        cost_data_combined = []
+
         for seed in seeds:
-            data = load_data(base_path, env, method, seed, metric_key)
-            if data and len(data) >= 10:
-                last_10_data = data[-10:]
-                mean = np.mean(last_10_data)
-                ci = 1.96 * np.std(last_10_data) / np.sqrt(len(last_10_data))
-                metric_values.append((mean, ci))
+            # Load the metric data
+            data = load_data(base_path, env, method, seed, level, metric_key)
+
+            # Load cost data if the metric is 'reward' and the method is 'PPOCost'
+            if metric == 'reward' and method == 'PPOCost':
+                cost_key = f"cost{suffix}"
+                cost_data = load_data(base_path, env, method, seed, level, cost_key)
+                if data and cost_data and len(data) >= n_data_points and len(cost_data) >= n_data_points:
+                    # Combine reward and cost data if both are sufficiently long
+                    last_reward_data = data[-n_data_points:]
+                    last_cost_data = cost_data[-n_data_points:]
+                    combined_data = [reward + cost for reward, cost in zip(last_reward_data, last_cost_data)]
+                    cost_data_combined.extend(combined_data)
+            elif data and len(data) >= n_data_points:
+                last_data_points = data[-n_data_points:]
+                cost_data_combined.extend(last_data_points)
+
+        # Calculate statistics for combined data or regular data
+        if cost_data_combined:
+            mean = np.mean(cost_data_combined)
+            ci = 1.96 * np.std(cost_data_combined) / np.sqrt(len(cost_data_combined))
+            metric_values.append((mean, ci))
+
+        # Store calculated values
         if metric_values:
             mean_values, ci_values = zip(*metric_values)
-            results[env][method][metric_key] = {
+            results[env][method][f"{metric_key}_level_{level}"] = {
                 'mean': np.mean(mean_values),
                 'ci': np.mean(ci_values)
             }
         else:
-            results[env][method][metric_key] = {'mean': None, 'ci': None}
+            results[env][method][f"{metric_key}_level_{level}"] = {'mean': None, 'ci': None}
 
-def generate_latex_table(data, caption=''):
+
+
+def generate_latex_table(data, constraints, caption=''):
     environments = list(data.keys())
     methods = list(next(iter(data.values())).keys())
+    levels = sorted(set(k.split('_')[-1] for k in next(iter(next(iter(data.values())).values())).keys() if k.startswith('reward')))
 
     # Determine max rewards and min costs per environment for bold formatting
     max_rewards = {}
     min_costs = {}
     for env in environments:
         env_data = data[env]
-        max_rewards[env] = {}
-        min_costs[env] = {}
-        for suffix in ['', '_hard']:
-            all_rewards = [env_data[m][f'reward{suffix}']['mean'] for m in methods if env_data[m][f'reward{suffix}']['mean'] is not None]
-            all_costs = [env_data[m][f'cost{suffix}']['mean'] for m in methods if env_data[m][f'cost{suffix}']['mean'] is not None]
-            max_rewards[env][suffix] = max(all_rewards, default=None)
-            min_costs[env][suffix] = min(all_costs, default=None)
+        for level in levels:
+            key = f"{env}_level_{level}"
+            max_rewards[key] = {}
+            min_costs[key] = {}
+            for constraint in constraints:
+                suffix = '' if constraint == 'Soft' else '_hard'
+                all_rewards = [env_data[m][f'reward{suffix}_level_{level}']['mean'] for m in methods if env_data[m][f'reward{suffix}_level_{level}']['mean'] is not None]
+                all_costs = [env_data[m][f'cost{suffix}_level_{level}']['mean'] for m in methods if env_data[m][f'cost{suffix}_level_{level}']['mean'] is not None]
+                max_rewards[key][suffix] = max(all_rewards, default=None)
+                min_costs[key][suffix] = min(all_costs, default=None)
 
     # Prepare headers with corrected approach for backslashes
     headers = []
@@ -99,31 +126,34 @@ def generate_latex_table(data, caption=''):
     latex_str += subheader_row.rstrip(' & ') + "\\\\\n\\midrule\n"
 
     # Iterate over each constraint type, method, and environment to fill the table
-    for j, constraint_type in enumerate(['Soft', 'Hard']):
-        suffix = '_hard' if constraint_type == 'Hard' else ''
-        for i, method in enumerate(methods):
-            method_escaped = method.replace('_', '\\_')
-            row_lead = "\\multirow{3}{*}{\\rotatebox[origin=c]{90}{" + constraint_type + "}} & " if i == 0 else "& "
-            latex_str += row_lead + f"{method_escaped} & "
-            for env in environments:
-                for metric_type in ['reward', 'cost']:
-                    key = f"{metric_type}{suffix}"
-                    metric = data[env][method].get(key, {'mean': None, 'ci': None})
-                    mean = metric['mean']
-                    mean_str = f"{mean:.2f}" if mean is not None else "N/A"
-                    # Apply bold formatting for max reward and min cost
-                    if mean is not None:
-                        if (metric_type == 'reward' and mean == max_rewards[env][suffix]) or (metric_type == 'cost' and mean == min_costs[env][suffix]):
-                            mean_str = f"\\textbf{{{mean_str}}}"
-                    # Apply OliveGreen color to soft cost values if within threshold
-                    if metric_type == 'cost' and suffix == '' and mean is not None:
-                        threshold = SAFETY_THRESHOLDS[env] * 1.15  # 15% higher than the safety threshold
-                        if mean <= threshold:
-                            mean_str = f"\\textcolor{{OliveGreen}}{{{mean_str}}}"
-                    latex_str += mean_str + " & "
-            latex_str = latex_str.rstrip(' & ') + " \\\\\n"
-        if j == 0:
-            latex_str += "\\midrule\n"
+    for k, level in enumerate(levels):
+        for j, constraint_type in enumerate(constraints):
+            suffix = '_hard' if constraint_type == 'Hard' else ''
+            for i, method in enumerate(methods):
+                method_escaped = method.replace('_', '\\_')
+                # row_lead = "\\multirow{3}{*}{\\rotatebox[origin=c]{45}{Level " + level + " " + constraint_type + "}} & " if i == 0 else "& "
+                row_lead = "\\multirow{3}{*}{\\rotatebox[origin=c]{90}{Level " + level + "}} & " if i == 0 else "& "
+                latex_str += row_lead + f"{method_escaped} & "
+                for env in environments:
+                    bold_key = f"{env}_level_{level}"
+                    for metric_type in ['reward', 'cost']:
+                        key = f"{metric_type}{suffix}_level_{level}"
+                        metric = data[env][method].get(key, {'mean': None, 'ci': None})
+                        mean = metric['mean']
+                        mean_str = f"{mean:.2f}" if mean is not None else "N/A"
+                        # Apply bold formatting for max reward and min cost
+                        if mean is not None:
+                            if (metric_type == 'reward' and mean == max_rewards[bold_key][suffix]) or (metric_type == 'cost' and mean == min_costs[bold_key][suffix]):
+                                mean_str = f"\\textbf{{{mean_str}}}"
+                        # Apply OliveGreen color to soft cost values if within threshold
+                        if metric_type == 'cost' and suffix == '' and mean is not None:
+                            threshold = SAFETY_THRESHOLDS[env] * 1.15  # 15% higher than the safety threshold
+                            if mean <= threshold:
+                                mean_str = f"\\textcolor{{OliveGreen}}{{{mean_str}}}"
+                        latex_str += mean_str + " & "
+                latex_str = latex_str.rstrip(' & ') + " \\\\\n"
+            if (k + 1) * (j + 1) < len(levels) * len(constraints):
+                latex_str += "\\midrule\n"
 
     latex_str += "\\bottomrule\n\\end{tabularx}\n}"
     latex_str += f"\\caption{{{caption}}}\n"
@@ -131,19 +161,19 @@ def generate_latex_table(data, caption=''):
     return latex_str
 
 
-
-
-
 def main(args):
-    data = process_data(args.input, args.envs, args.algos, args.seeds, args.metrics)
-    table = generate_latex_table(data)
+    data = process_data(args.input, args.envs, args.algos, args.seeds, args.levels, args.metrics, args.constraints, args.n_data_points)
+    table = generate_latex_table(data, args.constraints)
     print(table)
 
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
     parser.add_argument("--input", type=str, default='data', help="Base input directory containing the data")
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
+    parser.add_argument("--levels", type=int, nargs='+', default=[1, 2, 3], help="Levels(s) of the run(s) to compute")
+    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
+    parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
+    parser.add_argument("--constraints", type=str, nargs='+', default=["Soft", "Hard"], help="Constraints to analyze")
     parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag"],
                         help="Algorithms to analyze")
     parser.add_argument("--envs", type=str, nargs='+',

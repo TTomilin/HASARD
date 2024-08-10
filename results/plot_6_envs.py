@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 SAFETY_THRESHOLDS = {
-    "armament_burden": 0.13,
+    "armament_burden": 0.1,
     "volcanic_venture": 50,
     "remedy_rush": 5,
     "collateral_damage": 5,
-    "precipice_plunge": 5,
+    "precipice_plunge": 50,
     "detonators_dilemma": 5,
 }
 
@@ -27,11 +27,11 @@ TRANSLATIONS = {
 
 
 def main(args):
-    data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics)
+    data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level)
     plot_metrics(data, args)
 
 
-def load_data(base_path, environments, methods, seeds, metrics):
+def load_data(base_path, environments, methods, seeds, metrics, level):
     """Load data from structured directory."""
     data = {}
     for env in environments:
@@ -39,7 +39,7 @@ def load_data(base_path, environments, methods, seeds, metrics):
             for seed in seeds:
                 for metric in metrics:
                     metric_name = f"{metric}_hard" if args.hard_constraint else metric
-                    file_path = os.path.join(base_path, env, method, f"seed_{seed}", f"{metric_name}.json")
+                    file_path = os.path.join(base_path, env, method, f"level_{level}", f"seed_{seed}", f"{metric_name}.json")
                     key = (env, method, metric)
                     if key not in data:
                         data[key] = []
@@ -83,6 +83,15 @@ def plot_metrics(data, args):
                     all_runs = np.array(data[key])
                     if all_runs.size == 0 or len(all_runs.shape) < 2:
                         continue
+
+                    # The reward of PPOCost is logged with the cost subtracted from it
+                    # We need to add it back for a fair comparison
+                    if method == "PPOCost" and metric == "reward":
+                        cost_key = (env, method, "cost")
+                        if cost_key in data:
+                            all_costs = np.array(data[cost_key])
+                            all_runs += all_costs  # Modify this line to adjust how cost influences reward
+
                     num_data_points = all_runs.shape[1]
                     iterations_per_point = args.total_iterations / num_data_points
                     mean = np.mean(all_runs, axis=0)
@@ -92,7 +101,7 @@ def plot_metrics(data, args):
                     ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
                     ax.set_xlim(-args.total_iterations / 60, args.total_iterations)
 
-                    # Small hack, something is wrong with the plotting
+                    # Small hack, something is wrong with plotting certain graphs
                     if args.hard_constraint and env == 'precipice_plunge':
                         y_lim_upper = 200 if metric == 'reward' else 11
                     else:
@@ -115,7 +124,7 @@ def plot_metrics(data, args):
                bbox_to_anchor=(0.5, 0.0))
 
     folder = 'plots'
-    file = 'hard' if args.hard_constraint else 'soft'
+    file = 'hard' if args.hard_constraint else f'soft_level_{args.level}'
     os.makedirs(folder, exist_ok=True)
     plt.savefig(f'{folder}/{file}.pdf', dpi=300)
     plt.show()
@@ -125,6 +134,7 @@ def plot_metrics(data, args):
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plot metrics from structured data directory.")
     parser.add_argument("--input", type=str, default='data', help="Base input directory containing the data")
+    parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
     parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag"],
                         help="Algorithms to download/plot")
@@ -134,7 +144,7 @@ def common_plot_args() -> argparse.ArgumentParser:
                         help="Environments to download/plot")
     parser.add_argument("--metrics", type=str, default=['reward', 'cost'], help="Name of the metrics to download/plot")
     parser.add_argument('--hard_constraint', default=False, action='store_true', help='Soft/Hard safety constraint')
-    parser.add_argument("--total_iterations", type=int, default=3e8,
+    parser.add_argument("--total_iterations", type=int, default=5e8,
                         help="Total number of environment iterations corresponding to 500 data points")
     return parser
 
