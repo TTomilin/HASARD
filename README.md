@@ -5,6 +5,8 @@ egocentric perception 3D environments derived from the classic DOOM video game. 
 across 3 levels of difficulty. HASARD challenges the agent to effectively integrate strategic planning, risk assessment, 
 and adaptive learning within safe operating parameters.
 
+[//]: # ( TODO Add three gifs side by side, each for one level. Combine 6 clips of every env for each. Synchronize them.)
+
 | Environment             | Level 1                                                                                              | Level 2                                                                                              | Level 3                                                                                              |
 |-------------------------|------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
 | **Armament Burden**     | <img src="assets/images/armament_burden/level_1.png" alt="Level 1" style="width:400px; height:auto;"/>    | <img src="assets/images/armament_burden/level_2.png" alt="Level 2" style="width:400px; height:auto;"/>    | <img src="assets/images/armament_burden/level_3.png" alt="Level 3" style="width:400px; height:auto;"/>    |
