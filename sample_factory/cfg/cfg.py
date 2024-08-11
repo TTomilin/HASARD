@@ -692,6 +692,13 @@ def add_default_env_args(p: ArgumentParser):
         type=str2bool,
         help="Add wrapper to each env which will count the number of episodes for each env.",
     )
+    p.add_argument(
+        "--penalty_scaling",
+        default=None,
+        type=float,
+        help="How much to scale the cost penalty in proportion to the reward "
+             "when subtracting the cost from the reward for the PPOCost algorithm"
+    )
 
 
 def add_eval_args(parser):

@@ -207,7 +207,8 @@ def make_doom_env_impl(
         env = RewardScalingWrapper(env, doom_spec.reward_scaling)
 
     if cfg.algo == 'PPOCost':
-        env = CostPenalty(env, doom_spec.penalty_scaling)
+        penalty_scaling = cfg.penalty_scaling if cfg.penalty_scaling else doom_spec.penalty_scaling
+        env = CostPenalty(env, penalty_scaling)
 
     return env
 
