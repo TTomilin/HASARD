@@ -1,3 +1,4 @@
+import os
 import time
 from collections import deque
 from typing import Dict, Tuple
@@ -86,7 +87,7 @@ def render_frame(cfg, env, video_frames, num_episodes, last_render_start) -> flo
 
 
 def save_video(frames, file_path):
-    writer = imageio.get_writer(file_path, fps=25)  # Assuming 25 FPS for playback
+    writer = imageio.get_writer(file_path, fps=35)  # ViZDoom runs at 35 fps
     for frame in frames:
         writer.append_data(frame)
     writer.close()
@@ -99,10 +100,15 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     cfg = load_from_checkpoint(cfg)
     cfg.train_dir = train_dir  # Ensure we are running on the correct machine
 
+    env_initials = ''.join(word[0].upper() for word in cfg.env.split('_'))
+    video_file_path = f"{experiment_dir(cfg)}/{env_initials}_L{cfg.level}_{cfg.algo}.mp4"
+    if os.path.exists(video_file_path) and not cfg.overwrite_video:
+        print(f"Video for {video_file_path} already exists. Skipping...")
+        return ExperimentStatus.SUCCESS, 0
+
     eval_env_frameskip: int = cfg.env_frameskip if cfg.eval_env_frameskip is None else cfg.eval_env_frameskip
-    assert (
-            cfg.env_frameskip % eval_env_frameskip == 0
-    ), f"{cfg.env_frameskip=} must be divisible by {eval_env_frameskip=}"
+    assert (cfg.env_frameskip % eval_env_frameskip == 0), \
+        f"{cfg.env_frameskip=} must be divisible by {eval_env_frameskip=}"
     render_action_repeat: int = cfg.env_frameskip // eval_env_frameskip
     cfg.env_frameskip = cfg.eval_env_frameskip = eval_env_frameskip
     log.debug(f"Using frameskip {cfg.env_frameskip} and {render_action_repeat=} for evaluation")
@@ -276,7 +282,6 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
 
     # Save the video if frames were collected
     if cfg.save_video and video_frames:
-        video_file_path = f"{experiment_dir(cfg)}/{cfg.algo}.mp4"
         save_video(video_frames, video_file_path)
         log.info(f"Video saved to {video_file_path}")
 

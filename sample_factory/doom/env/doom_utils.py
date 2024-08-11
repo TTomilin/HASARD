@@ -3,37 +3,20 @@ import os
 from os.path import join
 from typing import Optional
 
-from gymnasium.spaces import Discrete
-
 from sample_factory.doom.env.action_space import (
-    doom_action_space,
-    doom_action_space_basic,
-    doom_action_space_discretized_no_weap,
-    doom_action_space_extended,
-    doom_action_space_full_discretized,
     doom_turn_and_attack_only, doom_turn_move_jump_accelerate,
     doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use_jump,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
-from sample_factory.doom.env.wrappers.additional_input import DoomAdditionalInput
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
 from sample_factory.doom.env.wrappers.multiplayer_stats import MultiplayerStatsWrapper
 from sample_factory.doom.env.wrappers.observation_space import SetResolutionWrapper, resolutions
 from sample_factory.doom.env.wrappers.record_video import RecordVideo
-from sample_factory.doom.env.wrappers.reward_shaping import (
-    REWARD_SHAPING_BATTLE,
-    REWARD_SHAPING_DEATHMATCH_V0,
-    REWARD_SHAPING_DEATHMATCH_V1,
-    DoomRewardShapingWrapper,
-    true_objective_frags,
-    true_objective_winning_the_game,
-)
 from sample_factory.doom.env.wrappers.scenario_wrappers.armament_burden_cost_function import ArmamentBurdenCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.collateral_damage_cost_function import \
     DoomCollateralDamageCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.detonators_dilemma_cost_function import \
     DoomDetonatorsDilemmaCostFunction
-from sample_factory.doom.env.wrappers.scenario_wrappers.gathering_reward_shaping import DoomGatheringRewardShaping
 from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_cost_function import \
     PrecipicePlungeCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_reward_function import \
@@ -60,7 +43,6 @@ class DoomSpec:
             penalty_scaling=1.0,
             default_timeout=-1,
             num_agents=1,
-            num_bots=0,
             respawn_delay=0,
             timelimit=4.0,
             extra_wrappers=None,
@@ -75,8 +57,6 @@ class DoomSpec:
         # 1 for singleplayer, >1 otherwise
         self.num_agents = num_agents
 
-        self.num_bots = num_bots
-
         self.respawn_delay = respawn_delay
         self.timelimit = timelimit
 
@@ -84,65 +64,11 @@ class DoomSpec:
         self.extra_wrappers = extra_wrappers
 
 
-ADDITIONAL_INPUT = (DoomAdditionalInput, {})  # health, ammo, etc. as input vector
-BATTLE_REWARD_SHAPING = (
-    DoomRewardShapingWrapper,
-    dict(reward_shaping_scheme=REWARD_SHAPING_BATTLE, true_objective_func=None),
-)  # "true" reward None means just the env reward (monster kills)
-BOTS_REWARD_SHAPING = (
-    DoomRewardShapingWrapper,
-    dict(reward_shaping_scheme=REWARD_SHAPING_DEATHMATCH_V0, true_objective_func=true_objective_frags),
-)
-DEATHMATCH_REWARD_SHAPING = (
-    DoomRewardShapingWrapper,
-    dict(reward_shaping_scheme=REWARD_SHAPING_DEATHMATCH_V1, true_objective_func=true_objective_winning_the_game),
-)
-
-
 def episode_trigger(episode):
     return not episode % 1000
 
 
 DOOM_ENVS = [
-    DoomSpec(
-        "doom_basic",
-        "basic.cfg",
-        Discrete(1 + 3),  # idle, left, right, attack
-        reward_scaling=0.01,
-        default_timeout=300,
-    ),
-    DoomSpec(
-        "doom_two_colors_easy",
-        "two_colors_easy.cfg",
-        doom_action_space_basic(),
-        extra_wrappers=[(DoomGatheringRewardShaping, {})],  # same as https://arxiv.org/pdf/1904.01806.pdf
-    ),
-    DoomSpec(
-        "doom_two_colors_hard",
-        "two_colors_hard.cfg",
-        doom_action_space_basic(),
-        extra_wrappers=[(DoomGatheringRewardShaping, {})],
-    ),
-    DoomSpec(
-        "doom_dm",
-        "cig.cfg",
-        doom_action_space(),
-        1.0,
-        int(1e9),
-        num_agents=8,
-        extra_wrappers=[ADDITIONAL_INPUT, DEATHMATCH_REWARD_SHAPING],
-    ),
-    DoomSpec(
-        "doom_dwango5",
-        "dwango5_dm.cfg",
-        doom_action_space(),
-        1.0,
-        int(1e9),
-        num_agents=8,
-        extra_wrappers=[ADDITIONAL_INPUT, DEATHMATCH_REWARD_SHAPING],
-    ),
-
-    # <==== Safety-DOOM environments ====>
     DoomSpec(
         'collateral_damage',
         'collateral_damage.cfg',
@@ -157,7 +83,7 @@ DOOM_ENVS = [
         'volcanic_venture.cfg',
         doom_turn_move_jump_accelerate(),
         penalty_scaling=1.0,
-        default_timeout=2100,
+        default_timeout=1000,
         extra_wrappers=[(VolcanicVentureCostFunction, {})]
     ),
 
@@ -196,97 +122,6 @@ DOOM_ENVS = [
         default_timeout=2100,
         extra_wrappers=[(DoomDetonatorsDilemmaCostFunction, {})]
     ),
-
-    # <==== Environments used in the paper ====>
-    # this is for comparison with other frameworks (wall-time test)
-    DoomSpec("doom_my_way_home_flat_actions", "my_way_home.cfg", Discrete(1 + 4), 1.0),
-    DoomSpec("doom_defend_the_center_flat_actions", "defend_the_center.cfg", Discrete(1 + 3), 1.0),
-    # "basic" single-player envs
-    DoomSpec("doom_my_way_home", "my_way_home.cfg", doom_action_space_basic(), 1.0),
-    DoomSpec("doom_deadly_corridor", "deadly_corridor.cfg", doom_action_space_extended(), 0.01),
-    DoomSpec("doom_defend_the_center", "defend_the_center.cfg", doom_turn_and_attack_only(), 1.0),
-    DoomSpec("doom_defend_the_line", "defend_the_line.cfg", doom_turn_and_attack_only(), 1.0),
-    DoomSpec(
-        "doom_health_gathering",
-        "health_gathering.cfg",
-        Discrete(1 + 4),
-        1.0,
-        extra_wrappers=[(DoomGatheringRewardShaping, {})],  # same as https://arxiv.org/pdf/1904.01806.pdf
-    ),
-    DoomSpec(
-        "doom_health_gathering_supreme",
-        "health_gathering_supreme.cfg",
-        Discrete(1 + 4),
-        1.0,
-        extra_wrappers=[(DoomGatheringRewardShaping, {})],  # same as https://arxiv.org/pdf/1904.01806.pdf
-    ),
-    # "challenging" single-player envs
-    DoomSpec(
-        "doom_battle",
-        "battle_continuous_turning.cfg",
-        doom_action_space_discretized_no_weap(),
-        1.0,
-        2100,
-        extra_wrappers=[ADDITIONAL_INPUT, BATTLE_REWARD_SHAPING],
-    ),
-    DoomSpec(
-        "doom_battle2",
-        "battle2_continuous_turning.cfg",
-        doom_action_space_discretized_no_weap(),
-        1.0,
-        2100,
-        extra_wrappers=[ADDITIONAL_INPUT, BATTLE_REWARD_SHAPING],
-    ),
-    # multi-player envs with bots as opponents (still only one agent)
-    DoomSpec(
-        "doom_duel_bots",
-        "ssl2.cfg",
-        doom_action_space_full_discretized(with_use=True),
-        1.0,
-        int(1e9),
-        num_agents=1,
-        num_bots=1,
-        respawn_delay=2,
-        extra_wrappers=[ADDITIONAL_INPUT, BOTS_REWARD_SHAPING],
-    ),
-    DoomSpec(
-        "doom_deathmatch_bots",
-        "dwango5_dm_continuous_weap.cfg",
-        doom_action_space_full_discretized(),
-        1.0,
-        int(1e9),
-        num_agents=1,
-        num_bots=7,
-        extra_wrappers=[ADDITIONAL_INPUT, BOTS_REWARD_SHAPING],
-    ),
-    # full multiplayer environments for self-play and PBT experiments
-    DoomSpec(
-        "doom_duel",
-        "ssl2.cfg",
-        doom_action_space_full_discretized(with_use=True),
-        1.0,
-        int(1e9),
-        num_agents=2,
-        num_bots=0,
-        respawn_delay=2,
-        extra_wrappers=[ADDITIONAL_INPUT, DEATHMATCH_REWARD_SHAPING],
-    ),
-    DoomSpec(
-        "doom_deathmatch_full",
-        "freedm.cfg",
-        doom_action_space_full_discretized(with_use=True),
-        1.0,
-        int(1e9),
-        num_agents=4,
-        num_bots=4,
-        respawn_delay=2,
-        extra_wrappers=[ADDITIONAL_INPUT, DEATHMATCH_REWARD_SHAPING],
-    ),
-    # benchmark environment, this is the same doom_battle that we're using in the paper, but without extra input spaces
-    # for measurements, and with a more simple action space, just so it is easier to use with other codebases
-    # we measure throughput with 128x72 input resolution, 4-frameskip and original game resolution of 160x120
-    # (no widescreen)
-    DoomSpec("doom_benchmark", "battle.cfg", Discrete(1 + 8), 1.0, 2100),
 ]
 
 
@@ -303,7 +138,6 @@ def make_doom_env_impl(
         cfg=None,
         env_config=None,
         skip_frames=None,
-        episode_horizon=None,
         player_id=None,
         num_agents=None,
         max_num_players=None,
@@ -355,6 +189,7 @@ def make_doom_env_impl(
 
     # randomly vary episode duration to somewhat decorrelate the experience
     timeout = doom_spec.default_timeout
+    episode_horizon = cfg.episode_horizon
     if episode_horizon is not None and episode_horizon > 0:
         timeout = episode_horizon
     if timeout > 0:
