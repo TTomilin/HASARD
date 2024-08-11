@@ -10,6 +10,7 @@ def add_basic_cli_args(p: ArgumentParser):
     p.add_argument("-h", "--help", action="store_true", help="Print the help message", required=False)
     p.add_argument("--algo", type=str, default="PPO", help="Algorithm to use")
     p.add_argument("--env", type=str, default='volcanic_venture', help="Name of the environment to use")
+    p.add_argument("--record_gameplay", default=False, action="store_true", help="Run the script only to record gameplay")
     p.add_argument(
         "--timestamp",
         type=str,
@@ -719,7 +720,6 @@ def add_eval_args(parser):
         "If eval_env_frameskip is different from env_frameskip, we will repeat actions during evaluation "
         "env_frameskip / eval_env_frameskip times to match the training regime.",
     )
-    parser.add_argument("--record_gameplay", default=False, action="store_true", help="Run the script only to record gameplay")
     parser.add_argument("--no_render", action="store_true", help="Do not render the environment during evaluation")
     parser.add_argument("--overwrite_video", action="store_true", help="Overwrite the existing gameplay videos")
     parser.add_argument("--save_video", action="store_true", help="Save video instead of rendering during evaluation")
