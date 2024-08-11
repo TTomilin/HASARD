@@ -83,7 +83,7 @@ DOOM_ENVS = [
         'volcanic_venture.cfg',
         doom_turn_move_jump_accelerate(),
         penalty_scaling=1.0,
-        default_timeout=1000,
+        default_timeout=2100,
         extra_wrappers=[(VolcanicVentureCostFunction, {})]
     ),
 
