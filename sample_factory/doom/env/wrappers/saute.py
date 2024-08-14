@@ -34,18 +34,16 @@ class Saute(gym.Wrapper):
     def __init__(self, env, saute_gamma: float, unsafe_reward: float, max_ep_len: int, num_envs: int = 1):
         super().__init__(env)
 
-        self.safety_budget = (
-            self.safety_bound
-            * (1 - saute_gamma ** max_ep_len)
-            / (1 - saute_gamma)
-            / max_ep_len
-            * np.ones((num_envs, 1))
-        )
+        safety_bound = self.safety_bound
+        safety_bound = 50
+
+        self.safety_budget = safety_bound * (1 - saute_gamma ** max_ep_len) / (1 - saute_gamma) / max_ep_len
 
         self.num_envs = num_envs
         self.saute_gamma = saute_gamma
         self.unsafe_reward = unsafe_reward
-        self._safety_obs = None
+        self.safety_obs = 1
+        self.episode_reward = 0
 
         obs_space = self.env.observation_space
         assert isinstance(obs_space, Box), 'Observation space must be Box'
@@ -58,7 +56,7 @@ class Saute(gym.Wrapper):
         self,
         seed: int | None = None,
         options: dict[str, Any] | None = None,
-    ) -> tuple[torch.Tensor, dict[str, Any]]:
+    ) -> tuple[dict, dict[str, Any]]:
         """Reset the environment and returns an initial observation.
 
         .. note::
@@ -73,7 +71,12 @@ class Saute(gym.Wrapper):
             info: Some information logged by the environment.
         """
         obs, info = self.env.reset(seed=seed, options=options)
-        self._safety_obs = np.ones((self.num_envs, 1), dtype=float)
+        self.safety_obs = 1
+        self.episode_reward = 0
+        obs = {
+            'obs': obs,
+            'safety:': self.safety_obs
+        }
         return obs, info
 
     def step(self, action):
@@ -94,8 +97,9 @@ class Saute(gym.Wrapper):
             truncated: Whether the episode has been truncated due to a time limit.
             info: Some information logged by the environment.
         """
-        next_obs, reward, terminated, truncated, info = self.env.step(action)
-        info['original_reward'] = reward
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        orig_rew = reward
+        self.episode_reward += reward
         cost = info.get('cost', 0.0)
 
         self._safety_step(cost)
@@ -103,14 +107,17 @@ class Saute(gym.Wrapper):
 
         # autoreset the environment
         done = terminated or truncated
-        self._safety_obs = self._safety_obs * (1 - float(done)) + float(done)
+        self.safety_obs = self.safety_obs * (1 - float(done)) + float(done)
 
-        info["episode_extra_stats"] = {
-            'original_reward': reward,
-            'safety_obs': self._safety_obs,
+        # Update episode extra stats in info
+        self.update_episode_stats(done, info, orig_rew)
+
+        obs = {
+            'obs': obs,
+            'safety:': self.safety_obs
         }
 
-        return next_obs, reward, terminated, truncated, info
+        return obs, reward, terminated, truncated, info
 
     def _safety_step(self, cost: torch.Tensor) -> None:
         """Update the safety observation.
@@ -118,10 +125,10 @@ class Saute(gym.Wrapper):
         Args:
             cost (float): The cost of the current step.
         """
-        self._safety_obs -= cost / self.safety_budget
-        self._safety_obs /= self.saute_gamma
+        self.safety_obs -= cost / self.safety_budget
+        self.safety_obs /= self.saute_gamma
 
-    def _safety_reward(self, reward: float) -> np.ndarray:
+    def _safety_reward(self, reward: SupportsFloat) -> SupportsFloat:
         """Update the reward with the safety observation.
 
         .. note::
@@ -134,5 +141,13 @@ class Saute(gym.Wrapper):
         Returns:
             The final reward determined by the safety observation.
         """
-        safe = self._safety_obs > 0
-        return np.where(safe, reward, self.unsafe_reward)
+        return reward if self.safety_obs > 0 else self.unsafe_reward
+
+    def update_episode_stats(self, done, info, orig_rew):
+        key = 'episode_extra_stats'
+        if key not in info:
+            info[key] = {}
+        info[key]['original_reward'] = orig_rew
+        info[key]['safety_obs'] = self.safety_obs
+        if done:
+            info[key]['episode_reward'] = self.episode_reward

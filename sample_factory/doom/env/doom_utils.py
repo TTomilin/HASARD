@@ -217,7 +217,7 @@ def make_doom_env_impl(
         penalty_scaling = cfg.penalty_scaling if cfg.penalty_scaling else doom_spec.penalty_scaling
         env = CostPenalty(env, penalty_scaling)
     elif cfg.algo == 'PPOSaute':
-        env = Saute(env, saute_gamma=cfg.saute_gamma, unsafe_reward=-1, max_ep_len=doom_spec.default_timeout)
+        env = Saute(env, saute_gamma=cfg.saute_gamma, unsafe_reward=cfg.saute_unsafe_reward, max_ep_len=doom_spec.default_timeout)
 
     return env
 

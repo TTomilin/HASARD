@@ -287,7 +287,13 @@ def add_rl_args(p: ArgumentParser):
         "--saute_gamma",
         default=0.9999,
         type=float,
-        help="The discount factor for the safety budget calculation",
+        help="The discount factor for the safety budget calculation.",
+    )
+    p.add_argument(
+        "--saute_unsafe_reward",
+        default=-0.2,
+        type=float,
+        help="The reward given when the safety state is negative.",
     )
 
 
