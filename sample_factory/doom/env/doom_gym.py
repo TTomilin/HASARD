@@ -153,7 +153,7 @@ class VizdoomEnv(gym.Env):
                     scenarios_dir,
                 )
 
-        base_path = self.config_path.replace('.cfg', f'_{level}')
+        base_path = self.config_path.replace('_all', '').replace('.cfg', f'_{level}')
         self.hard_constraint = constraint == 'hard'
         self.scenario_path = f"{base_path}_hard.wad" if self.hard_constraint else f"{base_path}.wad"
 
