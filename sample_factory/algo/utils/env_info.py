@@ -30,6 +30,7 @@ class EnvInfo:
     all_discrete: bool  # in the case of tuple actions, whether the actions are all discrete
     frameskip: int
     safety_bound: float
+    timeout: int
     # potentially customizable reward shaping, a map of reward component names to their respective weights
     # this can be used by PBT to optimize the reward shaping towards a sparse final objective
     reward_shaping_scheme: Optional[Dict[str, float]] = None
@@ -44,6 +45,9 @@ def extract_env_info(env: BatchedVecEnv | NonBatchedVecEnv, cfg: Config) -> EnvI
     action_space = env.action_space
     num_agents = env.num_agents
 
+    safety_bound = env.safety_bound
+    timeout = env.timeout
+
     gpu_actions = cfg.env_gpu_actions
     gpu_observations = cfg.env_gpu_observations
 
@@ -56,7 +60,6 @@ def extract_env_info(env: BatchedVecEnv | NonBatchedVecEnv, cfg: Config) -> EnvI
     if isinstance(action_space, gym.spaces.Tuple):
         action_splits = [calc_num_actions(space) for space in action_space]
         all_discrete = all(isinstance(space, gym.spaces.Discrete) for space in action_space)
-
     env_info = EnvInfo(
         obs_space=obs_space,
         action_space=action_space,
@@ -66,7 +69,8 @@ def extract_env_info(env: BatchedVecEnv | NonBatchedVecEnv, cfg: Config) -> EnvI
         action_splits=action_splits,
         all_discrete=all_discrete,
         frameskip=frameskip,
-        safety_bound=env.safety_bound,
+        safety_bound=safety_bound,
+        timeout=timeout,
         reward_shaping_scheme=reward_shaping_scheme,
         env_info_protocol_version=ENV_INFO_PROTOCOL_VERSION,
     )

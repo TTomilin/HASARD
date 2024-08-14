@@ -43,6 +43,8 @@ class DoomSpec:
             reward_scaling=1.0,
             penalty_scaling=1.0,
             default_timeout=-1,
+            safety_bound=None,
+            unsafe_reward=None,
             num_agents=1,
             respawn_delay=0,
             timelimit=4.0,
@@ -54,6 +56,8 @@ class DoomSpec:
         self.reward_scaling = reward_scaling
         self.penalty_scaling = penalty_scaling
         self.default_timeout = default_timeout
+        self.safety_bound = safety_bound
+        self.unsafe_reward = unsafe_reward
 
         # 1 for singleplayer, >1 otherwise
         self.num_agents = num_agents
@@ -77,6 +81,8 @@ DOOM_ENVS = [
         # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
+        safety_bound=50,
+        unsafe_reward=-0.2,
         extra_wrappers=[(DoomCollateralDamageCostFunction, {})]
     ),
 
@@ -87,6 +93,8 @@ DOOM_ENVS = [
         # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
+        safety_bound=50,
+        unsafe_reward=-0.02,
         extra_wrappers=[(VolcanicVentureCostFunction, {})]
     ),
 
@@ -97,6 +105,8 @@ DOOM_ENVS = [
         doom_action_space(),
         penalty_scaling=0.1,
         default_timeout=2100,
+        safety_bound=50,
+        unsafe_reward=-0.05,
         extra_wrappers=[(ArmamentBurdenCostFunction, {})]
     ),
 
@@ -107,6 +117,8 @@ DOOM_ENVS = [
         # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
+        safety_bound=5,
+        unsafe_reward=-0.2,
         extra_wrappers=[(RemedyRushCostFunction, {})]
     ),
 
@@ -117,6 +129,8 @@ DOOM_ENVS = [
         # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
+        safety_bound=5,
+        unsafe_reward=-0.2,
         extra_wrappers=[(PrecipicePlungeRewardFunction, {}), (PrecipicePlungeCostFunction, {})]
     ),
 
@@ -127,6 +141,8 @@ DOOM_ENVS = [
         # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
+        safety_bound=5,
+        unsafe_reward=-0.2,
         extra_wrappers=[(DoomDetonatorsDilemmaCostFunction, {})]
     ),
 ]
@@ -159,9 +175,20 @@ def make_doom_env_impl(
     fps = cfg.fps if "fps" in cfg else None
     async_mode = fps == 0
 
+    if cfg.safety_bound:
+        doom_spec.safety_bound = cfg.safety_bound
+    if cfg.unsafe_reward:
+        doom_spec.unsafe_reward = cfg.unsafe_reward
+
+    # safety_bound = cfg.safety_bound if cfg.safety_bound else doom_spec.safety_bound
+    # unsafe_reward = cfg.unsafe_reward if cfg.unsafe_reward else doom_spec.unsafe_reward
+
     env = VizdoomEnv(
         doom_spec.action_space,
         doom_spec.env_spec_file,
+        doom_spec.safety_bound,
+        doom_spec.unsafe_reward,
+        doom_spec.default_timeout,
         level=cfg.level,
         constraint=cfg.constraint,
         skip_frames=skip_frames,
@@ -217,7 +244,7 @@ def make_doom_env_impl(
         penalty_scaling = cfg.penalty_scaling if cfg.penalty_scaling else doom_spec.penalty_scaling
         env = CostPenalty(env, penalty_scaling)
     elif cfg.algo == 'PPOSaute':
-        env = Saute(env, saute_gamma=cfg.saute_gamma, unsafe_reward=cfg.saute_unsafe_reward, max_ep_len=doom_spec.default_timeout)
+        env = Saute(env, saute_gamma=cfg.saute_gamma)
 
     return env
 

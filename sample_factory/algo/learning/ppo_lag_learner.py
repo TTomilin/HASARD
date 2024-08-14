@@ -170,10 +170,9 @@ class PPOLagLearner(PPOLearner):
         mean_cost = mb["costs"].mean()
         with self.timing.add_time("lagrange_update"):
             # Determine the average cost constraint violation of the scenario
-            safety_bound = self.env_info.safety_bound
 
             # Calculate the average cost constraint violation
-            cost_violation = (mean_cost - safety_bound).detach()
+            cost_violation = (mean_cost - self.safety_bound).detach()
             # cost_violation = ((mb["costs"].mean() - safety_bound) * (1 - self.cfg.gamma) + (ratio * cost_adv)).mean().detach()
 
             # Update lambda_lagr based on the violation magnitude

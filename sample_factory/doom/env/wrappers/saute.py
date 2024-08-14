@@ -26,24 +26,14 @@ class Saute(gym.Wrapper):
     Args:
         env (Env): The gymnasium environment being wrapped.
         saute_gamma (float): The discount factor for the safety budget calculation.
-        unsafe_reward (float): The reward given when the safety state is negative.
-        max_ep_len (int): The maximum length of an episode, used in calculating the safety budget.
-        num_envs (int): The number of parallel environments. Defaults to 1.
     """
 
-    def __init__(self, env, saute_gamma: float, unsafe_reward: float, max_ep_len: int, num_envs: int = 1):
+    def __init__(self, env, saute_gamma: float):
         super().__init__(env)
-
-        safety_bound = self.safety_bound
-        safety_bound = 50
-
-        self.safety_budget = safety_bound * (1 - saute_gamma ** max_ep_len) / (1 - saute_gamma) / max_ep_len
-
-        self.num_envs = num_envs
         self.saute_gamma = saute_gamma
-        self.unsafe_reward = unsafe_reward
         self.safety_obs = 1
         self.episode_reward = 0
+        self.safety_budget = self.safety_bound * (1 - saute_gamma ** self.timeout) / (1 - saute_gamma) / self.timeout
 
         obs_space = self.env.observation_space
         assert isinstance(obs_space, Box), 'Observation space must be Box'

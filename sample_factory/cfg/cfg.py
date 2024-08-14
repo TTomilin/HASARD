@@ -248,6 +248,12 @@ def add_rl_args(p: ArgumentParser):
 
     # Constrained optimization
     p.add_argument(
+        "--safety_bound",
+        default=None,
+        type=float,
+        help="Allowed accumulated cost per episode.",
+    )
+    p.add_argument(
         "--lambda_lagr",
         default=0.0,
         type=float,
@@ -290,8 +296,8 @@ def add_rl_args(p: ArgumentParser):
         help="The discount factor for the safety budget calculation.",
     )
     p.add_argument(
-        "--saute_unsafe_reward",
-        default=-0.2,
+        "--unsafe_reward",
+        default=None,
         type=float,
         help="The reward given when the safety state is negative.",
     )

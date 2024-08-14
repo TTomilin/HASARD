@@ -95,8 +95,11 @@ def get_screen_resolution(resolution: str) -> ScreenResolution:
 class VizdoomEnv(gym.Env):
     def __init__(
             self,
-            action_space,
-            config_file,
+            action_space: gym.Space,
+            config_file: str,
+            safety_bound: float,
+            unsafe_reward: float,
+            timeout: int,
             level=1,
             constraint='soft',
             coord_limits=None,
@@ -118,6 +121,7 @@ class VizdoomEnv(gym.Env):
         self.rng = None
         self.skip_frames = skip_frames
         self.async_mode = async_mode
+        self.timeout = timeout
 
         # optional - for topdown view rendering and visitation heatmaps
         self.show_automap = show_automap
@@ -190,7 +194,8 @@ class VizdoomEnv(gym.Env):
 
         self._num_episodes = 0
 
-        self.safety_bound = 0.0 if self.hard_constraint else self._get_safety_bound(self.config_path)
+        self.safety_bound = 0.0 if self.hard_constraint else safety_bound
+        self.unsafe_reward = unsafe_reward
 
         self.mode = "algo"
 
@@ -322,16 +327,6 @@ class VizdoomEnv(gym.Env):
                 break
 
         return variable_indices
-
-    @staticmethod
-    def _get_safety_bound(config):
-        with open(config, "r") as config_file:
-            lines = config_file.readlines()
-        for line in lines:
-            line = line.strip()
-            if line.startswith("safety_bound"):
-                return float(line.split()[-1])
-        raise ValueError(f"Safety Bound not configured in {config}")
 
     def _black_screen(self):
         if self.black_screen is None:
