@@ -186,6 +186,25 @@ class ActorCriticSharedWeights(ActorCritic):
         return result
 
 
+class ActorCriticSaute(ActorCriticSharedWeights):
+    def __init__(
+            self,
+            model_factory,
+            obs_space: ObsSpace,
+            action_space: ActionSpace,
+            cfg: Config,
+    ):
+        super().__init__(model_factory, obs_space, action_space, cfg)
+        self.core = model_factory.make_model_core_func(cfg, self.encoder.get_out_size() + 1)
+
+    def forward_head(self, normalized_obs_dict: Dict[str, Tensor]) -> Tensor:
+        # Encode only the pixel observations
+        x = self.encoder(normalized_obs_dict)
+        # Concatenate the safety observation
+        x = torch.cat([x, normalized_obs_dict["safety"]], dim=-1)
+        return x
+
+
 class SafeActorCriticSharedWeights(ActorCriticSharedWeights):
     def __init__(
             self,
@@ -609,6 +628,8 @@ def default_make_actor_critic_func(cfg: Config, obs_space: ObsSpace, action_spac
         return SafeActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
     elif cfg.algo == "PPOLag":
         return SafeActorCriticSharedWeights(model_factory, obs_space, action_space, cfg)
+    elif cfg.algo == "PPOSaute":
+        return ActorCriticSaute(model_factory, obs_space, action_space, cfg)
 
     if cfg.actor_critic_share_weights:
         return ActorCriticSharedWeights(model_factory, obs_space, action_space, cfg)
