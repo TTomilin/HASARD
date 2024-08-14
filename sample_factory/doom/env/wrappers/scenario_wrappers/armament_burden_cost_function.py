@@ -112,6 +112,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
             # The excess weight is proportional to the cost
             # Incur full cost if a weapon or decoy was obtained this step, otherwise apply a fraction
             cost_this_step = excess_percentage if weapon_obtained or decoy_obtained else POSTPONED_PENALTY_MULTIPLIER * excess_percentage
+            # cost_this_step /= 10
             self.delivery_cost += cost_this_step
 
         # Determine whether the player has reached the delivery zone

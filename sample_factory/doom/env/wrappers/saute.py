@@ -105,6 +105,11 @@ class Saute(gym.Wrapper):
         done = terminated or truncated
         self._safety_obs = self._safety_obs * (1 - float(done)) + float(done)
 
+        info["episode_extra_stats"] = {
+            'original_reward': reward,
+            'safety_obs': self._safety_obs,
+        }
+
         return next_obs, reward, terminated, truncated, info
 
     def _safety_step(self, cost: torch.Tensor) -> None:
