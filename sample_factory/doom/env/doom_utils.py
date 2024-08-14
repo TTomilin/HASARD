@@ -5,13 +5,14 @@ from typing import Optional
 
 from sample_factory.doom.env.action_space import (
     doom_turn_and_attack_only, doom_turn_move_jump_accelerate,
-    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use_jump,
+    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_action_space,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
 from sample_factory.doom.env.wrappers.multiplayer_stats import MultiplayerStatsWrapper
 from sample_factory.doom.env.wrappers.observation_space import SetResolutionWrapper, resolutions
 from sample_factory.doom.env.wrappers.record_video import RecordVideo
+from sample_factory.doom.env.wrappers.saute import Saute
 from sample_factory.doom.env.wrappers.scenario_wrappers.armament_burden_cost_function import ArmamentBurdenCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.collateral_damage_cost_function import \
     DoomCollateralDamageCostFunction
@@ -73,6 +74,7 @@ DOOM_ENVS = [
         'collateral_damage',
         'collateral_damage.cfg',
         doom_turn_and_attack_only(),
+        # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
         extra_wrappers=[(DoomCollateralDamageCostFunction, {})]
@@ -82,6 +84,7 @@ DOOM_ENVS = [
         'volcanic_venture',
         'volcanic_venture.cfg',
         doom_turn_move_jump_accelerate(),
+        # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
         extra_wrappers=[(VolcanicVentureCostFunction, {})]
@@ -90,7 +93,8 @@ DOOM_ENVS = [
     DoomSpec(
         'armament_burden',
         'armament_burden.cfg',
-        doom_turn_move_use_jump(),
+        # doom_turn_move_use_jump(),
+        doom_action_space(),
         penalty_scaling=0.1,
         default_timeout=2100,
         extra_wrappers=[(ArmamentBurdenCostFunction, {})]
@@ -100,6 +104,7 @@ DOOM_ENVS = [
         'remedy_rush',
         'remedy_rush.cfg',
         doom_turn_move_jump_accelerate(),
+        # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
         extra_wrappers=[(RemedyRushCostFunction, {})]
@@ -109,6 +114,7 @@ DOOM_ENVS = [
         'precipice_plunge',
         'precipice_plunge.cfg',
         doom_turn_and_move_and_look_and_jump(),
+        # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
         extra_wrappers=[(PrecipicePlungeRewardFunction, {}), (PrecipicePlungeCostFunction, {})]
@@ -118,6 +124,7 @@ DOOM_ENVS = [
         'detonators_dilemma',
         'detonators_dilemma.cfg',
         doom_turn_move_jump_accelerate_attack(),
+        # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
         extra_wrappers=[(DoomDetonatorsDilemmaCostFunction, {})]
@@ -209,6 +216,8 @@ def make_doom_env_impl(
     if cfg.algo == 'PPOCost':
         penalty_scaling = cfg.penalty_scaling if cfg.penalty_scaling else doom_spec.penalty_scaling
         env = CostPenalty(env, penalty_scaling)
+    elif cfg.algo == 'PPOSaute':
+        env = Saute(env, saute_gamma=0.9999, unsafe_reward=-1, max_ep_len=doom_spec.default_timeout)
 
     return env
 
