@@ -104,7 +104,7 @@ DOOM_ENVS = [
         penalty_scaling=0.1,
         default_timeout=2100,
         safety_bound=50,
-        unsafe_reward=-0.05,
+        unsafe_reward=-0.005,
         extra_wrappers=[(ArmamentBurdenCostFunction, {})]
     ),
 
