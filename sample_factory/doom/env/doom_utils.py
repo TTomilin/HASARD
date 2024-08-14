@@ -5,7 +5,7 @@ from typing import Optional
 
 from sample_factory.doom.env.action_space import (
     doom_turn_and_attack_only, doom_turn_move_jump_accelerate,
-    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_action_space,
+    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use_jump,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
@@ -81,8 +81,8 @@ DOOM_ENVS = [
         # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
-        safety_bound=50,
-        unsafe_reward=-0.2,
+        safety_bound=5,
+        unsafe_reward=-0.1,
         extra_wrappers=[(DoomCollateralDamageCostFunction, {})]
     ),
 
@@ -94,15 +94,15 @@ DOOM_ENVS = [
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=50,
-        unsafe_reward=-0.02,
+        unsafe_reward=-0.01,
         extra_wrappers=[(VolcanicVentureCostFunction, {})]
     ),
 
     DoomSpec(
         'armament_burden',
         'armament_burden.cfg',
-        # doom_turn_move_use_jump(),
-        doom_action_space(),
+        doom_turn_move_use_jump(),
+        # doom_action_space(),
         penalty_scaling=0.1,
         default_timeout=2100,
         safety_bound=50,
@@ -118,7 +118,7 @@ DOOM_ENVS = [
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
-        unsafe_reward=-0.2,
+        unsafe_reward=-0.01,
         extra_wrappers=[(RemedyRushCostFunction, {})]
     ),
 
@@ -129,8 +129,8 @@ DOOM_ENVS = [
         # doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
-        safety_bound=5,
-        unsafe_reward=-0.2,
+        safety_bound=50,
+        unsafe_reward=-1,
         extra_wrappers=[(PrecipicePlungeRewardFunction, {}), (PrecipicePlungeCostFunction, {})]
     ),
 
@@ -142,7 +142,7 @@ DOOM_ENVS = [
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
-        unsafe_reward=-0.2,
+        unsafe_reward=-0.01,
         extra_wrappers=[(DoomDetonatorsDilemmaCostFunction, {})]
     ),
 ]
