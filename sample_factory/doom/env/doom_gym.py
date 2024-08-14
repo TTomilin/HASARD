@@ -195,6 +195,7 @@ class VizdoomEnv(gym.Env):
         self.mode = "algo"
 
         self.render_mode = render_mode
+        self.metadata['render_fps'] = 10
 
         self.seed(seed)
 
