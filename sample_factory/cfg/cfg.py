@@ -283,6 +283,13 @@ def add_rl_args(p: ArgumentParser):
         type=float,
         help="Fraction coefficient for updating the model parameters.",
     )
+    p.add_argument(
+        "--saute_gamma",
+        default=0.9999,
+        type=float,
+        help="The discount factor for the safety budget calculation",
+    )
+
 
     # more specific to policy gradient algorithms or PPO
     p.add_argument(

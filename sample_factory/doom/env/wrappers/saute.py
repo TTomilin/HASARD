@@ -17,8 +17,6 @@ class Saute(gym.Wrapper):
         - If the safety state is greater than 0, the reward is the original reward.
         - If the safety state is less than 0, the reward is the unsafe reward (always 0 or less than 0).
 
-    OmniSafe provides two implementations of Saute RL: :class:`PPOSaute` and :class:`TRPOSaute`.
-
     References:
         - Title: Saute RL: Almost Surely Safe Reinforcement Learning Using State Augmentation
         - Authors: Aivar Sootla, Alexander I. Cowen-Rivers, Taher Jafferjee, Ziyan Wang,
@@ -26,10 +24,11 @@ class Saute(gym.Wrapper):
         - URL: `Saute <https://arxiv.org/abs/2202.06558>`_
 
     Args:
-        env_id (str): The environment id.
-        num_envs (int): The number of parallel environments.
-        seed (int): The random seed.
-        cfgs (Config): The configuration passed from yaml file.
+        env (Env): The gymnasium environment being wrapped.
+        saute_gamma (float): The discount factor for the safety budget calculation.
+        unsafe_reward (float): The reward given when the safety state is negative.
+        max_ep_len (int): The maximum length of an episode, used in calculating the safety budget.
+        num_envs (int): The number of parallel environments. Defaults to 1.
     """
 
     def __init__(self, env, saute_gamma: float, unsafe_reward: float, max_ep_len: int, num_envs: int = 1):
@@ -46,6 +45,7 @@ class Saute(gym.Wrapper):
         self.num_envs = num_envs
         self.saute_gamma = saute_gamma
         self.unsafe_reward = unsafe_reward
+        self._safety_obs = None
 
         obs_space = self.env.observation_space
         assert isinstance(obs_space, Box), 'Observation space must be Box'
@@ -84,7 +84,7 @@ class Saute(gym.Wrapper):
             will be updated by :meth:`_safety_reward`.
 
         Args:
-            action (torch.Tensor): The action from the agent or random.
+            action: The action from the agent or random.
 
         Returns:
             observation: The agent's observation of the current environment.
@@ -111,12 +111,12 @@ class Saute(gym.Wrapper):
         """Update the safety observation.
 
         Args:
-            cost (torch.Tensor): The cost of the current step.
+            cost (float): The cost of the current step.
         """
         self._safety_obs -= cost / self.safety_budget
         self._safety_obs /= self.saute_gamma
 
-    def _safety_reward(self, reward: SupportsFloat) -> torch.Tensor:
+    def _safety_reward(self, reward: float) -> np.ndarray:
         """Update the reward with the safety observation.
 
         .. note::
@@ -124,26 +124,10 @@ class Saute(gym.Wrapper):
             Otherwise, the reward will be the unsafe reward.
 
         Args:
-            reward (torch.Tensor): The reward of the current step.
+            reward (float): The reward of the current step.
 
         Returns:
             The final reward determined by the safety observation.
         """
         safe = self._safety_obs > 0
         return np.where(safe, reward, self.unsafe_reward)
-        # safe = torch.as_tensor(self._safety_obs > 0).squeeze(-1)
-        # return safe * reward + (1 - safe) * self.unsafe_reward
-
-    def _augment_obs(self, obs: torch.Tensor) -> torch.Tensor:
-        """Augmenting the obs with the safety obs.
-
-        The augmented obs is the concatenation of the original obs and the safety obs. The safety
-        obs is the safety budget minus the cost divided by the safety budget.
-
-        Args:
-            obs (torch.Tensor): The original observation.
-
-        Returns:
-            The augmented observation.
-        """
-        return torch.cat([obs, self._safety_obs], dim=-1)
