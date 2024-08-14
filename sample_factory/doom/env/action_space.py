@@ -192,19 +192,26 @@ def doom_action_space():
         MOVE_BACKWARD
         MOVE_RIGHT
         MOVE_LEFT
+        LOOK_UP
+        LOOK_DOWN
         SELECT_NEXT_WEAPON
         SELECT_PREV_WEAPON
         ATTACK
         SPEED
+        JUMP
+        USE
         TURN_LEFT_RIGHT_DELTA
     """
     return gym.spaces.Tuple(
         (
             Discrete(3),  # noop, forward, backward
             Discrete(3),  # noop, move right, move left
+            Discrete(3),  # noop, look up, look down
             Discrete(3),  # noop, prev_weapon, next_weapon
             Discrete(2),  # noop, attack
             Discrete(2),  # noop, sprint
+            Discrete(2),  # noop, jump
+            Discrete(2),  # noop, use
             Box(np.float32(-1.0), np.float32(1.0), (1,)),
         )
     )
