@@ -124,7 +124,7 @@ def plot_metrics(data, args):
                bbox_to_anchor=(0.5, 0.0))
 
     folder = 'plots'
-    file = 'hard' if args.hard_constraint else f'soft_level_{args.level}'
+    file = 'hard' if args.hard_constraint else f'level_{args.level}'
     os.makedirs(folder, exist_ok=True)
     plt.savefig(f'{folder}/{file}.pdf', dpi=300)
     plt.show()
