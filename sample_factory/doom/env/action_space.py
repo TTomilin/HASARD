@@ -183,36 +183,102 @@ def doom_action_space_extended():
 def doom_action_space():
     """
     Standard action space for full-featured Doom environments (e.g. deathmatch).
-    TODO: crouch?
-    TODO: strafe?
-
     This should precisely correspond to the available_buttons configuration in the .cfg file.
     This function assumes:
         MOVE_FORWARD
         MOVE_BACKWARD
         MOVE_RIGHT
         MOVE_LEFT
-        LOOK_UP
-        LOOK_DOWN
         SELECT_NEXT_WEAPON
         SELECT_PREV_WEAPON
         ATTACK
         SPEED
         JUMP
         USE
+        CROUCH
+        TURN180
+        LOOK_UP_DOWN_DELTA
         TURN_LEFT_RIGHT_DELTA
     """
     return gym.spaces.Tuple(
         (
             Discrete(3),  # noop, forward, backward
             Discrete(3),  # noop, move right, move left
-            Discrete(3),  # noop, look up, look down
             Discrete(3),  # noop, prev_weapon, next_weapon
             Discrete(2),  # noop, attack
             Discrete(2),  # noop, sprint
             Discrete(2),  # noop, jump
             Discrete(2),  # noop, use
-            Box(np.float32(-1.0), np.float32(1.0), (1,)),
+            Discrete(2),  # noop, crouch
+            Discrete(2),  # noop, turn180
+            Box(np.float32(-1.0), np.float32(1.0), (1,)),  # [look_up, look_down]
+            Box(np.float32(-1.0), np.float32(1.0), (1,)),  # [turn_left, turn_right]
+        )
+    )
+
+
+def doom_action_space_no_speed():
+    """
+    Standard action space for full-featured Doom environments (e.g. deathmatch).
+    This should precisely correspond to the available_buttons configuration in the .cfg file.
+    This function assumes:
+        MOVE_FORWARD
+        MOVE_BACKWARD
+        MOVE_RIGHT
+        MOVE_LEFT
+        SELECT_NEXT_WEAPON
+        SELECT_PREV_WEAPON
+        ATTACK
+        JUMP
+        USE
+        CROUCH
+        TURN180
+        LOOK_UP_DOWN_DELTA
+        TURN_LEFT_RIGHT_DELTA
+    """
+    return gym.spaces.Tuple(
+        (
+            Discrete(3),  # noop, forward, backward
+            Discrete(3),  # noop, move right, move left
+            Discrete(3),  # noop, prev_weapon, next_weapon
+            Discrete(2),  # noop, attack
+            Discrete(2),  # noop, jump
+            Discrete(2),  # noop, use
+            Discrete(2),  # noop, crouch
+            Discrete(2),  # noop, turn180
+            Box(np.float32(-1.0), np.float32(1.0), (1,)),  # [look_up, look_down]
+            Box(np.float32(-1.0), np.float32(1.0), (1,)),  # [turn_left, turn_right]
+        )
+    )
+
+
+def doom_action_space_no_move():
+    """
+    Standard action space for full-featured Doom environments (e.g. deathmatch).
+    This should precisely correspond to the available_buttons configuration in the .cfg file.
+    This function assumes:
+        SELECT_NEXT_WEAPON
+        SELECT_PREV_WEAPON
+        ATTACK
+        SPEED
+        JUMP
+        USE
+        CROUCH
+        TURN180
+        LOOK_UP_DOWN_DELTA
+        TURN_LEFT_RIGHT_DELTA
+    """
+    return gym.spaces.Tuple(
+        (
+            Discrete(3),  # noop, prev_weapon, next_weapon
+            Discrete(2),  # noop, attack
+            Discrete(2),  # noop, sprint
+            Discrete(2),  # noop, jump
+            Discrete(2),  # noop, use
+            Discrete(2),  # noop, crouch
+            Discrete(2),  # noop, turn180
+            Box(np.float32(-1.0), np.float32(1.0), (1,)),  # [look_up, look_down]
+            Box(np.float32(-1.0), np.float32(1.0), (1,)),  # [turn_left, turn_right]
         )
     )
 

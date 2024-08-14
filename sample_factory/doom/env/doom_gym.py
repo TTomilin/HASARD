@@ -95,8 +95,8 @@ def get_screen_resolution(resolution: str) -> ScreenResolution:
 class VizdoomEnv(gym.Env):
     def __init__(
             self,
-            action_space: gym.Space,
             config_file: str,
+            action_space: gym.Space,
             safety_bound: float,
             unsafe_reward: float,
             timeout: int,

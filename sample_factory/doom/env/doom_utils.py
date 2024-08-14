@@ -6,6 +6,7 @@ from typing import Optional
 from sample_factory.doom.env.action_space import (
     doom_turn_and_attack_only, doom_turn_move_jump_accelerate,
     doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use_jump,
+    doom_action_space, doom_action_space_no_speed, doom_action_space_no_move,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
@@ -38,8 +39,8 @@ class DoomSpec:
     def __init__(
             self,
             name,
-            env_spec_file,
             action_space,
+            full_action_space,
             reward_scaling=1.0,
             penalty_scaling=1.0,
             default_timeout=-1,
@@ -51,8 +52,8 @@ class DoomSpec:
             extra_wrappers=None,
     ):
         self.name = name
-        self.env_spec_file = env_spec_file
         self.action_space = action_space
+        self.full_action_space = full_action_space
         self.reward_scaling = reward_scaling
         self.penalty_scaling = penalty_scaling
         self.default_timeout = default_timeout
@@ -76,9 +77,8 @@ def episode_trigger(episode):
 DOOM_ENVS = [
     DoomSpec(
         'collateral_damage',
-        'collateral_damage.cfg',
         doom_turn_and_attack_only(),
-        # doom_action_space(),
+        doom_action_space_no_move(),
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
@@ -88,9 +88,8 @@ DOOM_ENVS = [
 
     DoomSpec(
         'volcanic_venture',
-        'volcanic_venture.cfg',
         doom_turn_move_jump_accelerate(),
-        # doom_action_space(),
+        doom_action_space_no_speed(),
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=50,
@@ -100,9 +99,8 @@ DOOM_ENVS = [
 
     DoomSpec(
         'armament_burden',
-        'armament_burden.cfg',
         doom_turn_move_use_jump(),
-        # doom_action_space(),
+        doom_action_space_no_speed(),
         penalty_scaling=0.1,
         default_timeout=2100,
         safety_bound=50,
@@ -112,9 +110,8 @@ DOOM_ENVS = [
 
     DoomSpec(
         'remedy_rush',
-        'remedy_rush.cfg',
         doom_turn_move_jump_accelerate(),
-        # doom_action_space(),
+        doom_action_space_no_speed(),
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
@@ -124,9 +121,8 @@ DOOM_ENVS = [
 
     DoomSpec(
         'precipice_plunge',
-        'precipice_plunge.cfg',
         doom_turn_and_move_and_look_and_jump(),
-        # doom_action_space(),
+        doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=50,
@@ -136,9 +132,8 @@ DOOM_ENVS = [
 
     DoomSpec(
         'detonators_dilemma',
-        'detonators_dilemma.cfg',
         doom_turn_move_jump_accelerate_attack(),
-        # doom_action_space(),
+        doom_action_space(),
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
@@ -180,12 +175,12 @@ def make_doom_env_impl(
     if cfg.unsafe_reward:
         doom_spec.unsafe_reward = cfg.unsafe_reward
 
-    # safety_bound = cfg.safety_bound if cfg.safety_bound else doom_spec.safety_bound
-    # unsafe_reward = cfg.unsafe_reward if cfg.unsafe_reward else doom_spec.unsafe_reward
+    config_file = f'{doom_spec.name}_all.cfg' if cfg.all_actions else f'{doom_spec.name}.cfg'
+    action_space = doom_spec.full_action_space if cfg.all_actions else doom_spec.action_space
 
     env = VizdoomEnv(
-        doom_spec.action_space,
-        doom_spec.env_spec_file,
+        config_file,
+        action_space,
         doom_spec.safety_bound,
         doom_spec.unsafe_reward,
         doom_spec.default_timeout,

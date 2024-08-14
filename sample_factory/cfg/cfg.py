@@ -719,6 +719,12 @@ def add_default_env_args(p: ArgumentParser):
         help="How much to scale the cost penalty in proportion to the reward "
              "when subtracting the cost from the reward for the PPOCost algorithm"
     )
+    p.add_argument(
+        "--all_actions",
+        default=False,
+        action='store_true',
+        help="Whether to use the full action space of DOOM.",
+    )
 
 
 def add_eval_args(parser):
