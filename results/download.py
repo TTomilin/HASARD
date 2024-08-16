@@ -56,7 +56,7 @@ def suitable_run(run, args: argparse.Namespace) -> bool:
 
 
 def store_data(run: Run, args: argparse.Namespace) -> None:
-    algos, envs, metrics = args.algos, args.envs, args.metrics
+    metrics = args.metrics
     config = run.config
     run_id = run.id
     level = config['level']
@@ -67,6 +67,13 @@ def store_data(run: Run, args: argparse.Namespace) -> None:
     base_path = args.output  # Directory to store the data
 
     for metric in metrics:
+
+        # Wrong metric has been stored for Armament Burden
+        if env == 'armament_burden' and metric == 'policy_stats/avg_cost':
+            metric = 'policy_stats/avg_total_cost'
+        elif algo == 'PPOSaute' and metric == 'reward/reward':
+            metric = 'policy_stats/avg_episode_reward'
+
         # Construct folder path for each configuration
         folder_path = os.path.join(base_path, env, algo, f"level_{level}", f"seed_{seed}")
         os.makedirs(folder_path, exist_ok=True)  # Ensure the directory exists
@@ -99,13 +106,13 @@ def common_dl_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--levels", type=int, nargs='+', default=[1, 2, 3], help="Level(s) of the run(s) to download")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to download")
-    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag"],
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute"],
                         help="Algorithms to download/plot")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush",
                                  "collateral_damage", "precipice_plunge", "detonators_dilemma"],
                         help="Environments to download/plot")
-    parser.add_argument("--output", type=str, default='data', help="Base output directory to store the data")
+    parser.add_argument("--output", type=str, default='data/main', help="Base output directory to store the data")
     parser.add_argument("--metrics", type=str, nargs='+',
                         default=['reward/reward', 'policy_stats/avg_cost'],
                         help="Name of the metrics to download/plot")

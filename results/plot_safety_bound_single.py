@@ -3,10 +3,12 @@ import json
 import os
 
 import matplotlib.pyplot as plt
+from matplotlib import cm
 import numpy as np
+from matplotlib import colormaps
 
 SAFETY_THRESHOLDS = {
-    "armament_burden": 0.1,
+    "armament_burden": 50,
     "volcanic_venture": 50,
     "remedy_rush": 5,
     "collateral_damage": 5,
@@ -27,20 +29,21 @@ TRANSLATIONS = {
 
 
 def main(args):
-    data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level)
+    data = load_data(args.input, args.envs, args.algo, args.seeds, args.metrics, args.level)
     plot_metrics(data, args)
 
 
-def load_data(base_path, environments, methods, seeds, metrics, level):
+def load_data(base_path, environments, algo, seeds, metrics, level):
     """Load data from structured directory."""
     data = {}
     for env in environments:
-        for method in methods:
-            for seed in seeds:
-                for metric in metrics:
-                    metric_name = f"{metric}_hard" if args.hard_constraint else metric
-                    file_path = os.path.join(base_path, env, method, f"level_{level}", f"seed_{seed}", f"{metric_name}.json")
-                    key = (env, method, metric)
+        for seed in seeds:
+            for metric in metrics:
+                dir_path = os.path.join(base_path, env, algo, f"level_{level}")
+                # Read every folder in this directory
+                for bound in os.scandir(dir_path):
+                    file_path = os.path.join(dir_path, bound.name, f"seed_{seed}", f"{metric}.json")
+                    key = (env, bound.name, metric)
                     if key not in data:
                         data[key] = []
                     if os.path.exists(file_path):
@@ -57,8 +60,8 @@ def plot_metrics(data, args):
 
     fig.subplots_adjust(left=0.055, right=0.99, top=0.95, bottom=0.12, hspace=0.5, wspace=0.3)
 
-    lines = []
-    labels = []
+    # Dictionary to track lines by label to prevent duplicates
+    line_label_dict = {}
 
     title_axes = [fig.add_subplot(3, 2, i + 1, frame_on=False) for i in range(6)]  # Update to match the number of environments
     for ax in title_axes:
@@ -69,6 +72,14 @@ def plot_metrics(data, args):
         ax.spines['left'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
 
+    # Collect all bounds to determine the unique colors
+    all_bounds = set(key[1] for key in data.keys())
+    all_bounds = sorted(all_bounds, key=lambda x: float(x.split('_')[-1]))
+    colors = plt.get_cmap('tab20c', len(all_bounds) + 10)
+
+    # Create a mapping from bounds to colors
+    bound_colors = {bound: colors(i) for i, bound in enumerate(all_bounds)}
+
     for env_index, env in enumerate(args.envs):
         row = env_index // 2  # Keeps same row indexing
         col_base = (env_index % 2) * 2  # Same as before
@@ -77,67 +88,56 @@ def plot_metrics(data, args):
 
         for metric_index, metric in enumerate(args.metrics):
             ax = axs[row, col_base + metric_index]
-            for method in args.algos:
-                key = (env, method, metric)
+            for bound in all_bounds:
+                bound_label = f"Bound {bound.split('_')[-1]}"
+                key = (env, bound, metric)
                 if key in data and data[key]:
-                    all_runs = np.array(data[key])
+                    runs = data[key]
+                    min_length = min(len(runs[0]), len(runs[1]))
+                    runs[0] = runs[0][:min_length]
+                    runs[1] = runs[1][:min_length]
+                    all_runs = np.array(runs)
                     if all_runs.size == 0 or len(all_runs.shape) < 2:
                         continue
-
-                    # The reward of PPOCost is logged with the cost subtracted from it
-                    # We need to add it back for a fair comparison
-                    if method == "PPOCost" and metric == "reward":
-                        cost_key = (env, method, "cost")
-                        if cost_key in data:
-                            all_costs = np.array(data[cost_key])
-                            all_runs += all_costs  # Modify this line to adjust how cost influences reward
 
                     num_data_points = all_runs.shape[1]
                     iterations_per_point = args.total_iterations / num_data_points
                     mean = np.mean(all_runs, axis=0)
                     ci = 1.96 * np.std(all_runs, axis=0) / np.sqrt(len(all_runs))
                     x = np.arange(num_data_points) * iterations_per_point
-                    line = ax.plot(x, mean, label=method)
-                    ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
+                    line = ax.plot(x, mean, label=bound_label, color=bound_colors[bound])
+                    ax.fill_between(x, mean - ci, mean + ci, color=bound_colors[bound], alpha=0.2)
                     ax.set_xlim(-args.total_iterations / 60, args.total_iterations)
-
-                    # Small hack, something is wrong with plotting certain graphs
-                    if args.hard_constraint and env == 'precipice_plunge':
-                        y_lim_upper = 200 if metric == 'reward' else 11
-                    else:
-                        y_lim_upper = None
-
-                    ax.set_ylim(0, y_lim_upper)
                     ax.set_xlabel('Steps', fontsize=12)
                     ax.set_ylabel(TRANSLATIONS[metric], fontsize=12)
-                    if env_index == 1 and metric_index == 1:  # Adjust if needed
-                        lines.append(line[0])
-                        labels.append(method)
-                    if metric == 'cost' and not args.hard_constraint:
-                        threshold_line = ax.axhline(y=SAFETY_THRESHOLDS[env], color='red', linestyle='--',
-                                                    label='Safety Threshold')
-                        ax.text(0.5, SAFETY_THRESHOLDS[env], 'Safety Threshold', horizontalalignment='center',
-                                verticalalignment='top', transform=ax.get_yaxis_transform(), fontsize=10,
-                                style='italic', color='darkred')
 
-    fig.legend(lines, labels, loc='lower center', ncol=len(args.algos), fontsize=12, fancybox=True, shadow=True,
+                    if metric == 'cost':
+                        bound_val = float(bound.split('_')[-1])
+                        ax.axhline(y=bound_val, color='darkgreen', linestyle=':', label='Safety Threshold')
+
+                    # Manage line-label pairs uniquely
+                    if bound_label not in line_label_dict:
+                        line_label_dict[bound_label] = line[0]
+
+    # Set the unified legend at the bottom
+    lines = list(line_label_dict.values())
+    labels = list(line_label_dict.keys())
+    fig.legend(lines, labels, loc='lower center', ncol=len(all_bounds), fontsize=12, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.0))
 
     folder = 'plots'
-    file = 'hard' if args.hard_constraint else f'level_{args.level}'
+    file = f'bounds_{args.algo}_level_{args.level}'
     os.makedirs(folder, exist_ok=True)
     plt.savefig(f'{folder}/{file}.pdf', dpi=300)
     plt.show()
 
 
-
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plot metrics from structured data directory.")
-    parser.add_argument("--input", type=str, default='data', help="Base input directory containing the data")
+    parser.add_argument("--input", type=str, default='data/safety_bound', help="Base input directory containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag"],
-                        help="Algorithms to download/plot")
+    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2], help="Seed(s) of the run(s) to plot")
+    parser.add_argument("--algo", type=str, default="PPOLag", help="Name of the algorithm")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
                                  "precipice_plunge", "detonators_dilemma"],

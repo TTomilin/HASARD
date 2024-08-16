@@ -7,6 +7,15 @@ from wandb.apis.public import Run
 
 FORBIDDEN_TAGS = ['TEST']
 
+SAFETY_THRESHOLDS = {
+    "armament_burden": 50,
+    "volcanic_venture": 50,
+    "remedy_rush": 5,
+    "collateral_damage": 5,
+    "precipice_plunge": 50,
+    "detonators_dilemma": 5,
+}
+
 
 def main(args: argparse.Namespace) -> None:
     api = wandb.Api()
@@ -56,14 +65,14 @@ def suitable_run(run, args: argparse.Namespace) -> bool:
 
 
 def store_data(run: Run, args: argparse.Namespace) -> None:
-    algos, envs, metrics = args.algos, args.envs, args.metrics
+    metrics = args.metrics
     config = run.config
     run_id = run.id
     level = config['level']
     seed = config['seed']
     env = config['env']
     algo = config['algo']
-    cost_scale = config['penalty_scaling']
+    bound = config['safety_bound'] if 'safety_bound' in config and config['safety_bound'] else SAFETY_THRESHOLDS[env]
 
     base_path = args.output  # Directory to store the data
 
@@ -72,9 +81,11 @@ def store_data(run: Run, args: argparse.Namespace) -> None:
         # Wrong metric has been stored for Armament Burden
         if env == 'armament_burden' and metric == 'policy_stats/avg_cost':
             metric = 'policy_stats/avg_total_cost'
+        elif algo == 'PPOSaute' and metric == 'reward/reward':
+            metric = 'policy_stats/avg_episode_reward'
 
         # Construct folder path for each configuration
-        folder_path = os.path.join(base_path, env, algo, f"level_{level}", f"scale_{cost_scale}", f"seed_{seed}")
+        folder_path = os.path.join(base_path, env, algo, f"level_{level}", f"bound_{bound}", f"seed_{seed}")
         os.makedirs(folder_path, exist_ok=True)  # Ensure the directory exists
 
         # Filename based on metric
@@ -84,7 +95,7 @@ def store_data(run: Run, args: argparse.Namespace) -> None:
 
         # If the file already exists and we don't want to overwrite, skip
         if not args.overwrite and os.path.exists(file_path):
-            print(f"Skipping: {file_path}: {metric_name}")
+            print(f"Skipping: {run_id}: {metric_name}")
             continue
 
         # Attempt to retrieve and save the data
@@ -105,18 +116,19 @@ def common_dl_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--levels", type=int, nargs='+', default=[1, 2, 3], help="Level(s) of the run(s) to download")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to download")
-    parser.add_argument("--algos", type=str, nargs='+', default=["PPOCost"],
-                        help="Algorithms to download")
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute"],
+                        help="Algorithms to download/plot")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush",
                                  "collateral_damage", "precipice_plunge", "detonators_dilemma"],
-                        help="Environments to download")
-    parser.add_argument("--output", type=str, default='data/cost_scale', help="Base output directory to store the data")
+                        help="Environments to download/plot")
+    parser.add_argument("--output", type=str, default='data/main', help="Base output directory to store the data")
     parser.add_argument("--metrics", type=str, nargs='+',
                         default=['reward/reward', 'policy_stats/avg_cost'],
                         help="Name of the metrics to download/plot")
     parser.add_argument("--project", type=str, required=True, help="Name of the WandB project")
-    parser.add_argument("--wandb_tags", type=str, nargs='+', default=['COST_SCALING'], help="WandB tags to filter runs")
+    parser.add_argument('--hard_constraint', default=False, action='store_true', help='Soft/Hard safety constraint')
+    parser.add_argument("--wandb_tags", type=str, nargs='+', default=[], help="WandB tags to filter runs")
     parser.add_argument("--overwrite", default=False, action='store_true', help="Overwrite existing files")
     parser.add_argument("--include_runs", type=str, nargs="+", default=[],
                         help="List of runs that shouldn't be filtered out")

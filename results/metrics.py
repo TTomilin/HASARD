@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 SAFETY_THRESHOLDS = {
-    "armament_burden": 0.1,
+    "armament_burden": 50,
     "volcanic_venture": 50,
     "remedy_rush": 5,
     "collateral_damage": 5,
@@ -90,7 +90,6 @@ def process_metric(results, base_path, env, method, seeds, level, metric, constr
             results[env][method][f"{metric_key}_level_{level}"] = {'mean': None, 'ci': None}
 
 
-
 def generate_latex_table(data, constraints, caption=''):
     environments = list(data.keys())
     methods = list(next(iter(data.values())).keys())
@@ -169,12 +168,12 @@ def main(args):
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
-    parser.add_argument("--input", type=str, default='data', help="Base input directory containing the data")
+    parser.add_argument("--input", type=str, default='data/main', help="Base input directory containing the data")
     parser.add_argument("--levels", type=int, nargs='+', default=[1, 2, 3], help="Levels(s) of the run(s) to compute")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
     parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
     parser.add_argument("--constraints", type=str, nargs='+', default=["Soft", "Hard"], help="Constraints to analyze")
-    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag"],
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute"],
                         help="Algorithms to analyze")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",

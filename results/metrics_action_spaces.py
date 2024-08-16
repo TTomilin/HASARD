@@ -22,13 +22,14 @@ TRANSLATIONS = {
     'detonators_dilemma': 'Detonator\'s Dilemma',
     'reward': 'Reward',
     'cost': 'Cost',
+    'data/main': 'Simplified Actions',
+    'data/full_actions': 'Full Actions',
 }
 
 
 # Data Loading
-def load_data(base_path, environment, scale, seed, level, metric_key):
-    file_path = os.path.join(base_path, environment, "PPOCost", f"level_{level}", f"scale_{scale}", f"seed_{seed}",
-                             f"{metric_key}.json")
+def load_data(base_path, environment, seed, level, metric_key):
+    file_path = os.path.join(base_path, environment, "PPOLag", f"level_{level}", f"seed_{seed}", f"{metric_key}.json")
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
             data = json.load(file)
@@ -37,57 +38,52 @@ def load_data(base_path, environment, scale, seed, level, metric_key):
 
 
 # Data Processing
-def process_data(base_path, environments, scales, seeds, metrics, n_data_points):
+# Modified process_data function to include percentage decrease calculation
+def process_data(base_paths, environments, seeds, metrics, n_data_points):
     results = {}
+    action_space_data = {base_path: {} for base_path in base_paths}
+
+    for env in environments:
+        for base_path in base_paths:
+            for metric in metrics:
+                processed_data = process_metric(base_path, env, seeds, metric, n_data_points)
+                action_space_data[base_path][env] = processed_data
+
+    # Calculate percentage decreases and store in results
     for env in environments:
         results[env] = {}
-        for scale in scales:
-            results[env][scale] = {}
-            for metric in metrics:
-                process_metric(results, base_path, env, scale, seeds, metric, n_data_points)
+        for metric in metrics:
+            simplified = action_space_data['data/main'][env].get(metric)
+            full = action_space_data['data/full_actions'][env].get(metric)
+            if simplified and full:
+                percent_decrease = ((simplified - full) / simplified) * 100
+                results[env][metric] = {
+                    'Simplified Actions': simplified,
+                    'Full Actions': full,
+                    'Percent Decrease': percent_decrease
+                }
     return results
 
 
-def process_metric(results, base_path, env, scale, seeds, metric, n_data_points):
+def process_metric(action_space, env, seeds, metric, n_data_points):
     level = 1
     metric_values = []
     cost_data_combined = []
 
     for seed in seeds:
-        # Load the metric data
-        data = load_data(base_path, env, scale, seed, level, metric)
-
-        # Load cost data if the metric is 'reward' and the method is 'PPOCost'
-        if metric == 'reward':
-            cost_data = load_data(base_path, env, scale, seed, level, "cost")
-            if data and cost_data and len(data) >= n_data_points and len(cost_data) >= n_data_points:
-                # Combine reward and cost data if both are sufficiently long
-                last_reward_data = data[-n_data_points:]
-                last_cost_data = cost_data[-n_data_points:]
-                combined_data = [reward + cost for reward, cost in zip(last_reward_data, last_cost_data)]
-                cost_data_combined.extend(combined_data)
-        elif data and len(data) >= n_data_points:
+        data = load_data(action_space, env, seed, level, metric)
+        if data and len(data) >= n_data_points:
             last_data_points = data[-n_data_points:]
             cost_data_combined.extend(last_data_points)
 
-    # Calculate statistics for combined data or regular data
     if cost_data_combined:
         mean = np.mean(cost_data_combined)
         ci = 1.96 * np.std(cost_data_combined) / np.sqrt(len(cost_data_combined))
-        metric_values.append((mean, ci))
-
-    # Store calculated values
-    if metric_values:
-        mean_values, ci_values = zip(*metric_values)
-        results[env][scale][f"{metric}_scale_{scale}"] = {
-            'mean': np.mean(mean_values),
-            'ci': np.mean(ci_values)
-        }
-    else:
-        results[env][scale][f"{metric}_scale_{scale}"] = {'mean': None, 'ci': None}
+        return {'mean': mean, 'ci': ci}
+    return {'mean': None, 'ci': None}
 
 
-def generate_latex_table(data, scales, caption=''):
+def generate_latex_table(data, action_spaces, caption=''):
     environments = list(data.keys())
 
     # Prepare headers with corrected approach for backslashes
@@ -105,12 +101,12 @@ def generate_latex_table(data, scales, caption=''):
     latex_str += subheader_row.rstrip(' & ') + "\\\\\n\\midrule\n"
 
     # Iterate over each constraint type, method, and environment to fill the table
-    for j, scale in enumerate(scales):
-        latex_str += f"{scale} & "
+    for j, action_space in enumerate(action_spaces):
+        latex_str += f"{TRANSLATIONS[action_space]} & "
         for env in environments:
             for metric_type in ['reward', 'cost']:
-                key = f"{metric_type}_scale_{scale}"
-                metric = data[env][scale].get(key, {'mean': None, 'ci': None})
+                key = f"{metric_type}_{action_space}"
+                metric = data[env][action_space].get(key, {'mean': None, 'ci': None})
                 mean = max(0, metric['mean'])
                 mean_str = f"{mean:.2f}" if mean is not None else "N/A"
                 latex_str += mean_str + " & "
@@ -123,17 +119,16 @@ def generate_latex_table(data, scales, caption=''):
 
 
 def main(args):
-    data = process_data(args.input, args.envs, args.scales, args.seeds, args.metrics, args.n_data_points)
-    table = generate_latex_table(data, args.scales)
+    data = process_data(args.inputs, args.envs, args.seeds, args.metrics, args.n_data_points)
+    table = generate_latex_table(data, args.inputs)
     print(table)
 
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
-    parser.add_argument("--input", type=str, default='data/cost_scale', help="Base input directory containing the data")
+    parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/full_actions'],
+                        help="Base input directories containing the data")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
-    parser.add_argument("--scales", type=float, nargs='+', default=[0.1, 0.5, 1, 2],
-                        help="Seed(s) of the run(s) to compute")
     parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",

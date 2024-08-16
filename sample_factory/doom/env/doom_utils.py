@@ -115,7 +115,7 @@ DOOM_ENVS = [
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
-        unsafe_reward=-0.01,
+        unsafe_reward=-0.025,
         extra_wrappers=[(RemedyRushCostFunction, {})]
     ),
 
@@ -126,7 +126,7 @@ DOOM_ENVS = [
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=50,
-        unsafe_reward=-1,
+        unsafe_reward=-0.7,
         extra_wrappers=[(PrecipicePlungeRewardFunction, {}), (PrecipicePlungeCostFunction, {})]
     ),
 
