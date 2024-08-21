@@ -119,12 +119,12 @@ def generate_latex_table(data, constraints, caption=''):
 
     # Start the LaTeX table construction
     latex_str = "\\begin{table}[h!]\n\\centering\n\\small{\n\\begin{tabularx}{\\textwidth}{c l " + "X@{\\hspace{0.5cm}}X" * len(environments) + "}\n"
-    latex_str += "\\toprule\n\\rule{0pt}{4ex}\n\\multirow{-2}{*}[0.15em]{\\rotatebox[origin=c]{90}{Constraint}} & "
+    latex_str += "\\toprule\n\\rule{0pt}{4ex}\n\\multirow{-2}{*}[0.15em]{\\rotatebox[origin=c]{90}{Level}} & "
     latex_str += "\\multirow{2}{*}{Method} & " + " & ".join(headers) + " \\\\\n"
     subheader_row = "& & " + "\\textbf{R $\\uparrow$} & \\textbf{C $\\downarrow$} & " * len(environments)
     latex_str += subheader_row.rstrip(' & ') + "\\\\\n\\midrule\n"
 
-    # Iterate over each constraint type, method, and environment to fill the table
+    # Iterate over each level, constraint type, method, and environment to fill the table
     for k, level in enumerate(levels):
         for j, constraint_type in enumerate(constraints):
             suffix = '_hard' if constraint_type == 'Hard' else ''
@@ -146,7 +146,7 @@ def generate_latex_table(data, constraints, caption=''):
                                 mean_str = f"\\textbf{{{mean_str}}}"
                         # Apply OliveGreen color to soft cost values if within threshold
                         if metric_type == 'cost' and suffix == '' and mean is not None:
-                            threshold = SAFETY_THRESHOLDS[env] * 1.15  # 15% higher than the safety threshold
+                            threshold = SAFETY_THRESHOLDS[env]
                             if mean <= threshold:
                                 mean_str = f"\\textcolor{{OliveGreen}}{{{mean_str}}}"
                         latex_str += mean_str + " & "

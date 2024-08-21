@@ -23,8 +23,8 @@ TRANSLATIONS = {
     'detonators_dilemma': 'Detonator\'s Dilemma',
     'reward': 'Reward',
     'cost': 'Cost',
-    'data/main': 'Simplified Actions',
-    'data/full_actions': 'Full Actions',
+    'data/main': 'Simplified Action Space',
+    'data/full_actions': 'Full Action Space',
 }
 
 
@@ -39,6 +39,8 @@ def load_data(base_paths, environments, method, seeds, metrics, level):
     for base_path in base_paths:
         for env in environments:
             for seed in seeds:
+                if base_path == 'data/main' and len(seeds) == 1:
+                    seed = 3
                 for metric in metrics:
                     file_path = os.path.join(base_path, env, method, f"level_{level}", f"seed_{seed}", f"{metric}.json")
                     key = (base_path, env, metric)
@@ -107,22 +109,21 @@ def plot_metrics(data, args):
                     mean = np.mean(all_runs, axis=0)
                     ci = 1.96 * np.std(all_runs, axis=0) / np.sqrt(len(all_runs))
                     x = np.arange(num_data_points) * iterations_per_point
-                    line = ax.plot(x, mean, label=method)
+                    line = ax.plot(x, mean)
                     ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
                     ax.set_xlim(-args.total_iterations / 60, args.total_iterations)
-
                     ax.set_ylim(0, None)
                     ax.set_xlabel('Steps', fontsize=12)
-                    ax.set_ylabel(TRANSLATIONS[base_path], fontsize=12)
+                    ax.set_ylabel(TRANSLATIONS[metric], fontsize=12)
                     if env_index == 1 and metric_index == 1:  # Adjust if needed
                         lines.append(line[0])
-                        labels.append(method)
+                        labels.append(TRANSLATIONS[base_path])
                     if metric == 'cost':
                         threshold_line = ax.axhline(y=SAFETY_THRESHOLDS[env], color='red', linestyle='--',
                                                     label='Safety Threshold')
                         ax.text(0.5, SAFETY_THRESHOLDS[env], 'Safety Threshold', horizontalalignment='center',
                                 verticalalignment='top', transform=ax.get_yaxis_transform(), fontsize=10,
-                                style='italic', color='darkred')
+                                style='italic', color='maroon')
 
     fig.legend(lines, labels, loc='lower center', ncol=len(args.inputs), fontsize=12, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.0))

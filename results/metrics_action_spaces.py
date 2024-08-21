@@ -24,6 +24,7 @@ TRANSLATIONS = {
     'cost': 'Cost',
     'data/main': 'Simplified Actions',
     'data/full_actions': 'Full Actions',
+    'diff': 'Difference',
 }
 
 
@@ -47,20 +48,21 @@ def process_data(base_paths, environments, seeds, metrics, n_data_points):
         for base_path in base_paths:
             for metric in metrics:
                 processed_data = process_metric(base_path, env, seeds, metric, n_data_points)
-                action_space_data[base_path][env] = processed_data
+                key = (base_path, env, metric)
+                action_space_data[key] = processed_data
 
     # Calculate percentage decreases and store in results
     for env in environments:
         results[env] = {}
         for metric in metrics:
-            simplified = action_space_data['data/main'][env].get(metric)
-            full = action_space_data['data/full_actions'][env].get(metric)
+            simplified = action_space_data[('data/main', env, metric)]['mean']
+            full = action_space_data[('data/full_actions', env, metric)]['mean']
             if simplified and full:
-                percent_decrease = ((simplified - full) / simplified) * 100
+                percent_decrease = -((simplified - full) / simplified) * 100
                 results[env][metric] = {
-                    'Simplified Actions': simplified,
-                    'Full Actions': full,
-                    'Percent Decrease': percent_decrease
+                    'data/main': simplified,
+                    'data/full_actions': full,
+                    'diff': percent_decrease
                 }
     return results
 
@@ -68,23 +70,20 @@ def process_data(base_paths, environments, seeds, metrics, n_data_points):
 def process_metric(action_space, env, seeds, metric, n_data_points):
     level = 1
     metric_values = []
-    cost_data_combined = []
 
     for seed in seeds:
         data = load_data(action_space, env, seed, level, metric)
         if data and len(data) >= n_data_points:
             last_data_points = data[-n_data_points:]
-            cost_data_combined.extend(last_data_points)
-
-    if cost_data_combined:
-        mean = np.mean(cost_data_combined)
-        ci = 1.96 * np.std(cost_data_combined) / np.sqrt(len(cost_data_combined))
-        return {'mean': mean, 'ci': ci}
-    return {'mean': None, 'ci': None}
+            metric_values.extend(last_data_points)
+    mean = np.mean(metric_values)
+    ci = 1.96 * np.std(metric_values) / np.sqrt(len(metric_values))
+    return {'mean': mean, 'ci': ci}
 
 
-def generate_latex_table(data, action_spaces, caption=''):
+def generate_latex_table(data, row_headers, caption=''):
     environments = list(data.keys())
+    row_headers.append('diff')
 
     # Prepare headers with corrected approach for backslashes
     headers = []
@@ -101,15 +100,13 @@ def generate_latex_table(data, action_spaces, caption=''):
     latex_str += subheader_row.rstrip(' & ') + "\\\\\n\\midrule\n"
 
     # Iterate over each constraint type, method, and environment to fill the table
-    for j, action_space in enumerate(action_spaces):
-        latex_str += f"{TRANSLATIONS[action_space]} & "
+    for j, header in enumerate(row_headers):
+        latex_str += f"{TRANSLATIONS[header]} & "
         for env in environments:
             for metric_type in ['reward', 'cost']:
-                key = f"{metric_type}_{action_space}"
-                metric = data[env][action_space].get(key, {'mean': None, 'ci': None})
-                mean = max(0, metric['mean'])
-                mean_str = f"{mean:.2f}" if mean is not None else "N/A"
-                latex_str += mean_str + " & "
+                metric = data[env][metric_type][header]
+                percentage_sign = "\%" if header == 'diff' else ''
+                latex_str += f"{metric:.2f}{percentage_sign} & "
         latex_str = latex_str.rstrip(' & ') + " \\\\\n"
 
     latex_str += "\\bottomrule\n\\end{tabularx}\n}"
