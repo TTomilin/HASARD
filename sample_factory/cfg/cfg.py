@@ -301,9 +301,50 @@ def add_rl_args(p: ArgumentParser):
         type=float,
         help="The reward given when the safety state is negative.",
     )
+    p.add_argument(
+        "--pid_kp",
+        default=0.1,
+        type=float,
+        help="Proportional gain for the PID controller. Adjusts the response strength to the current error between the target and actual cost."
+    )
+    p.add_argument(
+        "--pid_ki",
+        default=0.01,
+        type=float,
+        help="Integral gain for the PID controller. Influences the response based on the accumulation of past errors, useful for eliminating bias and ensuring long-term precision."
+    )
+    p.add_argument(
+        "--pid_kd",
+        default=0.01,
+        type=float,
+        help="Derivative gain for the PID controller. Affects the response rate by considering the rate of change of the error, helping to dampen the system response and prevent overshooting."
+    )
+    p.add_argument(
+        "--pid_d_delay",
+        default=10,
+        type=int,
+        help="Delay for the derivative component in the PID controller, specifying how many steps to look back for calculating the rate of change."
+    )
+    p.add_argument(
+        "--pid_delta_ema_alpha",
+        default=0.95,
+        type=float,
+        help="The smoothing factor for the exponential moving average of the derivative and proportional error, used to stabilize fluctuations in error measurements and to smooth the derivative component of the PID response."
+    )
+    p.add_argument(
+        "--sum_norm",
+        default=True,
+        type=str2bool,
+        help="Enable or disable normalization of the sum in the PID controller, ensuring that the sum of the response does not exceed predefined limits."
+    )
+    p.add_argument(
+        "--diff_norm",
+        default=False,
+        type=str2bool,
+        help="Enable or disable normalization of the differential component in the PID controller, helping to keep the derivative response within a reasonable range."
+    )
 
-
-    # more specific to policy gradient algorithms or PPO
+# more specific to policy gradient algorithms or PPO
     p.add_argument(
         "--gae_lambda",
         default=0.95,
