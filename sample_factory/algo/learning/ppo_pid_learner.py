@@ -21,14 +21,13 @@ class PPOPidLearner(PPOLagLearner):
             param_server: ParameterServer,
     ):
         PPOLearner.__init__(self, cfg, env_info, policy_versions_tensor, policy_id, param_server)
-        self.ep_safety_bound = env_info.safety_bound
         self.pid_lagrangian = PIDLagrangian(pid_kp=cfg.pid_kp, pid_ki=cfg.pid_ki, pid_kd=cfg.pid_kd,
                                             pid_d_delay=cfg.pid_d_delay,
                                             pid_delta_p_ema_alpha=cfg.pid_delta_p_ema_alpha,
                                             pid_delta_d_ema_alpha=cfg.pid_delta_d_ema_alpha, sum_norm=cfg.sum_norm,
                                             diff_norm=cfg.diff_norm, penalty_max=cfg.penalty_max,
                                             lagrangian_multiplier_init=cfg.lagrangian_multiplier_init,
-                                            cost_limit=self.ep_safety_bound)
+                                            cost_limit=self.safety_bound)
 
     def _update_lagrange(self, mean_cost):
         return self.pid_lagrangian.pid_update(mean_cost)
