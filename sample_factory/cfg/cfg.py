@@ -326,7 +326,13 @@ def add_rl_args(p: ArgumentParser):
         help="Delay for the derivative component in the PID controller, specifying how many steps to look back for calculating the rate of change."
     )
     p.add_argument(
-        "--pid_delta_ema_alpha",
+        "--pid_delta_p_ema_alpha",
+        default=0.95,
+        type=float,
+        help="The smoothing factor for the exponential moving average of the derivative and proportional error, used to stabilize fluctuations in error measurements and to smooth the derivative component of the PID response."
+    )
+    p.add_argument(
+        "--pid_delta_d_ema_alpha",
         default=0.95,
         type=float,
         help="The smoothing factor for the exponential moving average of the derivative and proportional error, used to stabilize fluctuations in error measurements and to smooth the derivative component of the PID response."
@@ -342,6 +348,18 @@ def add_rl_args(p: ArgumentParser):
         default=False,
         type=str2bool,
         help="Enable or disable normalization of the differential component in the PID controller, helping to keep the derivative response within a reasonable range."
+    )
+    p.add_argument(
+        "--penalty_max",
+        default=100,
+        type=int,
+        help="The maximum allowed penalty."
+    )
+    p.add_argument(
+        "--lagrangian_multiplier_init",
+        default=0.001,
+        type=float,
+        help="The initial value of the lagrangian multiplier."
     )
 
 # more specific to policy gradient algorithms or PPO

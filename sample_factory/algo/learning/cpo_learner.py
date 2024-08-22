@@ -816,7 +816,7 @@ class CPOLearner(PPOLearner):
             # return normalization parameters are only used on the learner, no need to lock the mutex
             if self.cfg.normalize_returns:
                 self.actor_critic.returns_normalizer(buff["returns"])  # in-place
-                self.actor_critic.returns_normalizer(buff["cost_returns"])  # in-place
+                self.actor_critic.costs_normalizer(buff["cost_returns"])  # in-place
 
             num_invalids = dataset_size - buff["valids"].sum().item()
             if num_invalids > 0:

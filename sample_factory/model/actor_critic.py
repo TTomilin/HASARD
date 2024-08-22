@@ -377,7 +377,7 @@ class SafeActorCriticSeparateWeightsNew(ActorCriticSeparateWeights):
         self.encoders.append(self.cost_critic.encoder)
 
     def forward_head(self, normalized_obs_dict: Dict[str, Tensor], values_only=False) -> Tensor:
-        head_output = super(SafeActorCriticSeparateWeights, self).forward_head(normalized_obs_dict, values_only)
+        head_output = super(ConstraintActorCritic, self).forward_head(normalized_obs_dict, values_only)
         cost_critic_head = self.cost_critic.head(normalized_obs_dict)
         with torch.no_grad():
             head_out = torch.cat([head_output, cost_critic_head], dim=1)
@@ -426,7 +426,7 @@ class SafeActorCriticSeparateWeightsNew(ActorCriticSeparateWeights):
         return outputs, new_rnn_states
 
     def forward_tail(self, core_outputs, values_only: bool, sample_actions: bool) -> TensorDict:
-        result = super(SafeActorCriticSeparateWeights, self).forward_tail(core_outputs, values_only, sample_actions)
+        result = super(ConstraintActorCritic, self).forward_tail(core_outputs, values_only, sample_actions)
         core_outputs = core_outputs.chunk(len(self.encoders), dim=1)
         cost_values = self.cost_critic.tail(core_outputs).squeeze()
         result["cost_values"] = cost_values
@@ -554,10 +554,10 @@ class ActorCriticSeparateWeightsOld(ActorCritic):
         return result
 
 
-class SafeActorCriticSeparateWeights(ActorCritic):
+class ConstraintActorCritic(ActorCritic):
 
     def __init__(self, model_factory, obs_space, action_space, cfg):
-        super(SafeActorCriticSeparateWeights, self).__init__(obs_space, action_space, cfg)
+        super(ConstraintActorCritic, self).__init__(obs_space, action_space, cfg)
         self.actor = Actor(model_factory, obs_space, action_space, cfg, 0)
         self.critic = Critic(model_factory, obs_space, cfg, 1)
         self.cost_critic = Critic(model_factory, obs_space, cfg, 2)
@@ -622,11 +622,11 @@ def default_make_actor_critic_func(cfg: Config, obs_space: ObsSpace, action_spac
 
     model_factory = global_model_factory()
 
-    if cfg.algo == "CPO":
+    if cfg.algo in ["CPO"]:
         if cfg.actor_critic_share_weights:
             raise ValueError("CPO does not support shared weights")
-        return SafeActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
-    elif cfg.algo == "PPOLag":
+        return ConstraintActorCritic(model_factory, obs_space, action_space, cfg)
+    elif cfg.algo in ["PPOLag", "PPOPID"]:
         return SafeActorCriticSharedWeights(model_factory, obs_space, action_space, cfg)
     elif cfg.algo == "PPOSaute":
         return ActorCriticSaute(model_factory, obs_space, action_space, cfg)

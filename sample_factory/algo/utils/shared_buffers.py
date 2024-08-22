@@ -73,7 +73,7 @@ def policy_output_shapes(algo: str, num_actions, num_action_distribution_paramet
         ("values", []),
         ("policy_version", []),
     ]
-    if algo in ['PPOLag', 'CPO']:
+    if algo in ['PPOLag', 'PPOPID', 'CPO']:
         policy_outputs += [("cost_values", [])]  # cost values are only given in safe RL methods
     return policy_outputs
 

@@ -10,10 +10,7 @@ import numpy as np
 from signal_slot.signal_slot import EventLoop, EventLoopObject, EventLoopStatus, signal
 from torch import Tensor
 
-from sample_factory.algo.learning.cpo_learner import CPOLearner
-from sample_factory.algo.learning.ppo_detached_learner import PPODetachedLearner
 from sample_factory.algo.learning.ppo_learner import PPOLearner
-from sample_factory.algo.learning.ppo_lag_learner import PPOLagLearner
 from sample_factory.algo.runners.runner import MsgHandler, PolicyMsgHandler
 from sample_factory.algo.sampling.sampler import AbstractSampler, ParallelSampler, SerialSampler
 from sample_factory.algo.sampling.stats import samples_stats_handler, stats_msg_handler, timing_msg_handler
@@ -95,7 +92,8 @@ class SamplingLoop(EventLoopObject, Configurable):
         ...
 
     def init(
-        self, buffer_mgr: Optional[BufferMgr] = None, param_servers: Optional[Dict[PolicyID, ParameterServer]] = None
+            self, buffer_mgr: Optional[BufferMgr] = None,
+            param_servers: Optional[Dict[PolicyID, ParameterServer]] = None
     ):
         set_global_cuda_envvars(self.cfg)
 
@@ -239,9 +237,9 @@ class SamplingLoop(EventLoopObject, Configurable):
 
 class EvalSamplingAPI:
     def __init__(
-        self,
-        cfg: Config,
-        env_info: EnvInfo,
+            self,
+            cfg: Config,
+            env_info: EnvInfo,
     ):
         self.cfg = cfg
         self.env_info = env_info
@@ -267,19 +265,11 @@ class EvalSamplingAPI:
         self.param_servers = {}
         self.init_model_data = {}
         self.learners = {}
-        if self.cfg.algo == 'PPOLag':
-            learner_cls = PPOLagLearner
-        elif self.cfg.algo == 'CPO':
-            learner_cls = CPOLearner
-        elif not self.cfg.actor_critic_share_weights:
-            learner_cls = PPODetachedLearner
-        else:
-            learner_cls = PPOLearner
         for policy_id in range(self.cfg.num_policies):
             self.param_servers[policy_id] = ParameterServer(
                 policy_id, self.policy_versions_tensor, self.cfg.serial_mode
             )
-            self.learners[policy_id] = learner_cls(
+            self.learners[policy_id] = PPOLearner(
                 self.cfg, self.env_info, self.policy_versions_tensor, policy_id, self.param_servers[policy_id]
             )
             # TODO: separate model loading from the learners

@@ -102,6 +102,11 @@ class PPOLagLearner(PPOLearner):
 
             del core_outputs
 
+        # Lagrangian Update
+        mean_cost = mb["costs"].mean()
+        with self.timing.add_time("lagrange_update"):
+            cost_violation = self._update_lagrange(mean_cost)
+
         # these computations are not the part of the computation graph
         with torch.no_grad(), self.timing.add_time("advantages_returns"):
             if self.cfg.with_vtrace:
@@ -151,7 +156,7 @@ class PPOLagLearner(PPOLearner):
                 cost_adv = mb.cost_advantages
                 cost_targets = mb.cost_returns
 
-            adv = adv - self.lambda_lagr * cost_adv  # subtract cost advantages
+            adv = self._compute_adv_surrogate(adv, cost_adv)
             adv_std, adv_mean = torch.std_mean(masked_select(adv, valids, num_invalids))
             adv = (adv - adv_mean) / torch.clamp_min(adv_std, 1e-7)  # normalize advantage
 
@@ -167,22 +172,6 @@ class PPOLagLearner(PPOLearner):
             value_loss = self._value_loss(values, old_values, targets, clip_value, valids, num_invalids)
             cost_loss = self._value_loss(cost_values, old_cost_values, cost_targets, clip_value, valids, num_invalids)
 
-        mean_cost = mb["costs"].mean()
-        with self.timing.add_time("lagrange_update"):
-            # Determine the average cost constraint violation of the scenario
-
-            # Calculate the average cost constraint violation
-            cost_violation = (mean_cost - self.safety_bound).detach()
-            # cost_violation = ((mb["costs"].mean() - safety_bound) * (1 - self.cfg.gamma) + (ratio * cost_adv)).mean().detach()
-
-            # Update lambda_lagr based on the violation magnitude
-            delta_lambda_lagr = cost_violation * self.cfg.lagrangian_coef_rate
-            new_lambda_lagr = self.lambda_lagr + delta_lambda_lagr
-
-            # Ensure lambda_lagr remains non-negative
-            new_lambda_lagr = torch.nn.ReLU()(new_lambda_lagr)
-            self.lambda_lagr = new_lambda_lagr
-
         loss_summaries = dict(
             ratio=ratio,
             clip_ratio_low=clip_ratio_low,
@@ -194,10 +183,28 @@ class PPOLagLearner(PPOLearner):
             adv_std=adv_std,
             adv_mean=adv_mean,
             cost_violation=cost_violation,
-            lambda_lagr=self.lambda_lagr,
+            lagrange_multiplier=self._get_lagrange_multiplier(),
         )
 
         return action_distribution, policy_loss, exploration_loss, kl_old, kl_loss, value_loss, cost_loss, loss_summaries
+
+    def _update_lagrange(self, mean_cost):
+        # Calculate the average cost constraint violation
+        cost_violation = (mean_cost - self.safety_bound).detach()
+        # cost_violation = ((mb["costs"].mean() - safety_bound) * (1 - self.cfg.gamma) + (ratio * cost_adv)).mean().detach()
+        # Update lambda_lagr based on the violation magnitude
+        delta_lambda_lagr = cost_violation * self.cfg.lagrangian_coef_rate
+        new_lambda_lagr = self.lambda_lagr + delta_lambda_lagr
+        # Ensure lambda_lagr remains non-negative
+        new_lambda_lagr = torch.nn.ReLU()(new_lambda_lagr)
+        self.lambda_lagr = new_lambda_lagr
+        return cost_violation
+
+    def _get_lagrange_multiplier(self):
+        return self.lambda_lagr
+
+    def _compute_adv_surrogate(self, adv, cost_adv):
+        return adv - self.lambda_lagr * cost_adv  # subtract cost advantages
 
     def _train(
             self, gpu_buffer: TensorDict, batch_size: int, experience_size: int, num_invalids: int
@@ -375,83 +382,14 @@ class PPOLagLearner(PPOLearner):
     def _record_summaries(self, train_loop_vars) -> AttrDict:
         var = train_loop_vars
 
-        self.last_summary_time = time.time()
-        stats = AttrDict()
+        # Call the base _record_summaries method to get initial summaries
+        stats = super()._record_summaries(train_loop_vars)
 
-        stats.lr = self.curr_lr
-        stats.actual_lr = train_loop_vars.actual_lr  # potentially scaled because of masked data
-
-        stats.update(self.actor_critic.summaries())
-
-        stats.valids_fraction = var.mb.valids.float().mean()
-        stats.same_policy_fraction = (var.mb.policy_id == self.policy_id).float().mean()
-
-        grad_norm = (
-                sum(p.grad.data.norm(2).item()**2 for p in self.actor_critic.parameters() if p.grad is not None)**0.5
-        )
-        stats.grad_norm = grad_norm
-        stats.loss = var.loss
-        stats.value = var.values.mean()
-        stats.entropy = var.action_distribution.entropy().mean()
-        stats.policy_loss = var.policy_loss
-        stats.kl_loss = var.kl_loss
-        stats.value_loss = var.value_loss
-        stats.exploration_loss = var.exploration_loss
         stats.cost_loss = var.cost_loss
         stats.cost_values = var.cost_values.mean()
         stats.cost_violation = var.cost_violation
         stats.avg_cost = var.avg_cost
-        stats.lambda_lagr = var.lambda_lagr
-
-        stats.act_min = var.mb.actions.min()
-        stats.act_max = var.mb.actions.max()
-
-        if "adv_mean" in stats:
-            stats.adv_min = var.mb.advantages.min()
-            stats.adv_max = var.mb.advantages.max()
-            stats.adv_std = var.adv_std
-            stats.adv_mean = var.adv_mean
-
-        stats.max_abs_logprob = torch.abs(var.mb.action_logits).max()
-
-        if hasattr(var.action_distribution, "summaries"):
-            stats.update(var.action_distribution.summaries())
-
-        if var.epoch == self.cfg.num_epochs - 1 and var.batch_num == len(var.minibatches) - 1:
-            # we collect these stats only for the last PPO batch, or every time if we're only doing one batch, IMPALA-style
-            valid_ratios = masked_select(var.ratio, var.mb.valids, var.num_invalids)
-            ratio_mean = torch.abs(1.0 - valid_ratios).mean().detach()
-            ratio_min = valid_ratios.min().detach()
-            ratio_max = valid_ratios.max().detach()
-            # log.debug('Learner %d ratio mean min max %.4f %.4f %.4f', self.policy_id, ratio_mean.cpu().item(), ratio_min.cpu().item(), ratio_max.cpu().item())
-
-            value_delta = torch.abs(var.values - var.mb.values)
-            value_delta_avg, value_delta_max = value_delta.mean(), value_delta.max()
-
-            stats.kl_divergence = var.kl_old_mean
-            stats.kl_divergence_max = var.kl_old.max()
-            stats.value_delta = value_delta_avg
-            stats.value_delta_max = value_delta_max
-            # noinspection PyUnresolvedReferences
-            stats.fraction_clipped = (
-                    (valid_ratios < var.clip_ratio_low).float() + (valid_ratios > var.clip_ratio_high).float()
-            ).mean()
-            stats.ratio_mean = ratio_mean
-            stats.ratio_min = ratio_min
-            stats.ratio_max = ratio_max
-            stats.num_sgd_steps = var.num_sgd_steps
-
-        # this caused numerical issues on some versions of PyTorch with second moment reaching infinity
-        adam_max_second_moment = 0.0
-        for key, tensor_state in self.optimizer.state.items():
-            if "exp_avg_sq" in tensor_state:
-                adam_max_second_moment = max(tensor_state["exp_avg_sq"].max().item(), adam_max_second_moment)
-        stats.adam_max_second_moment = adam_max_second_moment
-
-        version_diff = (var.curr_policy_version - var.mb.policy_version)[var.mb.policy_id == self.policy_id]
-        stats.version_diff_avg = version_diff.mean()
-        stats.version_diff_min = version_diff.min()
-        stats.version_diff_max = version_diff.max()
+        stats.lagrange_multiplier = var.lagrange_multiplier
 
         for key, value in stats.items():
             stats[key] = to_scalar(value)
@@ -550,7 +488,7 @@ class PPOLagLearner(PPOLearner):
             # return normalization parameters are only used on the learner, no need to lock the mutex
             if self.cfg.normalize_returns:
                 self.actor_critic.returns_normalizer(buff["returns"])  # in-place
-                self.actor_critic.returns_normalizer(buff["cost_returns"])  # in-place
+                self.actor_critic.costs_normalizer(buff["cost_returns"])  # in-place
 
             num_invalids = dataset_size - buff["valids"].sum().item()
             if num_invalids > 0:
