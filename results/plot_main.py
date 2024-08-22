@@ -136,7 +136,7 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--input", type=str, default='data/main', help="Base input directory containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute"],
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID"],
                         help="Algorithms to download/plot")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
