@@ -246,6 +246,7 @@ def add_rl_args(p: ArgumentParser):
         "Empirically, symmetric KL-divergence yielded slightly better results on some problems.",
     )
 
+
     # Constrained optimization
     p.add_argument(
         "--safety_bound",
@@ -253,6 +254,8 @@ def add_rl_args(p: ArgumentParser):
         type=float,
         help="Allowed accumulated cost per episode.",
     )
+
+    # PPOLag
     p.add_argument(
         "--lambda_lagr",
         default=0.0,
@@ -265,6 +268,8 @@ def add_rl_args(p: ArgumentParser):
         type=float,
         help="Change rate of the Lagrangian coefficient.",
     )
+
+    # CPO
     p.add_argument(
         "--line_search_fraction",
         default=0.5,
@@ -289,6 +294,8 @@ def add_rl_args(p: ArgumentParser):
         type=float,
         help="Fraction coefficient for updating the model parameters.",
     )
+
+    # PPOSaute
     p.add_argument(
         "--saute_gamma",
         default=0.9999,
@@ -301,6 +308,8 @@ def add_rl_args(p: ArgumentParser):
         type=float,
         help="The reward given when the safety state is negative.",
     )
+
+    # PPOPID
     p.add_argument(
         "--pid_kp",
         default=0.1,
@@ -362,7 +371,16 @@ def add_rl_args(p: ArgumentParser):
         help="The initial value of the lagrangian multiplier."
     )
 
-# more specific to policy gradient algorithms or PPO
+    # P3O
+    p.add_argument(
+        "--kappa",
+        default=20.0,
+        type=float,
+        help="The coefficient of cost penalty."
+    )
+
+
+    # more specific to policy gradient algorithms or PPO
     p.add_argument(
         "--gae_lambda",
         default=0.95,

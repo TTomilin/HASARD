@@ -626,7 +626,7 @@ def default_make_actor_critic_func(cfg: Config, obs_space: ObsSpace, action_spac
         if cfg.actor_critic_share_weights:
             raise ValueError("CPO does not support shared weights")
         return ConstraintActorCritic(model_factory, obs_space, action_space, cfg)
-    elif cfg.algo in ["PPOLag", "PPOPID"]:
+    elif cfg.algo in ["PPOLag", "PPOPID", "P3O"]:
         return SafeActorCriticSharedWeights(model_factory, obs_space, action_space, cfg)
     elif cfg.algo == "PPOSaute":
         return ActorCriticSaute(model_factory, obs_space, action_space, cfg)
