@@ -137,7 +137,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
 
         self.total_cost += cost_this_step
 
-        info['cost'] = self.total_cost
+        info['cost'] = cost_this_step
         info["true_objective"] = self.total_reward_delivery
         info["episode_extra_stats"] = {
             'deaths': self.deaths,
