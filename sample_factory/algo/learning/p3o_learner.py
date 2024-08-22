@@ -33,8 +33,8 @@ class P3OLearner(PPOLearner):
         PPOLearner.__init__(self, cfg, env_info, policy_versions_tensor, policy_id, param_server)
         self.kappa = cfg.kappa
 
-    def _policy_cost_loss(self, ratio, adv, cost_violation, valids, num_invalids: int):
-        surr_cost_adv = (ratio * adv).mean()
+    def _policy_cost_loss(self, ratio, cost_adv, cost_violation, valids, num_invalids: int):
+        surr_cost_adv = (ratio * cost_adv).mean()
         cost_loss = self.kappa * max(0.0, surr_cost_adv + cost_violation)
         cost_loss = masked_select(cost_loss, valids, num_invalids)
         cost_loss = cost_loss.mean()
@@ -42,7 +42,7 @@ class P3OLearner(PPOLearner):
 
     def _calculate_losses(
             self, mb: AttrDict, num_invalids: int
-    ) -> Tuple[ActionDistribution, Tensor, Tensor | float, Optional[Tensor], Tensor | float, Tensor, Tensor, Dict]:
+    ) -> Tuple[ActionDistribution, Tensor, Tensor, Tensor | float, Optional[Tensor], Tensor | float, Tensor, Tensor, Dict]:
         with torch.no_grad(), self.timing.add_time("losses_init"):
             recurrence: int = self.cfg.recurrence
 
@@ -269,9 +269,10 @@ class P3OLearner(PPOLearner):
                     high_loss = 30.0
                     if torch.abs(loss) > high_loss:
                         log.warning(
-                            "High loss value: l:%.4f pl:%.4f vl:%.4f exp_l:%.4f kl_l:%.4f (recommended to adjust the --reward_scale parameter)",
+                            "High loss value: l:%.4f pl:%.4f pcl:%.4f vl:%.4f exp_l:%.4f kl_l:%.4f (recommended to adjust the --reward_scale parameter)",
                             to_scalar(loss),
                             to_scalar(policy_loss),
+                            to_scalar(policy_cost_loss),
                             to_scalar(value_loss),
                             to_scalar(exploration_loss),
                             to_scalar(kl_loss),
@@ -374,8 +375,8 @@ class P3OLearner(PPOLearner):
         stats.cost_loss = var.cost_loss
         stats.cost_values = var.cost_values.mean()
         stats.cost_violation = var.cost_violation
+        stats.policy_cost_loss = var.policy_cost_loss
         stats.avg_cost = var.avg_cost
-        stats.lagrange_multiplier = var.lagrange_multiplier
 
         for key, value in stats.items():
             stats[key] = to_scalar(value)

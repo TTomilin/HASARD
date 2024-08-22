@@ -11,6 +11,7 @@ from torch import Tensor
 
 from sample_factory.algo.learning.batcher import Batcher
 from sample_factory.algo.learning.cpo_learner import CPOLearner
+from sample_factory.algo.learning.p3o_learner import P3OLearner
 from sample_factory.algo.learning.ppo_detached_learner import PPODetachedLearner
 from sample_factory.algo.learning.ppo_learner import PPOLearner
 from sample_factory.algo.learning.ppo_lag_learner import PPOLagLearner
@@ -75,6 +76,8 @@ class LearnerWorker(HeartbeatStoppableEventLoopObject, Configurable):
             learner_cls = CPOLearner
         elif cfg.algo == 'PPOPID':
             learner_cls = PPOPidLearner
+        elif cfg.algo == 'P3O':
+            learner_cls = P3OLearner
         elif not cfg.actor_critic_share_weights:
             learner_cls = PPODetachedLearner
         else:
