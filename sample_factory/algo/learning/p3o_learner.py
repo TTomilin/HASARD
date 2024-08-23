@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from typing import Dict, Optional, Tuple
 
 import numpy as np
@@ -17,7 +16,7 @@ from sample_factory.algo.utils.tensor_dict import TensorDict, shallow_recursive_
 from sample_factory.algo.utils.torch_utils import masked_select, synchronize, to_scalar
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.dicts import iterate_recursively
-from sample_factory.utils.typing import ActionDistribution, Config, InitModelData, PolicyID
+from sample_factory.utils.typing import ActionDistribution, Config, PolicyID
 from sample_factory.utils.utils import log
 
 
@@ -33,16 +32,17 @@ class P3OLearner(PPOLearner):
         PPOLearner.__init__(self, cfg, env_info, policy_versions_tensor, policy_id, param_server)
         self.kappa = cfg.kappa
 
-    def _policy_cost_loss(self, ratio, cost_adv, cost_violation, valids, num_invalids: int):
-        surr_cost_adv = (ratio * cost_adv).mean()
-        cost_loss = self.kappa * max(0.0, surr_cost_adv + cost_violation)
+    def _policy_cost_loss(self, ratio, cost_adv, cost_violation, valids, num_invalids):
+        cost_loss = (ratio * cost_adv)
         cost_loss = masked_select(cost_loss, valids, num_invalids)
         cost_loss = cost_loss.mean()
+        cost_loss = self.kappa * max(0.0, cost_loss + cost_violation)
         return cost_loss
 
     def _calculate_losses(
             self, mb: AttrDict, num_invalids: int
-    ) -> Tuple[ActionDistribution, Tensor, Tensor, Tensor | float, Optional[Tensor], Tensor | float, Tensor, Tensor, Dict]:
+    ) -> Tuple[
+        ActionDistribution, Tensor, Tensor, Tensor | float, Optional[Tensor], Tensor | float, Tensor, Tensor, Dict]:
         with torch.no_grad(), self.timing.add_time("losses_init"):
             recurrence: int = self.cfg.recurrence
 
