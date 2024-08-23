@@ -374,7 +374,7 @@ def add_rl_args(p: ArgumentParser):
     # P3O
     p.add_argument(
         "--kappa",
-        default=20.0,
+        default=1.0,
         type=float,
         help="The coefficient of cost penalty."
     )
