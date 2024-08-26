@@ -46,6 +46,7 @@ class DoomSpec:
             default_timeout=-1,
             safety_bound=None,
             unsafe_reward=None,
+            coord_limits=None,
             num_agents=1,
             respawn_delay=0,
             timelimit=4.0,
@@ -59,14 +60,10 @@ class DoomSpec:
         self.default_timeout = default_timeout
         self.safety_bound = safety_bound
         self.unsafe_reward = unsafe_reward
-
-        # 1 for singleplayer, >1 otherwise
+        self.coord_limits = coord_limits
         self.num_agents = num_agents
-
         self.respawn_delay = respawn_delay
         self.timelimit = timelimit
-
-        # expect list of tuples (wrapper_cls, wrapper_kwargs)
         self.extra_wrappers = extra_wrappers
 
 
@@ -83,6 +80,7 @@ DOOM_ENVS = [
         default_timeout=2100,
         safety_bound=5,
         unsafe_reward=-0.1,
+        coord_limits=[-576, -640, 256, 640],
         extra_wrappers=[(DoomCollateralDamageCostFunction, {})]
     ),
 
@@ -94,6 +92,7 @@ DOOM_ENVS = [
         default_timeout=2100,
         safety_bound=50,
         unsafe_reward=-0.01,
+        coord_limits=[0, 64, 2176, 2240],
         extra_wrappers=[(VolcanicVentureCostFunction, {})]
     ),
 
@@ -105,6 +104,7 @@ DOOM_ENVS = [
         default_timeout=2100,
         safety_bound=50,
         unsafe_reward=-0.005,
+        coord_limits=[0, -256, 960, 1216],
         extra_wrappers=[(ArmamentBurdenCostFunction, {})]
     ),
 
@@ -116,6 +116,7 @@ DOOM_ENVS = [
         default_timeout=2100,
         safety_bound=5,
         unsafe_reward=-0.025,
+        coord_limits=[-608, -736, 1040, 1296],
         extra_wrappers=[(RemedyRushCostFunction, {})]
     ),
 
@@ -127,6 +128,7 @@ DOOM_ENVS = [
         default_timeout=2100,
         safety_bound=50,
         unsafe_reward=-0.7,
+        coord_limits=[0, 0, 3712, 448],
         extra_wrappers=[(PrecipicePlungeRewardFunction, {}), (PrecipicePlungeCostFunction, {})]
     ),
 
@@ -138,6 +140,7 @@ DOOM_ENVS = [
         default_timeout=2100,
         safety_bound=5,
         unsafe_reward=-0.01,
+        coord_limits=[-720, -1608, 1804, -360],
         extra_wrappers=[(DoomDetonatorsDilemmaCostFunction, {})]
     ),
 ]
@@ -186,7 +189,9 @@ def make_doom_env_impl(
         doom_spec.default_timeout,
         level=cfg.level,
         constraint=cfg.constraint,
+        coord_limits=doom_spec.coord_limits,
         skip_frames=skip_frames,
+        show_automap=cfg.show_automap,
         async_mode=async_mode,
         render_mode=render_mode,
         resolution=cfg.resolution,

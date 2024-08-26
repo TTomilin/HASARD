@@ -18,8 +18,6 @@ def main():
     doom_override_defaults(parser)
     # second parsing pass yields the final configuration
     cfg = parse_full_cfg(parser)
-    if not cfg.timestamp:
-        cfg.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     status = enjoy(cfg)
     return status
 

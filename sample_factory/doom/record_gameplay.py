@@ -20,8 +20,6 @@ def main():
     cfg = parse_full_cfg(parser)
     cfg.record_gameplay = True
     cfg.save_video = True
-    if not cfg.timestamp:
-        cfg.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     statuses = []
     for algo in ["PPO", "PPOCost", "PPOLag"]:
         for env in ["armament_burden", "volcanic_venture", "remedy_rush",

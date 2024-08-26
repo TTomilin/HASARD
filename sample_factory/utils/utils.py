@@ -407,7 +407,7 @@ def experiments_dir(cfg, mkdir=True) -> str:
 
 
 def experiment_dir(cfg, mkdir=True) -> str:
-    suffix = "" if cfg.record_gameplay else f"/{cfg.timestamp}"
+    suffix = f"/{cfg.timestamp}" if cfg.timestamp else ""
     experiment = f'{cfg.algo}/{cfg.env}/Level_{cfg.level}{suffix}'
     experiments_root = experiments_dir(cfg, mkdir)
     return maybe_ensure_dir_exists(join(experiments_root, experiment), mkdir)

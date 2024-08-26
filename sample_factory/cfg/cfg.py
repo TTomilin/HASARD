@@ -15,7 +15,6 @@ def add_basic_cli_args(p: ArgumentParser):
         "--timestamp",
         type=str,
         default=None,
-        required=False,
         help="Provide the timestamp to resume training an existing experiment or enjoy a trained model"
     )
     p.add_argument(
@@ -801,6 +800,12 @@ def add_default_env_args(p: ArgumentParser):
         default=False,
         action='store_true',
         help="Whether to use the full action space of DOOM.",
+    )
+    p.add_argument(
+        "--show_automap",
+        default=False,
+        action='store_true',
+        help="Whether to enable rendering and visitation heatmaps in a topdown view",
     )
 
 
