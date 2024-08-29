@@ -14,7 +14,7 @@ from sample_factory.cfg.cfg import (
     add_model_args,
     add_pbt_args,
     add_rl_args,
-    add_wandb_args,
+    add_logging_args,
 )
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
@@ -42,7 +42,7 @@ def parse_sf_args(
     add_rl_args(p)
     add_model_args(p)
     add_default_env_args(p)
-    add_wandb_args(p)
+    add_logging_args(p)
     add_pbt_args(p)
 
     if evaluation:

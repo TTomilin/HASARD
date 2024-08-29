@@ -8,11 +8,15 @@ import shutil
 import time
 from collections import OrderedDict, deque
 from datetime import datetime
+from io import BytesIO
 from os.path import isdir, join
 from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
+import PIL
 import numpy as np
 import wandb
+from PIL.Image import Image
+from matplotlib import pyplot as plt
 from signal_slot.signal_slot import EventLoop, EventLoopObject, EventLoopStatus, Timer, process_name, signal
 from tensorboardX import SummaryWriter
 
@@ -279,7 +283,7 @@ class Runner(EventLoopObject, Configurable):
                     deque(maxlen=runner.cfg.stats_avg) for _ in range(runner.cfg.num_policies)
                 ]
 
-            if isinstance(value, np.ndarray) and value.ndim > 0:
+            if isinstance(value, np.ndarray) and value.ndim > 0 and key != 'heatmap':
                 if len(value) > runner.policy_avg_stats[key][policy_id].maxlen:
                     # increase maxlen to make sure we never ignore any stats from the environments
                     runner.policy_avg_stats[key][policy_id] = deque(maxlen=len(value))
@@ -384,6 +388,21 @@ class Runner(EventLoopObject, Configurable):
         total_env_steps = sum(self.env_steps.values())
         self.print_stats(fps_stats, sample_throughput, total_env_steps)
 
+    def log_heatmap(self, histogram, global_step):
+        # Create a BytesIO buffer to save image
+        buf = BytesIO()
+        plt.figure(figsize=(5, 4))
+        plt.imshow(histogram, cmap='viridis', interpolation='nearest', aspect='auto')
+        plt.colorbar()
+        plt.xticks([])
+        plt.yticks([])
+        plt.savefig(buf, format='png')
+        plt.close()
+
+        buf.seek(0)
+        image = PIL.Image.open(buf)
+        wandb.log({"Agent Position Heatmap": wandb.Image(image)}, step=global_step)
+
     def _report_experiment_summaries(self):
         memory_mb = memory_consumption_mb()
 
@@ -408,7 +427,18 @@ class Runner(EventLoopObject, Configurable):
             if not math.isnan(sample_throughput[policy_id]):
                 writer.add_scalar("perf/_sample_throughput", sample_throughput[policy_id], env_steps)
 
+            # if self.cfg.with_wandb and 'histogram' in self.policy_avg_stats:
+            #     histogram_data = np.squeeze(self.policy_avg_stats['histogram'])
+            #     self.log_heatmap(writer, histogram_data, "agent_position_heatmap", global_step=env_steps)
+
+            if self.cfg.with_wandb and 'heatmap' in self.policy_avg_stats:
+                heatmap = np.mean(self.policy_avg_stats['heatmap'], axis=1).squeeze()
+                print(f'RUNNER Heatmap Shape: {heatmap.shape}')
+                self.log_heatmap(heatmap, global_step=env_steps)
+
             for key, stat in self.policy_avg_stats.items():
+                if key == 'histogram':
+                    continue  # Skip if it's histogram, already logged
                 if len(stat[policy_id]) >= stat[policy_id].maxlen or (
                     len(stat[policy_id]) > 10 and self.total_train_seconds > 300
                 ):

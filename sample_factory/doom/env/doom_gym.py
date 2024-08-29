@@ -103,7 +103,7 @@ class VizdoomEnv(gym.Env):
             level=1,
             constraint='soft',
             coord_limits=None,
-            max_histogram_length=200,
+            max_histogram_length=20,
             show_automap=False,
             skip_frames=1,
             async_mode=False,
@@ -171,7 +171,7 @@ class VizdoomEnv(gym.Env):
         # (optional) histogram to track positional coverage
         # do not pass coord_limits if you don't need this, to avoid extra calculation
         self.max_histogram_length = max_histogram_length
-        self.current_histogram, self.previous_histogram = None, None
+        self.current_histogram, self.previous_histogram, self.cumulative_histogram = None, None, None
         if self.coord_limits:
             x = self.coord_limits[2] - self.coord_limits[0]
             y = self.coord_limits[3] - self.coord_limits[1]
@@ -183,6 +183,7 @@ class VizdoomEnv(gym.Env):
                 len_y = self.max_histogram_length
             self.current_histogram = np.zeros((len_x, len_y), dtype=np.int32)
             self.previous_histogram = np.zeros_like(self.current_histogram)
+            self.cumulative_histogram = np.zeros_like(self.current_histogram)
 
         # helpers for human play with pynput keyboard input
         self._terminate = False
@@ -388,6 +389,8 @@ class VizdoomEnv(gym.Env):
             log.error("Game returned None screen buffer! This is not supposed to happen!")
             img = self._black_screen()
 
+        info = {}
+
         # Swap current and previous histogram
         if self.current_histogram is not None and self.previous_histogram is not None:
             swap = self.current_histogram
@@ -401,7 +404,7 @@ class VizdoomEnv(gym.Env):
 
         self._num_episodes += 1
 
-        return np.transpose(img, (1, 2, 0)), {}  # since Gym 0.26.0, we return dict as second return value
+        return np.transpose(img, (1, 2, 0)), info # since Gym 0.26.0, we return dict as second return value
 
     def _convert_actions(self, actions):
         """Convert actions from gym action space to the action space expected by Doom game."""
@@ -454,7 +457,7 @@ class VizdoomEnv(gym.Env):
         if not done:
             observation = np.transpose(state.screen_buffer, (1, 2, 0))
             game_variables = self._game_variables_dict(state)
-            info.update(self.get_info(game_variables))
+            info.update(self.get_info_all(game_variables))
             self._update_histogram(info)
             self._prev_info = copy.copy(info)
         else:
@@ -554,7 +557,8 @@ class VizdoomEnv(gym.Env):
             variables = self._game_variables_dict(self.game.get_state())
         info = self.get_info(variables)
         if self.previous_histogram is not None:
-            info["previous_histogram"] = self.previous_histogram
+            info["previous_histogram"] = copy.deepcopy(self.previous_histogram)
+            info["cumulative_histogram"] = self.cumulative_histogram
         return info
 
     def get_positions(self, variables):
@@ -601,6 +605,7 @@ class VizdoomEnv(gym.Env):
         dy = int((dy - eps) * self.current_histogram.shape[1])
 
         self.current_histogram[dx, dy] += 1
+        self.cumulative_histogram[dx, dy] += 1
 
     def _key_to_action(self, key):
         if hasattr(self.action_space, "key_to_action"):

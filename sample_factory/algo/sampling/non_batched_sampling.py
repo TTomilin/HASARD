@@ -297,6 +297,8 @@ class ActorState:
             reward=self.last_episode_reward,
             len=self.last_episode_duration,
             episode_extra_stats=info.get("episode_extra_stats", dict()),
+            histogram=info.get("previous_histogram", []),
+            heatmap=info.get("cumulative_histogram", []),
         )
 
         if (true_objective := info.get("true_objective", self.last_episode_reward)) is not None:

@@ -190,6 +190,7 @@ def make_doom_env_impl(
         level=cfg.level,
         constraint=cfg.constraint,
         coord_limits=doom_spec.coord_limits,
+        max_histogram_length=cfg.max_histogram_length,
         skip_frames=skip_frames,
         show_automap=cfg.show_automap,
         async_mode=async_mode,

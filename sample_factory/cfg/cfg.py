@@ -885,7 +885,7 @@ def add_eval_args(parser):
     )
 
 
-def add_wandb_args(p: ArgumentParser):
+def add_logging_args(p: ArgumentParser):
     """Weights and Biases experiment monitoring."""
     p.add_argument("--with_wandb", default=False, type=str2bool, help="Enables Weights and Biases integration")
     p.add_argument(
@@ -908,6 +908,12 @@ def add_wandb_args(p: ArgumentParser):
         type=str,
         nargs="*",
         help="Tags can help with finding experiments in WandB web console",
+    )
+    p.add_argument(
+        "--max_histogram_length",
+        default=20,
+        type=int,
+        help="Maximum size of the heatmap indicating the positions the agent has cumulatively visited",
     )
 
 
