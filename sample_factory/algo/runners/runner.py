@@ -10,12 +10,13 @@ from collections import OrderedDict, deque
 from datetime import datetime
 from io import BytesIO
 from os.path import isdir, join
+from pathlib import Path
 from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
 import PIL
 import numpy as np
 import wandb
-from PIL.Image import Image
+from PIL import Image
 from matplotlib import pyplot as plt
 from signal_slot.signal_slot import EventLoop, EventLoopObject, EventLoopStatus, Timer, process_name, signal
 from tensorboardX import SummaryWriter
@@ -118,6 +119,7 @@ class Runner(EventLoopObject, Configurable):
 
         # plotting visited locations as a 2D heatmap
         self.cumulative_heatmap = None
+        self.map_img = None
 
         self.total_env_steps_since_resume: Optional[int] = None
         self.start_time: float = time.time()
@@ -394,7 +396,7 @@ class Runner(EventLoopObject, Configurable):
 
     def log_heatmap(self, heatmap: np.ndarray, global_step: int, tag: str):
         # Transpose the heatmap
-        heatmap = heatmap.T
+        heatmap = np.flipud(heatmap.T)
 
         # Determine aspect ratio of the histogram
         height, width = heatmap.shape
@@ -415,9 +417,40 @@ class Runner(EventLoopObject, Configurable):
         plt.xticks([])
         plt.yticks([])
         plt.savefig(buf, format='png')
-        plt.show()
+        # plt.show()
         plt.close()
 
+        buf.seek(0)
+        image = Image.open(buf)
+        wandb.log({tag: wandb.Image(image)}, step=global_step)
+
+    def log_map_with_heatmap(self, heatmap: np.ndarray, global_step: int, tag: str):
+        # Transpose the heatmap
+        heatmap = np.flipud(heatmap.T)
+
+        # Create a figure and axis to plot the map and heatmap
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        # Display the map
+        ax.imshow(self.map_img, extent=[0, heatmap.shape[1], 0, heatmap.shape[0]])
+
+        # Overlay the heatmap: adjust 'alpha' for transparency, cmap for the color map
+        cax = ax.imshow(heatmap, cmap='viridis', alpha=0.5, interpolation='nearest', extent=[0, heatmap.shape[1], 0, heatmap.shape[0]])
+
+        # Optional: add a colorbar to understand the scale of the heatmap
+        plt.colorbar(cax, ax=ax)
+
+        # Remove x and y ticks
+        plt.xticks([])
+        plt.yticks([])
+
+        # Save the plot to a buffer
+        buf = BytesIO()
+        plt.savefig(buf, format='png')
+        # plt.show()
+        plt.close()
+
+        # Log to Weights & Biases
         buf.seek(0)
         image = PIL.Image.open(buf)
         wandb.log({tag: wandb.Image(image)}, step=global_step)
@@ -455,6 +488,7 @@ class Runner(EventLoopObject, Configurable):
                 # print(f'RUNNER Heatmap Shape: {heatmap.shape}. Global Stpe: {env_steps}')
                 # Accumulate the heatmap data
                 self.cumulative_heatmap += heatmap
+                self.log_map_with_heatmap(heatmap, env_steps, 'Heatmap Overlay')
                 self.log_heatmap(self.cumulative_heatmap, env_steps, "Cumulative Agent Position")
                 self.log_heatmap(heatmap, env_steps, "Agent Position")
 
@@ -623,6 +657,11 @@ class Runner(EventLoopObject, Configurable):
     def init(self) -> StatusCode:
         set_global_cuda_envvars(self.cfg)
         self.env_info = obtain_env_info_in_a_separate_process(self.cfg)
+
+        # Load the map image
+        base_path = Path(__file__).parent.parent.parent.resolve()
+        map_path = join(base_path, "doom", "env", "scenarios", f"{self.env_info.name}.png")
+        self.map_img = Image.open(map_path)
 
         for policy_id in range(self.cfg.num_policies):
             self.reward_shaping[policy_id] = self.env_info.reward_shaping_scheme

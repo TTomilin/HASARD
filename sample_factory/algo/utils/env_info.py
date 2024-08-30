@@ -21,6 +21,7 @@ ENV_INFO_PROTOCOL_VERSION = 1
 
 @dataclass
 class EnvInfo:
+    name: str
     obs_space: gym.Space
     action_space: gym.Space
     num_agents: int
@@ -61,6 +62,7 @@ def extract_env_info(env: BatchedVecEnv | NonBatchedVecEnv, cfg: Config) -> EnvI
         action_splits = [calc_num_actions(space) for space in action_space]
         all_discrete = all(isinstance(space, gym.spaces.Discrete) for space in action_space)
     env_info = EnvInfo(
+        name=cfg.env,
         obs_space=obs_space,
         action_space=action_space,
         num_agents=num_agents,

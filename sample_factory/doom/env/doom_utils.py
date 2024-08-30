@@ -148,7 +148,7 @@ DOOM_ENVS = [
         default_timeout=2100,
         safety_bound=5,
         unsafe_reward=-0.01,
-        coord_limits=[-720, -1608, 1804, -360],
+        coord_limits=[-720, -1120, 1804, -360],
         extra_wrappers=[(DoomDetonatorsDilemmaCostFunction, {})]
     ),
 ]
