@@ -103,7 +103,7 @@ class VizdoomEnv(gym.Env):
             level=1,
             constraint='soft',
             coord_limits=None,
-            max_histogram_length=30,
+            max_histogram_length=None,
             show_automap=False,
             skip_frames=1,
             async_mode=False,

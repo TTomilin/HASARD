@@ -393,6 +393,9 @@ class Runner(EventLoopObject, Configurable):
         self.print_stats(fps_stats, sample_throughput, total_env_steps)
 
     def log_heatmap(self, heatmap: np.ndarray, global_step: int, tag: str):
+        # Transpose the heatmap
+        heatmap = heatmap.T
+
         # Determine aspect ratio of the histogram
         height, width = heatmap.shape
         aspect_ratio = width / height

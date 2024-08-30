@@ -41,6 +41,7 @@ class DoomSpec:
             name,
             action_space,
             full_action_space,
+            max_histogram_len,
             reward_scaling=1.0,
             penalty_scaling=1.0,
             default_timeout=-1,
@@ -55,6 +56,7 @@ class DoomSpec:
         self.name = name
         self.action_space = action_space
         self.full_action_space = full_action_space
+        self.max_histogram_len = max_histogram_len
         self.reward_scaling = reward_scaling
         self.penalty_scaling = penalty_scaling
         self.default_timeout = default_timeout
@@ -76,6 +78,7 @@ DOOM_ENVS = [
         'collateral_damage',
         doom_turn_and_attack_only(),
         doom_action_space_no_move(),
+        max_histogram_len=10,
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
@@ -88,6 +91,7 @@ DOOM_ENVS = [
         'volcanic_venture',
         doom_turn_move_jump_accelerate(),
         doom_action_space_no_speed(),
+        max_histogram_len=30,
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=50,
@@ -100,6 +104,7 @@ DOOM_ENVS = [
         'armament_burden',
         doom_turn_move_use_jump(),
         doom_action_space_no_speed(),
+        max_histogram_len=20,
         penalty_scaling=0.1,
         default_timeout=2100,
         safety_bound=50,
@@ -112,6 +117,7 @@ DOOM_ENVS = [
         'remedy_rush',
         doom_turn_move_jump_accelerate(),
         doom_action_space_no_speed(),
+        max_histogram_len=30,
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
@@ -124,6 +130,7 @@ DOOM_ENVS = [
         'precipice_plunge',
         doom_turn_and_move_and_look_and_jump(),
         doom_action_space(),
+        max_histogram_len=75,
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=50,
@@ -136,6 +143,7 @@ DOOM_ENVS = [
         'detonators_dilemma',
         doom_turn_move_jump_accelerate_attack(),
         doom_action_space(),
+        max_histogram_len=50,
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
@@ -180,6 +188,7 @@ def make_doom_env_impl(
 
     config_file = f'{doom_spec.name}_all.cfg' if cfg.all_actions else f'{doom_spec.name}.cfg'
     action_space = doom_spec.full_action_space if cfg.all_actions else doom_spec.action_space
+    max_histogram_length = cfg.max_histogram_length if cfg.max_histogram_length else doom_spec.max_histogram_len
 
     env = VizdoomEnv(
         config_file,
@@ -190,7 +199,7 @@ def make_doom_env_impl(
         level=cfg.level,
         constraint=cfg.constraint,
         coord_limits=doom_spec.coord_limits,
-        max_histogram_length=cfg.max_histogram_length,
+        max_histogram_length=max_histogram_length,
         skip_frames=skip_frames,
         show_automap=cfg.show_automap,
         async_mode=async_mode,

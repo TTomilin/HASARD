@@ -917,7 +917,7 @@ def add_logging_args(p: ArgumentParser):
     )
     p.add_argument(
         "--max_histogram_length",
-        default=30,
+        default=None,
         type=int,
         help="Maximum size of the heatmap indicating the positions the agent has cumulatively visited",
     )
