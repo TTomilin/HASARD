@@ -566,6 +566,12 @@ def add_rl_args(p: ArgumentParser):
         help="How many episodes to average to measure performance (avg. reward etc)",
     )
     p.add_argument(
+        "--heatmap_avg",
+        default=1000,
+        type=int,
+        help="How many episodes of agent trajectories to average for plotting the location heatmap",
+    )
+    p.add_argument(
         "--summaries_use_frameskip",
         default=True,
         type=str2bool,
@@ -911,7 +917,7 @@ def add_logging_args(p: ArgumentParser):
     )
     p.add_argument(
         "--max_histogram_length",
-        default=20,
+        default=30,
         type=int,
         help="Maximum size of the heatmap indicating the positions the agent has cumulatively visited",
     )

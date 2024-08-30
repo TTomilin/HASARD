@@ -116,6 +116,9 @@ class Runner(EventLoopObject, Configurable):
         # samples_collected counts the total number of observations processed by the algorithm
         self.samples_collected = [0 for _ in range(self.cfg.num_policies)]
 
+        # plotting visited locations as a 2D heatmap
+        self.cumulative_heatmap = None
+
         self.total_env_steps_since_resume: Optional[int] = None
         self.start_time: float = time.time()
 
@@ -279,8 +282,9 @@ class Runner(EventLoopObject, Configurable):
         s = msg[EPISODIC]
         for _, key, value in iterate_recursively(s):
             if key not in runner.policy_avg_stats:
+                max_len = runner.cfg.heatmap_avg if key == 'heatmap' else runner.cfg.stats_avg
                 runner.policy_avg_stats[key] = [
-                    deque(maxlen=runner.cfg.stats_avg) for _ in range(runner.cfg.num_policies)
+                    deque(maxlen=max_len) for _ in range(runner.cfg.num_policies)
                 ]
 
             if isinstance(value, np.ndarray) and value.ndim > 0 and key != 'heatmap':
@@ -388,20 +392,32 @@ class Runner(EventLoopObject, Configurable):
         total_env_steps = sum(self.env_steps.values())
         self.print_stats(fps_stats, sample_throughput, total_env_steps)
 
-    def log_heatmap(self, histogram, global_step):
+    def log_heatmap(self, heatmap: np.ndarray, global_step: int, tag: str):
+        # Determine aspect ratio of the histogram
+        height, width = heatmap.shape
+        aspect_ratio = width / height
+
+        # Define additional space for the colorbar
+        colorbar_width_factor = 0.1  # Approximation of colorbar width to figure width
+
+        # Calculate figure dimensions: let's base the width on a fixed height
+        base_height = 4  # You can adjust this value as needed
+        fig_width = base_height * aspect_ratio * (1 + colorbar_width_factor)
+
         # Create a BytesIO buffer to save image
         buf = BytesIO()
-        plt.figure(figsize=(5, 4))
-        plt.imshow(histogram, cmap='viridis', interpolation='nearest', aspect='auto')
+        plt.figure(figsize=(fig_width, base_height))
+        plt.imshow(heatmap, cmap='viridis', interpolation='nearest', aspect='auto')
         plt.colorbar()
         plt.xticks([])
         plt.yticks([])
         plt.savefig(buf, format='png')
+        plt.show()
         plt.close()
 
         buf.seek(0)
         image = PIL.Image.open(buf)
-        wandb.log({"Agent Position Heatmap": wandb.Image(image)}, step=global_step)
+        wandb.log({tag: wandb.Image(image)}, step=global_step)
 
     def _report_experiment_summaries(self):
         memory_mb = memory_consumption_mb()
@@ -427,17 +443,20 @@ class Runner(EventLoopObject, Configurable):
             if not math.isnan(sample_throughput[policy_id]):
                 writer.add_scalar("perf/_sample_throughput", sample_throughput[policy_id], env_steps)
 
-            # if self.cfg.with_wandb and 'histogram' in self.policy_avg_stats:
-            #     histogram_data = np.squeeze(self.policy_avg_stats['histogram'])
-            #     self.log_heatmap(writer, histogram_data, "agent_position_heatmap", global_step=env_steps)
-
             if self.cfg.with_wandb and 'heatmap' in self.policy_avg_stats:
                 heatmap = np.mean(self.policy_avg_stats['heatmap'], axis=1).squeeze()
-                print(f'RUNNER Heatmap Shape: {heatmap.shape}')
-                self.log_heatmap(heatmap, global_step=env_steps)
+                if self.cumulative_heatmap is None:
+                    # Initialize the cumulative heatmap to the correct shape
+                    self.cumulative_heatmap = np.zeros_like(heatmap)
+
+                # print(f'RUNNER Heatmap Shape: {heatmap.shape}. Global Stpe: {env_steps}')
+                # Accumulate the heatmap data
+                self.cumulative_heatmap += heatmap
+                self.log_heatmap(self.cumulative_heatmap, env_steps, "Cumulative Agent Position")
+                self.log_heatmap(heatmap, env_steps, "Agent Position")
 
             for key, stat in self.policy_avg_stats.items():
-                if key == 'histogram':
+                if key == 'heatmap':
                     continue  # Skip if it's histogram, already logged
                 if len(stat[policy_id]) >= stat[policy_id].maxlen or (
                     len(stat[policy_id]) > 10 and self.total_train_seconds > 300
