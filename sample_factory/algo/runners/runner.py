@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import glob
 import json
 import math
 import os
 import re
 import shutil
+import tempfile
 import time
 from collections import OrderedDict, deque
 from datetime import datetime
@@ -13,11 +15,10 @@ from os.path import isdir, join
 from pathlib import Path
 from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
-import PIL
 import numpy as np
 import wandb
 from PIL import Image
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, rcParams
 from signal_slot.signal_slot import EventLoop, EventLoopObject, EventLoopStatus, Timer, process_name, signal
 from tensorboardX import SummaryWriter
 
@@ -120,6 +121,10 @@ class Runner(EventLoopObject, Configurable):
         # plotting visited locations as a 2D heatmap
         self.cumulative_heatmap = None
         self.map_img = None
+        # self.heatmap_frames = []  # To store frames for GIF
+        self.frame_dir = tempfile.mkdtemp()  # Create a temporary directory for frames
+        self.last_gif_log = 0  # Step at which the last GIF was logged
+        self.gif_log_interval = 1000000  # Number of steps between logging GIFs
 
         self.total_env_steps_since_resume: Optional[int] = None
         self.start_time: float = time.time()
@@ -403,10 +408,10 @@ class Runner(EventLoopObject, Configurable):
         aspect_ratio = width / height
 
         # Define additional space for the colorbar
-        colorbar_width_factor = 0.1  # Approximation of colorbar width to figure width
+        colorbar_width_factor = 0.25  # Approximation of colorbar width to figure width
 
         # Calculate figure dimensions: let's base the width on a fixed height
-        base_height = 4  # You can adjust this value as needed
+        base_height = 7  # You can adjust this value as needed
         fig_width = base_height * aspect_ratio * (1 + colorbar_width_factor)
 
         # Create a BytesIO buffer to save image
@@ -416,7 +421,6 @@ class Runner(EventLoopObject, Configurable):
         plt.colorbar()
         plt.xticks([])
         plt.yticks([])
-        plt.savefig(buf, format='png')
         # plt.show()
         plt.close()
 
@@ -428,32 +432,105 @@ class Runner(EventLoopObject, Configurable):
         # Transpose the heatmap
         heatmap = np.flipud(heatmap.T)
 
+        # Determine aspect ratio of the histogram
+        height, width = heatmap.shape
+        aspect_ratio = width / height
+
+        # Define additional space for the colorbar
+        colorbar_width_factor = 0.25  # Approximation of colorbar width to figure width
+
+        # Calculate figure dimensions: let's base the width on a fixed height
+        base_height = 7  # You can adjust this value as needed
+        fig_width = base_height * aspect_ratio * (1 + colorbar_width_factor)
+
         # Create a figure and axis to plot the map and heatmap
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots(figsize=(fig_width, base_height))
 
         # Display the map
-        ax.imshow(self.map_img, extent=[0, heatmap.shape[1], 0, heatmap.shape[0]])
+        ax.imshow(self.map_img, extent=[0, width, 0, height])
 
         # Overlay the heatmap: adjust 'alpha' for transparency, cmap for the color map
-        cax = ax.imshow(heatmap, cmap='viridis', alpha=0.5, interpolation='nearest', extent=[0, heatmap.shape[1], 0, heatmap.shape[0]])
+        cax = ax.imshow(heatmap, cmap='viridis', alpha=0.5, interpolation='nearest', extent=[0, width, 0, height])
 
-        # Optional: add a colorbar to understand the scale of the heatmap
-        plt.colorbar(cax, ax=ax)
-
-        # Remove x and y ticks
+        # Remove x and y ticks as they are meaningless here
         plt.xticks([])
         plt.yticks([])
 
+        rcParams['font.family'] = 'Liberation Mono'
+
+        # Add a step counter on the frame
+        plt.text(0.99, 0.99, f'Step: {global_step}', fontsize=14, color='white',
+                 horizontalalignment='right', verticalalignment='top', transform=plt.gca().transAxes)
+
         # Save the plot to a buffer
         buf = BytesIO()
+        frame_path = os.path.join(self.frame_dir, f"frame_{global_step:04d}.png")
         plt.savefig(buf, format='png')
-        # plt.show()
+        plt.savefig(frame_path, format='png')
+        plt.show()
         plt.close()
 
         # Log to Weights & Biases
         buf.seek(0)
-        image = PIL.Image.open(buf)
+        image = Image.open(buf)
         wandb.log({tag: wandb.Image(image)}, step=global_step)
+
+    def create_and_upload_gif(self, tag):
+        # List all the frames, sorted by name (which includes the step number)
+        frame_files = sorted(glob.glob(os.path.join(self.frame_dir, "frame_*.png")))
+        frames = [Image.open(frame) for frame in frame_files]
+
+        # Create a BytesIO buffer to hold the GIF
+        gif_buffer = BytesIO()
+
+        if frames:
+            # Create GIF in the buffer
+            frames[0].save(
+                gif_buffer, format='GIF',
+                append_images=frames[1:],
+                save_all=True,
+                duration=10, loop=0
+            )
+            gif_buffer.seek(0)  # Rewind to the start of the GIF buffer
+
+            # Log the GIF to wandb
+            wandb.log({tag: wandb.Video(gif_buffer, format="gif", fps=4)})
+            print(f"GIF uploaded to wandb under tag {tag}")
+
+            # Clear the buffer if no longer needed
+            gif_buffer.close()
+
+
+        # # List all the frames, sorted by name (which includes the step number)
+        # frame_files = sorted(glob.glob(os.path.join(self.frame_dir, "frame_*.png")))
+        # frames = [Image.open(frame) for frame in frame_files]
+        #
+        # # Create GIF
+        # frames[0].save(output_path, format='GIF', append_images=frames[1:], save_all=True, duration=20, loop=0)
+        # print(f"GIF saved to {output_path}")
+        #
+        # # Log the GIF to wandb
+        # wandb.log({tag: wandb.Video(gif_buffer, format="gif", fps=30)})
+        # print(f"GIF uploaded to wandb under tag {tag}")
+        #
+        # # Optionally, clean up frames after creating the GIF
+        # self.cleanup()
+        #
+        # # Create a BytesIO buffer to hold the GIF
+        # gif_buffer = BytesIO()
+        # if self.heatmap_frames:
+        #     # Save images as frames into a GIF in the buffer
+        #     self.heatmap_frames[0].save(
+        #         gif_buffer, format='GIF',
+        #         append_images=self.heatmap_frames[1:],
+        #         save_all=True,
+        #         duration=10, loop=0
+        #     )
+        #     gif_buffer.seek(0)  # Rewind to the start of the GIF buffer
+        #
+        #     # Log the GIF to wandb
+        #     wandb.log({tag: wandb.Video(gif_buffer, format="gif", fps=30)})
+        #     print(f"GIF uploaded to wandb under tag {tag}")
 
     def _report_experiment_summaries(self):
         memory_mb = memory_consumption_mb()
@@ -488,9 +565,13 @@ class Runner(EventLoopObject, Configurable):
                 # print(f'RUNNER Heatmap Shape: {heatmap.shape}. Global Stpe: {env_steps}')
                 # Accumulate the heatmap data
                 self.cumulative_heatmap += heatmap
-                self.log_map_with_heatmap(heatmap, env_steps, 'Heatmap Overlay')
-                self.log_heatmap(self.cumulative_heatmap, env_steps, "Cumulative Agent Position")
-                self.log_heatmap(heatmap, env_steps, "Agent Position")
+                # for font in ['Abyssinica SIL', 'Ani', 'AnjaliOldLipi', 'C059', 'Chandas', 'Chilanka', 'D050000L', 'DejaVu Sans', 'DejaVu Sans Display', 'DejaVu Sans Mono', 'DejaVu Serif', 'DejaVu Serif Display', 'Dhurjati', 'Droid Sans Fallback', 'Dyuthi', 'FreeMono', 'FreeSans', 'FreeSerif', 'Gargi', 'Garuda', 'Gayathri', 'Gidugu', 'Gubbi', 'Gurajada', 'Jamrul', 'KacstArt', 'KacstBook', 'KacstDecorative', 'KacstDigital', 'KacstFarsi', 'KacstLetter', 'KacstNaskh', 'KacstOffice', 'KacstOne', 'KacstPen', 'KacstPoster', 'KacstQurn', 'KacstScreen', 'KacstTitle', 'KacstTitleL', 'Kalapi', 'Kalimati', 'Karumbi', 'Keraleeyam', 'Khmer OS', 'Khmer OS System', 'Kinnari', 'LKLUG', 'LakkiReddy', 'Laksaman', 'Liberation Mono', 'Liberation Sans', 'Liberation Sans Narrow', 'Liberation Serif', 'Likhan', 'Lohit Assamese', 'Lohit Bengali', 'Lohit Devanagari', 'Lohit Gujarati', 'Lohit Gurmukhi', 'Lohit Kannada', 'Lohit Malayalam', 'Lohit Odia', 'Lohit Tamil', 'Lohit Tamil Classical', 'Lohit Telugu', 'Loma', 'Mallanna', 'Mandali', 'Manjari', 'Meera', 'Mitra ', 'Mukti', 'NATS', 'NTR', 'Nakula', 'Navilu', 'Nimbus Mono PS', 'Nimbus Roman', 'Nimbus Sans', 'Nimbus Sans Narrow', 'Norasi', 'Noto Mono', 'Noto Sans CJK JP', 'Noto Sans Mono', 'Noto Serif CJK JP', 'OpenSymbol', 'P052', 'Padauk', 'Padauk Book', 'Pagul', 'Peddana', 'Phetsarath OT', 'Ponnala', 'Pothana2000', 'Potti Sreeramulu', 'Purisa', 'Rachana', 'RaghuMalayalamSans', 'Ramabhadra', 'Ramaraja', 'Rasa', 'RaviPrakash', 'Rekha', 'STIXGeneral', 'STIXNonUnicode', 'STIXSizeFiveSym', 'STIXSizeFourSym', 'STIXSizeOneSym', 'STIXSizeThreeSym', 'STIXSizeTwoSym', 'Saab', 'Sahadeva', 'Samanata', 'Samyak Devanagari', 'Samyak Gujarati', 'Samyak Malayalam', 'Samyak Tamil', 'Sarai', 'Sawasdee', 'Sree Krushnadevaraya', 'Standard Symbols PS', 'Suranna', 'Suravaram', 'Suruma', 'Syamala Ramana', 'TenaliRamakrishna', 'Tibetan Machine Uni', 'Timmana', 'Tlwg Mono', 'Tlwg Typewriter', 'Tlwg Typist', 'Tlwg Typo', 'URW Bookman', 'URW Gothic', 'Ubuntu', 'Ubuntu Condensed', 'Ubuntu Mono', 'Umpush', 'Uroob', 'Vemana2000', 'Waree', 'Yrsa', 'Z003', 'aakar', 'cmb10', 'cmex10', 'cmmi10', 'cmr10', 'cmss10', 'cmsy10', 'cmtt10', 'mry_KacstQurn', 'ori1Uni', 'padmaa', 'padmaa-Bold.1.1']:
+                self.log_map_with_heatmap(heatmap, env_steps, 'traversal/overlay')
+                if env_steps - self.last_gif_log >= self.gif_log_interval:
+                    self.create_and_upload_gif("traversal/evolution")
+                    self.last_gif_log = env_steps
+                self.log_heatmap(self.cumulative_heatmap, env_steps, "traversal/cumulative")
+                self.log_heatmap(heatmap, env_steps, "traversal/window")
 
             for key, stat in self.policy_avg_stats.items():
                 if key == 'heatmap':
