@@ -109,7 +109,7 @@ DOOM_ENVS = [
         default_timeout=2100,
         safety_bound=50,
         unsafe_reward=-0.005,
-        coord_limits=[0, -256, 960, 1216],
+        coord_limits=[0, 256, 960, 1216],
         extra_wrappers=[(ArmamentBurdenCostFunction, {})]
     ),
 
