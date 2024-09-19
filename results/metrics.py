@@ -95,6 +95,22 @@ def generate_latex_table(data, constraints, caption=''):
     methods = list(next(iter(data.values())).keys())
     levels = sorted(set(k.split('_')[-1] for k in next(iter(next(iter(data.values())).values())).keys() if k.startswith('reward')))
 
+    # New logic to track rewards meeting cost constraints
+    max_reward_meeting_cost_constraint = {}
+
+    for env in environments:
+        for level in levels:
+            max_reward = float('-inf')
+            for method in methods:
+                reward_key = f'reward_level_{level}'
+                cost_key = f'cost_level_{level}'
+                mean_reward = data[env][method][reward_key]['mean']
+                mean_cost = data[env][method][cost_key]['mean']
+                if mean_cost is not None and mean_cost <= SAFETY_THRESHOLDS[env]:
+                    if mean_reward is not None and mean_reward > max_reward:
+                        max_reward = mean_reward
+                        max_reward_meeting_cost_constraint[f"{env}_{level}"] = (method, mean_reward)
+
     # Determine max rewards and min costs per environment for bold formatting
     max_rewards = {}
     min_costs = {}
@@ -149,6 +165,10 @@ def generate_latex_table(data, constraints, caption=''):
                             threshold = SAFETY_THRESHOLDS[env]
                             if mean <= threshold:
                                 mean_str = f"\\textcolor{{OliveGreen}}{{{mean_str}}}"
+                        elif metric_type == 'reward' and suffix == '' and mean is not None:
+                            if max_reward_meeting_cost_constraint.get(f"{env}_{level}", (None, None))[0] == method:
+                                mean_str = f"\\textbf{{\\textcolor{{Fuchsia}}{{{mean_str}}}}}"
+
                         latex_str += mean_str + " & "
                 latex_str = latex_str.rstrip(' & ') + " \\\\\n"
             if (k + 1) * (j + 1) < len(levels) * len(constraints):
