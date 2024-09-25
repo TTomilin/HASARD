@@ -421,6 +421,7 @@ class Runner(EventLoopObject, Configurable):
         plt.colorbar()
         plt.xticks([])
         plt.yticks([])
+        plt.savefig(buf, format='png')
         # plt.show()
         plt.close()
 
@@ -467,7 +468,7 @@ class Runner(EventLoopObject, Configurable):
         frame_path = os.path.join(self.frame_dir, f"frame_{global_step:04d}.png")
         plt.savefig(buf, format='png')
         plt.savefig(frame_path, format='png')
-        plt.show()
+        # plt.show()
         plt.close()
 
         # Log to Weights & Biases
