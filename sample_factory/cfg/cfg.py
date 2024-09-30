@@ -45,6 +45,7 @@ def add_basic_cli_args(p: ArgumentParser):
         help="CPU training is only recommended for smaller e.g. MLP policies",
     )
     p.add_argument("--seed", default=None, type=int, help="Set a fixed seed value")
+    p.add_argument("--curriculum", default=False, action='store_true', help="Use the levels of a scenario as a curriculum")
 
 
 def add_rl_args(p: ArgumentParser):
@@ -631,6 +632,21 @@ def add_rl_args(p: ArgumentParser):
         default=100000,
         type=int,
         help='Start saving "best" policies after this many env steps to filter lucky episodes that succeed and dominate the statistics early on',
+    )
+
+    # model loading
+    p.add_argument(
+        "--load_checkpoint_timestamp",
+        default=None,
+        type=str,
+        help="Timestamp of when the run was created of which we wish to load the checkpoint",
+    )
+    p.add_argument(
+        "--load_checkpoint_level",
+        default=1,
+        type=int,
+        choices=[1, 2, 3],
+        help="On what difficulty level was the checkpoint trained",
     )
 
     # debugging options

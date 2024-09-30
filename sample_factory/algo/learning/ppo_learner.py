@@ -425,6 +425,17 @@ class PPOLearner(Configurable):
 
             self.policy_to_load = None
 
+        cfg = self.cfg
+        timestamp = self.cfg.load_checkpoint_timestamp
+        if timestamp:
+            level = self.cfg.load_checkpoint_level
+            name_prefix = dict(latest="checkpoint", best="best")[cfg.load_checkpoint_kind]
+            checkpoints_dir = f'{cfg.train_dir}/{cfg.algo}/{cfg.env}/Level_{level}/{timestamp}/checkpoint_p0'
+            checkpoints = PPOLearner.get_checkpoints(checkpoints_dir, f"{name_prefix}_*")
+            checkpoint_dict = PPOLearner.load_checkpoint(checkpoints, self.device)
+            self.actor_critic.load_state_dict(checkpoint_dict["model"])
+            self.cfg.load_checkpoint_timestamp = None  # Set to None to prevent from loading a second time
+
     @staticmethod
     def _policy_loss(ratio, adv, clip_ratio_low, clip_ratio_high, valids, num_invalids: int):
         clipped_ratio = torch.clamp(ratio, clip_ratio_low, clip_ratio_high)
