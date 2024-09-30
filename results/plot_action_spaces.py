@@ -39,8 +39,8 @@ def load_data(base_paths, environments, method, seeds, metrics, level):
     for base_path in base_paths:
         for env in environments:
             for seed in seeds:
-                if base_path == 'data/main' and len(seeds) == 1:
-                    seed = 3
+                # if method == "PPOLag" and env == "precipice_plunge" and 'main' in base_path and seed == 1:
+                #     continue
                 for metric in metrics:
                     file_path = os.path.join(base_path, env, method, f"level_{level}", f"seed_{seed}", f"{metric}.json")
                     key = (base_path, env, metric)
@@ -96,14 +96,6 @@ def plot_metrics(data, args):
                     if all_runs.size == 0 or len(all_runs.shape) < 2:
                         continue
 
-                    # The reward of PPOCost is logged with the cost subtracted from it
-                    # We need to add it back for a fair comparison
-                    if method == "PPOCost" and metric == "reward":
-                        cost_key = (env, method, "cost")
-                        if cost_key in data:
-                            all_costs = np.array(data[cost_key])
-                            all_runs += all_costs  # Modify this line to adjust how cost influences reward
-
                     num_data_points = all_runs.shape[1]
                     iterations_per_point = args.total_iterations / num_data_points
                     mean = np.mean(all_runs, axis=0)
@@ -129,7 +121,7 @@ def plot_metrics(data, args):
                bbox_to_anchor=(0.5, 0.0))
 
     folder = 'plots'
-    file = f'action_spaces_level_{args.level}'
+    file = f'action_spaces_{method}_level_{args.level}'
     os.makedirs(folder, exist_ok=True)
     plt.savefig(f'{folder}/{file}.pdf', dpi=300)
     plt.show()
@@ -140,8 +132,8 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/full_actions'],
                         help="Base input directories containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--algo", type=str, default="PPOLag", help="Algorithm to download/plot")
+    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
+    parser.add_argument("--algo", type=str, default="PPOPID", help="Algorithm to download/plot")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
                                  "precipice_plunge", "detonators_dilemma"],
