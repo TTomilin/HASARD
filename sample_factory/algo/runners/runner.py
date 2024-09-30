@@ -465,9 +465,9 @@ class Runner(EventLoopObject, Configurable):
 
         # Save the plot to a buffer
         buf = BytesIO()
-        frame_path = os.path.join(self.frame_dir, f"frame_{global_step:04d}.png")
+        # frame_path = os.path.join(self.frame_dir, f"frame_{global_step:04d}.png")
         plt.savefig(buf, format='png')
-        plt.savefig(frame_path, format='png')
+        # plt.savefig(frame_path, format='png')
         # plt.show()
         plt.close()
 
@@ -490,7 +490,7 @@ class Runner(EventLoopObject, Configurable):
                 gif_buffer, format='GIF',
                 append_images=frames[1:],
                 save_all=True,
-                duration=10, loop=0
+                duration=50, loop=0
             )
             gif_buffer.seek(0)  # Rewind to the start of the GIF buffer
 
@@ -569,7 +569,7 @@ class Runner(EventLoopObject, Configurable):
                 # for font in ['Abyssinica SIL', 'Ani', 'AnjaliOldLipi', 'C059', 'Chandas', 'Chilanka', 'D050000L', 'DejaVu Sans', 'DejaVu Sans Display', 'DejaVu Sans Mono', 'DejaVu Serif', 'DejaVu Serif Display', 'Dhurjati', 'Droid Sans Fallback', 'Dyuthi', 'FreeMono', 'FreeSans', 'FreeSerif', 'Gargi', 'Garuda', 'Gayathri', 'Gidugu', 'Gubbi', 'Gurajada', 'Jamrul', 'KacstArt', 'KacstBook', 'KacstDecorative', 'KacstDigital', 'KacstFarsi', 'KacstLetter', 'KacstNaskh', 'KacstOffice', 'KacstOne', 'KacstPen', 'KacstPoster', 'KacstQurn', 'KacstScreen', 'KacstTitle', 'KacstTitleL', 'Kalapi', 'Kalimati', 'Karumbi', 'Keraleeyam', 'Khmer OS', 'Khmer OS System', 'Kinnari', 'LKLUG', 'LakkiReddy', 'Laksaman', 'Liberation Mono', 'Liberation Sans', 'Liberation Sans Narrow', 'Liberation Serif', 'Likhan', 'Lohit Assamese', 'Lohit Bengali', 'Lohit Devanagari', 'Lohit Gujarati', 'Lohit Gurmukhi', 'Lohit Kannada', 'Lohit Malayalam', 'Lohit Odia', 'Lohit Tamil', 'Lohit Tamil Classical', 'Lohit Telugu', 'Loma', 'Mallanna', 'Mandali', 'Manjari', 'Meera', 'Mitra ', 'Mukti', 'NATS', 'NTR', 'Nakula', 'Navilu', 'Nimbus Mono PS', 'Nimbus Roman', 'Nimbus Sans', 'Nimbus Sans Narrow', 'Norasi', 'Noto Mono', 'Noto Sans CJK JP', 'Noto Sans Mono', 'Noto Serif CJK JP', 'OpenSymbol', 'P052', 'Padauk', 'Padauk Book', 'Pagul', 'Peddana', 'Phetsarath OT', 'Ponnala', 'Pothana2000', 'Potti Sreeramulu', 'Purisa', 'Rachana', 'RaghuMalayalamSans', 'Ramabhadra', 'Ramaraja', 'Rasa', 'RaviPrakash', 'Rekha', 'STIXGeneral', 'STIXNonUnicode', 'STIXSizeFiveSym', 'STIXSizeFourSym', 'STIXSizeOneSym', 'STIXSizeThreeSym', 'STIXSizeTwoSym', 'Saab', 'Sahadeva', 'Samanata', 'Samyak Devanagari', 'Samyak Gujarati', 'Samyak Malayalam', 'Samyak Tamil', 'Sarai', 'Sawasdee', 'Sree Krushnadevaraya', 'Standard Symbols PS', 'Suranna', 'Suravaram', 'Suruma', 'Syamala Ramana', 'TenaliRamakrishna', 'Tibetan Machine Uni', 'Timmana', 'Tlwg Mono', 'Tlwg Typewriter', 'Tlwg Typist', 'Tlwg Typo', 'URW Bookman', 'URW Gothic', 'Ubuntu', 'Ubuntu Condensed', 'Ubuntu Mono', 'Umpush', 'Uroob', 'Vemana2000', 'Waree', 'Yrsa', 'Z003', 'aakar', 'cmb10', 'cmex10', 'cmmi10', 'cmr10', 'cmss10', 'cmsy10', 'cmtt10', 'mry_KacstQurn', 'ori1Uni', 'padmaa', 'padmaa-Bold.1.1']:
                 self.log_map_with_heatmap(heatmap, env_steps, 'traversal/overlay')
                 if env_steps - self.last_gif_log >= self.gif_log_interval:
-                    self.create_and_upload_gif("traversal/evolution")
+                    # self.create_and_upload_gif("traversal/evolution")
                     self.last_gif_log = env_steps
                 self.log_heatmap(self.cumulative_heatmap, env_steps, "traversal/cumulative")
                 self.log_heatmap(heatmap, env_steps, "traversal/window")
