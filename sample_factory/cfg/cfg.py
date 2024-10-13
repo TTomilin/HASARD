@@ -937,6 +937,13 @@ def add_logging_args(p: ArgumentParser):
         type=int,
         help="Maximum size of the heatmap indicating the positions the agent has cumulatively visited",
     )
+    p.add_argument(
+        "--gif_log_interval",
+        default=20000000,
+        type=int,
+        help="Maximum size of the heatmap indicating the positions the agent has cumulatively visited",
+    )
+
 
 
 def add_pbt_args(p: ArgumentParser):

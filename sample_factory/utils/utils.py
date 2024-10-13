@@ -417,6 +417,10 @@ def summaries_dir(experiment_dir_, mkdir=True) -> str:
     return maybe_ensure_dir_exists(join(experiment_dir_, ".summary"), mkdir)
 
 
+def frames_dir(experiment_dir_, mkdir=True) -> str:
+    return maybe_ensure_dir_exists(join(experiment_dir_, "frames"), mkdir)
+
+
 def cfg_file(cfg: Config) -> str:
     return join(experiment_dir(cfg=cfg), "config.json")
 
