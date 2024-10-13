@@ -499,7 +499,7 @@ class Runner(EventLoopObject, Configurable):
                 gif_buffer, format='GIF',
                 append_images=frames[1:],
                 save_all=True,
-                duration=35, loop=0
+                duration=40, loop=0
             )
             gif_buffer.seek(0)  # Rewind to the start of the GIF buffer
 
