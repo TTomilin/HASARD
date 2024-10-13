@@ -411,30 +411,36 @@ class PPOLearner(Configurable):
             self.new_cfg = None
 
     def _maybe_load_policy(self) -> None:
+        cfg = self.cfg
         if self.policy_to_load is not None:
             with self.param_server.policy_lock:
                 # don't re-load progress if we are loading from another policy checkpoint
                 self.load_from_checkpoint(self.policy_to_load, load_progress=False)
 
             # make sure everything (such as policy weights) is committed to shared device memory
-            synchronize(self.cfg, self.device)
+            synchronize(cfg, self.device)
             # this will force policy update on the inference worker (policy worker)
             # we add max_policy_lag steps so that all experience currently in batches is invalidated
-            self.train_step += self.cfg.max_policy_lag + 1
+            self.train_step += cfg.max_policy_lag + 1
             self.policy_versions_tensor[self.policy_id] = self.train_step
 
             self.policy_to_load = None
 
-        cfg = self.cfg
-        timestamp = self.cfg.load_checkpoint_timestamp
+        timestamp = cfg.load_checkpoint_timestamp
         if timestamp:
-            level = self.cfg.load_checkpoint_level
-            name_prefix = dict(latest="checkpoint", best="best")[cfg.load_checkpoint_kind]
+            level = cfg.load_checkpoint_level
+            kind = cfg.load_checkpoint_kind
+            name_prefix = dict(latest="checkpoint", best="best")[kind]
             checkpoints_dir = f'{cfg.train_dir}/{cfg.algo}/{cfg.env}/Level_{level}/{timestamp}/checkpoint_p0'
+            print(f'Loading checkpoint from {checkpoints_dir}')
+            if not os.path.exists(checkpoints_dir):
+                raise FileNotFoundError(f"No checkpoint directory found at {checkpoints_dir}")
             checkpoints = PPOLearner.get_checkpoints(checkpoints_dir, f"{name_prefix}_*")
+            if not checkpoints:
+                raise FileNotFoundError(f"No checkpoint files match the specified pattern.")
             checkpoint_dict = PPOLearner.load_checkpoint(checkpoints, self.device)
             self.actor_critic.load_state_dict(checkpoint_dict["model"])
-            self.cfg.load_checkpoint_timestamp = None  # Set to None to prevent from loading a second time
+            cfg.load_checkpoint_timestamp = None  # Set to None to prevent from loading a second time
 
     @staticmethod
     def _policy_loss(ratio, adv, clip_ratio_low, clip_ratio_high, valids, num_invalids: int):
