@@ -135,7 +135,7 @@ DOOM_ENVS = [
         default_timeout=2100,
         safety_bound=50,
         unsafe_reward=-0.7,
-        coord_limits=[0, 0, 3712, 448],
+        coord_limits=[0, 0, 2176, 448],
         extra_wrappers=[(PrecipicePlungeRewardFunction, {}), (PrecipicePlungeCostFunction, {})]
     ),
 

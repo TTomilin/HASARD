@@ -15,6 +15,7 @@ from os.path import isdir, join
 from pathlib import Path
 from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
+import cv2
 import numpy as np
 import wandb
 from PIL import Image
@@ -122,8 +123,6 @@ class Runner(EventLoopObject, Configurable):
         # plotting visited locations as a 2D heatmap
         self.cumulative_heatmap = None
         self.map_img = None
-        # self.heatmap_frames = []  # To store frames for GIF
-        # self.frame_dir = tempfile.mkdtemp()  # Create a temporary directory for frames
         self.frames_dir = None
         self.last_gif_log = 0  # Step at which the last GIF was logged
         self.gif_log_interval = cfg.gif_log_interval  # Number of steps between logging GIFs
@@ -412,8 +411,8 @@ class Runner(EventLoopObject, Configurable):
         # Define additional space for the colorbar
         colorbar_width_factor = 0.25  # Approximation of colorbar width to figure width
 
-        # Calculate figure dimensions: let's base the width on a fixed height
-        base_height = 7  # You can adjust this value as needed
+        # Calculate figure dimensions basing the width on a fixed height
+        base_height = 2 if self.env_info.name in ['precipice_plunge', 'detonators_dilemma'] else  7
         fig_width = base_height * aspect_ratio * (1 + colorbar_width_factor)
 
         # Create a BytesIO buffer to save image
@@ -442,8 +441,8 @@ class Runner(EventLoopObject, Configurable):
         # Define additional space for the colorbar
         colorbar_width_factor = 0.25  # Approximation of colorbar width to figure width
 
-        # Calculate figure dimensions: let's base the width on a fixed height
-        base_height = 7  # You can adjust this value as needed
+        # Calculate figure dimensions basing the width on a fixed height
+        base_height = 2 if self.env_info.name in ['precipice_plunge', 'detonators_dilemma'] else  7
         fig_width = base_height * aspect_ratio * (1 + colorbar_width_factor)
 
         # Create a figure and axis to plot the map and heatmap
@@ -471,12 +470,13 @@ class Runner(EventLoopObject, Configurable):
             self.frames_dir = join(frames_dir(experiment_dir(cfg=self.cfg)))  # Create a directory for storing frames
         frame_path = os.path.join(self.frames_dir, f"frame_{global_step:09d}.png")
         plt.savefig(frame_path, format='png')
-        # plt.show()
+        plt.show()
         plt.close()
 
         # Log to Weights & Biases
         buf.seek(0)
         image = Image.open(buf)
+
         wandb.log({tag: wandb.Image(image)}, step=global_step)
 
     def create_and_upload_gif(self, tag):
@@ -718,7 +718,7 @@ class Runner(EventLoopObject, Configurable):
         # Load the map image
         base_path = Path(__file__).parent.parent.parent.resolve()
         map_path = join(base_path, "doom", "env", "scenarios", f"{self.env_info.name}.png")
-        self.map_img = Image.open(map_path)
+        self.map_img = cv2.imread(map_path)
 
         for policy_id in range(self.cfg.num_policies):
             self.reward_shaping[policy_id] = self.env_info.reward_shaping_scheme
