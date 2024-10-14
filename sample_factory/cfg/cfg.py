@@ -932,6 +932,24 @@ def add_logging_args(p: ArgumentParser):
         help="Tags can help with finding experiments in WandB web console",
     )
     p.add_argument(
+        "--log_heatmap",
+        default=False,
+        type=str2bool,
+        help="Whether to log the plain heatmap of visited agent positions",
+    )
+    p.add_argument(
+        "--log_overlay",
+        default=True,
+        type=str2bool,
+        help="Whether to log the heatmap of visited agent positions superimposed on the environment map",
+    )
+    p.add_argument(
+        "--heatmap_log_interval",
+        default=500000,
+        type=int,
+        help="How often to log the heatmap evolution gif",
+    )
+    p.add_argument(
         "--max_histogram_length",
         default=None,
         type=int,
@@ -939,9 +957,15 @@ def add_logging_args(p: ArgumentParser):
     )
     p.add_argument(
         "--gif_log_interval",
-        default=20000000,
+        default=100000000,
         type=int,
-        help="Maximum size of the heatmap indicating the positions the agent has cumulatively visited",
+        help="How often to log the heatmap evolution gif",
+    )
+    p.add_argument(
+        "--gif_duration",
+        default=7,
+        type=int,
+        help="Duration of the heatmap evolution gif",
     )
 
 

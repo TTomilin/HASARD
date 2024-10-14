@@ -124,8 +124,8 @@ class Runner(EventLoopObject, Configurable):
         self.cumulative_heatmap = None
         self.map_img = None
         self.frames_dir = None
+        self.last_heatmap_log = 0  # Step at which the last heatmap overlay was logged
         self.last_gif_log = 0  # Step at which the last GIF was logged
-        self.gif_log_interval = cfg.gif_log_interval  # Number of steps between logging GIFs
 
         self.total_env_steps_since_resume: Optional[int] = None
         self.start_time: float = time.time()
@@ -430,7 +430,7 @@ class Runner(EventLoopObject, Configurable):
         image = Image.open(buf)
         wandb.log({tag: wandb.Image(image)}, step=global_step)
 
-    def log_map_with_heatmap(self, heatmap: np.ndarray, global_step: int, tag: str):
+    def log_overlay(self, heatmap: np.ndarray, global_step: int, tag: str):
         # Transpose the heatmap
         heatmap = np.flipud(heatmap.T)
 
@@ -452,7 +452,7 @@ class Runner(EventLoopObject, Configurable):
         ax.imshow(self.map_img, extent=[0, width, 0, height])
 
         # Overlay the heatmap: adjust 'alpha' for transparency, cmap for the color map
-        cax = ax.imshow(heatmap, cmap='viridis', alpha=0.5, interpolation='nearest', extent=[0, width, 0, height])
+        ax.imshow(heatmap, cmap='viridis', alpha=0.5, interpolation='nearest', extent=[0, width, 0, height])
 
         # Remove x and y ticks as they are meaningless here
         plt.xticks([])
@@ -480,9 +480,6 @@ class Runner(EventLoopObject, Configurable):
         wandb.log({tag: wandb.Image(image)}, step=global_step)
 
     def create_and_upload_gif(self, tag):
-        # List all the frames, sorted by name (which includes the step number)
-        # frame_files = sorted(glob.glob(os.path.join(self.frames_dir, "frame_*.png")))
-
         # List all the frames, sorted by extracted step number
         frame_files = sorted(
             glob.glob(os.path.join(self.frames_dir, "frame_*.png")),
@@ -494,18 +491,27 @@ class Runner(EventLoopObject, Configurable):
         gif_buffer = BytesIO()
 
         if frames:
+            # Total GIF duration in seconds
+            total_duration_secs = self.cfg.gif_duration
+
+            # Calculate the duration each frame should be displayed to fit the total
+            frame_duration = int((total_duration_secs * 1000) / len(frames))  # Convert seconds to milliseconds
+
+            # Enforce minimum and maximum duration limits
+            frame_duration = max(10, min(frame_duration, 100))
+
             # Create GIF in the buffer
             frames[0].save(
                 gif_buffer, format='GIF',
                 append_images=frames[1:],
                 save_all=True,
-                duration=40, loop=0
+                duration=frame_duration, loop=0
             )
             gif_buffer.seek(0)  # Rewind to the start of the GIF buffer
 
             # Log the GIF to wandb
-            wandb.log({tag: wandb.Video(gif_buffer, format="gif", fps=4)})
-            print(f"GIF uploaded to wandb under tag {tag}")
+            wandb.log({tag: wandb.Video(gif_buffer, format="gif")})
+            print(f"GIF uploaded to wandb as {tag}")
 
             # Clear the buffer if no longer needed
             gif_buffer.close()
@@ -542,12 +548,17 @@ class Runner(EventLoopObject, Configurable):
 
                 # Accumulate the heatmap data
                 self.cumulative_heatmap += heatmap
-                self.log_map_with_heatmap(heatmap, env_steps, 'traversal/overlay')
-                if env_steps - self.last_gif_log >= self.gif_log_interval:
+                if env_steps - self.last_heatmap_log >= self.cfg.heatmap_log_interval:
+                    if self.cfg.log_overlay:
+                        self.log_overlay(heatmap, env_steps, 'traversal/overlay')
+                    if self.cfg.log_heatmap:
+                        self.log_heatmap(self.cumulative_heatmap, env_steps, "traversal/cumulative")
+                        self.log_heatmap(heatmap, env_steps, "traversal/window")
+                    self.last_heatmap_log = env_steps
+
+                if env_steps - self.last_gif_log >= self.cfg.gif_log_interval:
                     self.create_and_upload_gif("traversal/evolution")
                     self.last_gif_log = env_steps
-                self.log_heatmap(self.cumulative_heatmap, env_steps, "traversal/cumulative")
-                self.log_heatmap(heatmap, env_steps, "traversal/window")
 
             for key, stat in self.policy_avg_stats.items():
                 if key == 'heatmap':
