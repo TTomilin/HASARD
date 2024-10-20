@@ -213,7 +213,7 @@ def make_doom_env_impl(
     if cfg.record:
         video_folder = os.path.join(experiment_dir(cfg), cfg.video_dir)
         env = RecordVideo(env, video_folder=video_folder, name_prefix='doom', with_wandb=cfg.with_wandb,
-                          step_trigger=lambda step: not step % cfg.record_every, video_length=1000,
+                          step_trigger=lambda step: not step % cfg.record_every, video_length=cfg.video_length,
                           dummy_env=env_config is None)
 
     env = MultiplayerStatsWrapper(env)
