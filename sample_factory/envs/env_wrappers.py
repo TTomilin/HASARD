@@ -299,73 +299,6 @@ class NoopResetEnv(gym.Wrapper):
 
 
 # wrapper from CleanRL / Stable Baselines
-class FireResetEnv(gym.Wrapper):
-    """
-    Take action on reset for environments that are fixed until firing.
-    :param env: the environment to wrap
-    """
-
-    def __init__(self, env: gym.Env):
-        gym.Wrapper.__init__(self, env)
-        assert env.unwrapped.get_action_meanings()[1] == "FIRE"
-        assert len(env.unwrapped.get_action_meanings()) >= 3
-
-    def reset(self, **kwargs) -> Tuple[np.ndarray, Dict]:
-        self.env.reset(**kwargs)
-        obs, _, terminated, truncated, info = self.env.step(1)
-        if terminated | truncated:
-            self.env.reset(**kwargs)
-        obs, _, terminated, truncated, info = self.env.step(2)
-        if terminated | truncated:
-            obs, info = self.env.reset(**kwargs)
-        return obs, info
-
-
-# wrapper from CleanRL / Stable Baselines
-class EpisodicLifeEnv(gym.Wrapper):
-    """
-    Make end-of-life == end-of-episode, but only reset on true game over.
-    Done by DeepMind for the DQN and co. since it helps value estimation.
-    :param env: the environment to wrap
-    """
-
-    def __init__(self, env: gym.Env):
-        gym.Wrapper.__init__(self, env)
-        self.lives = 0
-        self.was_real_done = True
-
-    def step(self, action: int) -> GymStepReturn:
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        self.was_real_done = terminated | truncated
-        # check current lives, make loss of life terminal,
-        # then update lives to handle bonus lives
-        lives = self.env.unwrapped.ale.lives()
-        if 0 < lives < self.lives:
-            # for Qbert sometimes we stay in lives == 0 condtion for a few frames
-            # so its important to keep lives > 0, so that we only reset once
-            # the environment advertises done.
-            terminated = True
-        self.lives = lives
-        return obs, reward, terminated, truncated, info
-
-    def reset(self, **kwargs) -> Tuple[np.ndarray, Dict]:
-        """
-        Calls the Gym environment reset, only when lives are exhausted.
-        This way all states are still reachable even though lives are episodic,
-        and the learner need not know about any of this behind-the-scenes.
-        :param kwargs: Extra keywords passed to env.reset() call
-        :return: the first observation of the environment
-        """
-        if self.was_real_done:
-            obs, info = self.env.reset(**kwargs)
-        else:
-            # no-op step to advance from terminal/lost life state
-            obs, _, terminated, truncated, info = self.env.step(0)
-        self.lives = self.env.unwrapped.ale.lives()
-        return obs, info
-
-
-# wrapper from CleanRL / Stable Baselines
 class MaxAndSkipEnv(gym.Wrapper):
     """
     Return only every ``skip``-th frame (frameskipping)
@@ -426,22 +359,34 @@ class ClipRewardEnv(gym.RewardWrapper):
         return np.sign(reward)
 
 
-class NumpyObsWrapper(gym.ObservationWrapper):
-    """
-    RL algorithm generally expects numpy arrays or Tensors as observations. Atari envs for example return
-    LazyFrames which need to be converted to numpy arrays before we actually use them.
-    """
-
-    def observation(self, observation: Any) -> np.ndarray:
-        return np.array(observation)
-
-
 class EpisodeCounterWrapper(gym.Wrapper):
     def __init__(self, env):
         gym.Wrapper.__init__(self, env)
         self.episode_count = 0
 
     def reset(self, **kwargs) -> Tuple[GymObs, Dict]:
+        return self.env.reset(**kwargs)
+
+    def step(self, action: int) -> GymStepReturn:
+        obs, reward, terminated, truncated, info = self.env.step(action)
+
+        if terminated | truncated:
+            extra_stats = info.get("episode_extra_stats", {})
+            extra_stats["episode_number"] = self.episode_count
+            info["episode_extra_stats"] = extra_stats
+            self.episode_count += 1
+
+        return obs, reward, terminated, truncated, info
+
+
+class ActionCounterWrapper(gym.Wrapper):
+    def __init__(self, env):
+        gym.Wrapper.__init__(self, env)
+        self.action_counts = None
+
+    def reset(self, **kwargs) -> Tuple[GymObs, Dict]:
+        # Reset the action count dictionary at the start of each episode
+        self.action_counts = {i: 0 for i in range(self.action_space.n)}
         return self.env.reset(**kwargs)
 
     def step(self, action: int) -> GymStepReturn:
