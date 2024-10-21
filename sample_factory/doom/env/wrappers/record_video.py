@@ -1,10 +1,13 @@
 """Wrapper for recording videos."""
+import fcntl
 import os
 from typing import Callable, Optional
 
 import gymnasium as gym
 from gymnasium import logger
 from gymnasium.wrappers.monitoring import video_recorder
+
+from sample_factory.utils.utils import log
 
 
 def capped_cubic_video_schedule(episode_id: int) -> bool:
@@ -138,6 +141,9 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
             disable_logger=self.disable_logger,
         )
 
+        # Lock the file before writing (exclusive lock)
+        self._lock_file(base_path + '.mp4')
+
         self.video_recorder.capture_frame()
         self.recorded_frames = 1
         self.recording = True
@@ -190,6 +196,10 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
         if self.recording:
             assert self.video_recorder is not None
             self.video_recorder.close()
+
+            # Unlock the file after closing (releasing the lock)
+            base_path = os.path.join(self.video_folder, f"{self.name_prefix}-step-{self.step_id}.mp4")
+            self._unlock_file(base_path)
         self.recording = False
         self.recorded_frames = 1
 
@@ -209,6 +219,22 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
                 return recorded_frames + super().render(*args, **kwargs)
         else:
             return super().render(*args, **kwargs)
+
+    def _lock_file(self, file_path):
+        """Lock the file to ensure exclusive access during writing."""
+        try:
+            self.lock_file = open(file_path, 'wb')  # Open the file in write mode
+            fcntl.flock(self.lock_file, fcntl.LOCK_EX)  # Acquire an exclusive lock
+        except Exception as e:
+            log.error(f"Failed to lock file {file_path}: {e}")
+
+    def _unlock_file(self, file_path):
+        """Unlock the file after writing is complete."""
+        try:
+            fcntl.flock(self.lock_file, fcntl.LOCK_UN)  # Release the lock
+            self.lock_file.close()  # Close the file
+        except Exception as e:
+            log.error(f"Failed to unlock file {file_path}: {e}")
 
     def close(self):
         """Closes the wrapper then the video recorder."""

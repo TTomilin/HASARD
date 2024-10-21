@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import fcntl
 import glob
 import json
 import math
 import os
 import re
 import shutil
-import tempfile
 import time
 from collections import OrderedDict, deque
 from datetime import datetime
@@ -19,7 +19,7 @@ import cv2
 import numpy as np
 import wandb
 from PIL import Image
-from matplotlib import pyplot as plt, rcParams
+from matplotlib import pyplot as plt
 from signal_slot.signal_slot import EventLoop, EventLoopObject, EventLoopStatus, Timer, process_name, signal
 from tensorboardX import SummaryWriter
 
@@ -412,7 +412,7 @@ class Runner(EventLoopObject, Configurable):
         colorbar_width_factor = 0.25  # Approximation of colorbar width to figure width
 
         # Calculate figure dimensions basing the width on a fixed height
-        base_height = 2 if self.env_info.name in ['precipice_plunge', 'detonators_dilemma'] else  7
+        base_height = 2 if self.env_info.name in ['precipice_plunge', 'detonators_dilemma'] else 7
         fig_width = base_height * aspect_ratio * (1 + colorbar_width_factor)
 
         # Create a BytesIO buffer to save image
@@ -442,7 +442,7 @@ class Runner(EventLoopObject, Configurable):
         colorbar_width_factor = 0.25  # Approximation of colorbar width to figure width
 
         # Calculate figure dimensions basing the width on a fixed height
-        base_height = 2 if self.env_info.name in ['precipice_plunge', 'detonators_dilemma'] else  7
+        base_height = 2 if self.env_info.name in ['precipice_plunge', 'detonators_dilemma'] else 7
         fig_width = base_height * aspect_ratio * (1 + colorbar_width_factor)
 
         # Create a figure and axis to plot the map and heatmap
@@ -564,7 +564,7 @@ class Runner(EventLoopObject, Configurable):
                 if key == 'heatmap':
                     continue  # Skip if it's histogram, already logged
                 if len(stat[policy_id]) >= stat[policy_id].maxlen or (
-                    len(stat[policy_id]) > 10 and self.total_train_seconds > 300
+                        len(stat[policy_id]) > 10 and self.total_train_seconds > 300
                 ):
                     stat_value = np.mean(stat[policy_id])
 
@@ -620,11 +620,37 @@ class Runner(EventLoopObject, Configurable):
                     new_videos.append((step_number, video_file))
                     self.last_logged_step = max(self.last_logged_step, step_number)
 
+        def is_file_locked(file_path):
+            """Check if the file is locked by another process."""
+            try:
+                with open(file_path, 'rb') as f:
+                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    fcntl.flock(f, fcntl.LOCK_UN)
+                return False  # File is not locked
+            except IOError:
+                return True  # File is locked
+
+        def wait_for_file_unlock(file_path, timeout=20):
+            """Wait for the file to be unlocked with a timeout."""
+            start_time = time.time()
+
+            while time.time() - start_time < timeout:
+                if not is_file_locked(file_path):
+                    return True  # File is unlocked
+                time.sleep(0.5)  # Wait before checking again
+
+            return False  # Timeout reached and file is still locked
+
         # Log new videos to wandb
         for step_number, video_file in sorted(new_videos):
             video_path = join(video_dir, video_file)
             video_tag = f"video/step_{step_number}"
-            wandb.log({video_tag: wandb.Video(video_path)})
+
+            # Wait for the file to be unlocked, with a timeout
+            if wait_for_file_unlock(video_path, timeout=60):
+                wandb.log({video_tag: wandb.Video(video_path, format='mp4')})
+            else:
+                log.warn(f"Video {video_file} was not fully written within the timeout period.")
 
     def _propagate_training_info(self):
         """
