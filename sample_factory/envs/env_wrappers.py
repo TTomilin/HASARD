@@ -33,14 +33,21 @@ class ResizeWrapper(gym.core.Wrapper):
         self.add_channel_dim = add_channel_dim
         self.interpolation = cv2.INTER_AREA if area_interpolation else cv2.INTER_NEAREST
 
-        if isinstance(env.observation_space, spaces.Dict):
-            # TODO: does this even work?
-            new_spaces = {}
-            for key, space in env.observation_space.spaces.items():
-                new_spaces[key] = self._calc_new_obs_space(space)
-            self.observation_space = spaces.Dict(new_spaces)
+        # Adjust observation space for multi-agent environments
+        self.observation_space = self._adjust_observation_space(env.observation_space)
+
+    def _adjust_observation_space(self, old_space):
+        if isinstance(old_space, spaces.Tuple):
+            # Observation space is a Tuple of spaces for each agent
+            new_spaces = tuple(self._calc_new_obs_space(space) for space in old_space.spaces)
+            return spaces.Tuple(new_spaces)
+        elif isinstance(old_space, spaces.Dict):
+            # Observation space is a Dict
+            new_spaces = {key: self._calc_new_obs_space(space) for key, space in old_space.spaces.items()}
+            return spaces.Dict(new_spaces)
         else:
-            self.observation_space = self._calc_new_obs_space(env.observation_space)
+            # Single observation space
+            return self._calc_new_obs_space(old_space)
 
     def _calc_new_obs_space(self, old_space):
         low, high = old_space.low.flat[0], old_space.high.flat[0]
@@ -65,17 +72,19 @@ class ResizeWrapper(gym.core.Wrapper):
             obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
 
         if self.add_channel_dim:
-            return obs[:, :, None]  # add new dimension (expected by tensorflow)
+            return obs[:, :, None]  # Add new dimension (expected by frameworks like TensorFlow/PyTorch)
         else:
             return obs
 
     def _observation(self, obs):
-        if isinstance(obs, dict):
-            new_obs = {}
-            for key, value in obs.items():
-                new_obs[key] = self._convert_obs(value)
-            return new_obs
+        if isinstance(obs, (list, tuple)):
+            # Process each observation in the list or tuple
+            return type(obs)(self._observation(o) for o in obs)
+        elif isinstance(obs, dict):
+            # Process each item in the dict
+            return {key: self._convert_obs(value) for key, value in obs.items()}
         else:
+            # Single observation
             return self._convert_obs(obs)
 
     def reset(self, **kwargs):
@@ -91,10 +100,15 @@ class RewardScalingWrapper(RewardWrapper):
     def __init__(self, env, scaling_factor):
         super(RewardScalingWrapper, self).__init__(env)
         self._scaling = scaling_factor
-        self.reward_range = (r * scaling_factor for r in self.reward_range)
+        # Adjust reward range if needed
+        # self.reward_range = (r * scaling_factor for r in self.reward_range)
 
     def reward(self, reward):
-        return reward * self._scaling
+        if isinstance(reward, (list, tuple)):
+            # Scale each reward in the list or tuple
+            return type(reward)(self.reward(r) for r in reward)
+        else:
+            return reward * self._scaling
 
 
 class TimeLimitWrapper(gym.core.Wrapper):
@@ -128,66 +142,49 @@ class TimeLimitWrapper(gym.core.Wrapper):
 
 
 class PixelFormatChwWrapper(ObservationWrapper):
-    """TODO? This can be optimized for VizDoom, can we query CHW directly from VizDoom?"""
+    """Convert observations from HWC to CHW format."""
 
     def __init__(self, env):
         super().__init__(env)
 
-        if isinstance(env.observation_space, gym.spaces.Dict):
-            img_obs_space = env.observation_space["obs"]
-            self.dict_obs_space = True
+        # Adjust observation space for multi-agent environments
+        self.observation_space = self._adjust_observation_space(env.observation_space)
+
+    def _adjust_observation_space(self, old_space):
+        if isinstance(old_space, spaces.Tuple):
+            # Observation space is a Tuple of spaces for each agent
+            new_spaces = tuple(self._calc_new_obs_space(space) for space in old_space.spaces)
+            return spaces.Tuple(new_spaces)
+        elif isinstance(old_space, spaces.Dict):
+            # Observation space is a Dict
+            new_spaces = {key: self._calc_new_obs_space(space) for key, space in old_space.spaces.items()}
+            return spaces.Dict(new_spaces)
         else:
-            img_obs_space = env.observation_space
-            self.dict_obs_space = False
+            # Single observation space
+            return self._calc_new_obs_space(old_space)
 
-        if not has_image_observations(img_obs_space):
-            raise Exception("Pixel format wrapper only works with image-based envs")
-
-        obs_shape = img_obs_space.shape
-        max_num_img_channels = 4
-
-        if len(obs_shape) <= 2:
-            raise Exception("Env obs do not have channel dimension?")
-
-        if obs_shape[0] <= max_num_img_channels:
-            raise Exception("Env obs already in CHW format?")
+    def _calc_new_obs_space(self, space):
+        obs_shape = space.shape
+        if len(obs_shape) != 3:
+            raise ValueError("Expected observation with 3 dimensions (H, W, C)")
 
         h, w, c = obs_shape
-        low, high = img_obs_space.low.flat[0], img_obs_space.high.flat[0]
-        new_shape = [c, h, w]
+        new_shape = (c, h, w)
+        return spaces.Box(low=space.low.min(), high=space.high.max(), shape=new_shape, dtype=space.dtype)
 
-        if self.dict_obs_space:
-            dtype = (
-                env.observation_space.spaces["obs"].dtype
-                if env.observation_space.spaces["obs"].dtype is not None
-                else np.float32
-            )
-        else:
-            dtype = env.observation_space.dtype if env.observation_space.dtype is not None else np.float32
-
-        new_img_obs_space = spaces.Box(low, high, shape=new_shape, dtype=dtype)
-
-        if self.dict_obs_space:
-            self.observation_space = env.observation_space
-            self.observation_space.spaces["obs"] = new_img_obs_space
-        else:
-            self.observation_space = new_img_obs_space
-
-        self.action_space = env.action_space
-
-    @staticmethod
-    def _transpose(obs):
-        return np.transpose(obs, (2, 0, 1))  # HWC to CHW for PyTorch
+    def _transpose_obs(self, obs):
+        return np.transpose(obs, (2, 0, 1))  # HWC to CHW
 
     def observation(self, observation):
-        if observation is None:
-            return observation
-
-        if self.dict_obs_space:
-            observation["obs"] = self._transpose(observation["obs"])
+        if isinstance(observation, (list, tuple)):
+            # Process each observation in the list or tuple
+            return type(observation)(self.observation(o) for o in observation)
+        elif isinstance(observation, dict):
+            # Process each item in the dict
+            return {key: self._transpose_obs(value) for key, value in observation.items()}
         else:
-            observation = self._transpose(observation)
-        return observation
+            # Single observation
+            return self._transpose_obs(observation)
 
 
 class RecordingWrapper(gym.core.Wrapper):
@@ -195,71 +192,93 @@ class RecordingWrapper(gym.core.Wrapper):
         super().__init__(env)
 
         self._record_to = record_to
-        self._episode_recording_dir = None
+        self._episode_recording_dirs = []
         self._record_id = 0
         self._frame_id = 0
         self._player_id = player_id
-        self._recorded_episode_reward = 0
-        self._recorded_episode_shaping_reward = 0
-
+        self._recorded_episode_rewards = []
+        self._recorded_episode_shaping_rewards = []
         self._recorded_actions = []
 
-        # Experimental! Recording Doom replay. Does not work in all scenarios, e.g. when there are in-game bots.
+        # Experimental! Recording Doom replay. Does not work in all scenarios, e.g., when there are in-game bots.
         self.unwrapped.record_to = record_to
 
     def reset(self, **kwargs):
-        if self._episode_recording_dir is not None and self._record_id > 0:
-            # save actions to text file
-            with open(join(self._episode_recording_dir, "actions.json"), "w") as actions_file:
-                json.dump(self._recorded_actions, actions_file)
+        if self._episode_recording_dirs and self._record_id > 0:
+            # Save actions to text file
+            for idx, dir in enumerate(self._episode_recording_dirs):
+                actions_file_path = join(dir, "actions.json")
+                with open(actions_file_path, "w") as actions_file:
+                    json.dump(self._recorded_actions[idx], actions_file)
 
-            # rename previous episode dir
-            reward = self._recorded_episode_reward + self._recorded_episode_shaping_reward
-            new_dir_name = self._episode_recording_dir + f"_r{reward:.2f}"
-            os.rename(self._episode_recording_dir, new_dir_name)
-            log.info(
-                "Finished recording %s (rew %.3f, shaping %.3f)",
-                new_dir_name,
-                reward,
-                self._recorded_episode_shaping_reward,
-            )
-
-        dir_name = f"ep_{self._record_id:03d}_p{self._player_id}"
-        self._episode_recording_dir = join(self._record_to, dir_name)
-        ensure_dir_exists(self._episode_recording_dir)
+                # Rename previous episode dir
+                reward = self._recorded_episode_rewards[idx] + self._recorded_episode_shaping_rewards[idx]
+                new_dir_name = dir + f"_r{reward:.2f}"
+                os.rename(dir, new_dir_name)
+                log.info(
+                    "Finished recording %s (reward %.3f, shaping %.3f)",
+                    new_dir_name,
+                    reward,
+                    self._recorded_episode_shaping_rewards[idx],
+                )
 
         self._record_id += 1
         self._frame_id = 0
-        self._recorded_episode_reward = 0
-        self._recorded_episode_shaping_reward = 0
 
-        self._recorded_actions = []
+        # Initialize per-agent recording directories and stats
+        num_agents = getattr(self.env, 'num_agents', 1)
+        self._episode_recording_dirs = []
+        self._recorded_episode_rewards = [0] * num_agents
+        self._recorded_episode_shaping_rewards = [0] * num_agents
+        self._recorded_actions = [[] for _ in range(num_agents)]
+
+        for idx in range(num_agents):
+            dir_name = f"ep_{self._record_id:03d}_agent{idx}"
+            episode_dir = join(self._record_to, dir_name)
+            ensure_dir_exists(episode_dir)
+            self._episode_recording_dirs.append(episode_dir)
 
         return self.env.reset(**kwargs)
 
-    def _record(self, img):
-        frame_name = f"{self._frame_id:05d}.png"
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(join(self._episode_recording_dir, frame_name), img)
+    def _record(self, imgs):
+        for idx, img in enumerate(imgs):
+            frame_name = f"{self._frame_id:05d}.png"
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(join(self._episode_recording_dirs[idx], frame_name), img)
         self._frame_id += 1
 
     def step(self, action):
-        observation, reward, terminated, truncated, info = self.env.step(action)
+        obs, reward, terminated, truncated, info = self.env.step(action)
 
-        if isinstance(action, np.ndarray):
-            self._recorded_actions.append(action.tolist())
-        elif np.issubdtype(type(action), np.integer):
-            self._recorded_actions.append(int(action))
+        # Record actions and observations for each agent
+        if isinstance(action, (list, tuple)):
+            for idx, act in enumerate(action):
+                self._recorded_actions[idx].append(act)
         else:
-            self._recorded_actions.append(action)
+            self._recorded_actions[0].append(action)
 
-        self._record(observation)
-        self._recorded_episode_reward += reward
+        if isinstance(obs, (list, tuple)):
+            self._record(obs)
+        else:
+            self._record([obs])
+
+        # Update rewards for each agent
+        if isinstance(reward, (list, tuple)):
+            for idx, r in enumerate(reward):
+                self._recorded_episode_rewards[idx] += r
+        else:
+            self._recorded_episode_rewards[0] += reward
+
+        # Handle shaping rewards if applicable
         if hasattr(self.env.unwrapped, "_total_shaping_reward"):
-            # noinspection PyProtectedMember
-            self._recorded_episode_shaping_reward = self.env.unwrapped._total_shaping_reward
+            shaping_reward = self.env.unwrapped._total_shaping_reward
+            if isinstance(shaping_reward, (list, tuple)):
+                for idx, sr in enumerate(shaping_reward):
+                    self._recorded_episode_shaping_rewards[idx] = sr
+            else:
+                self._recorded_episode_shaping_rewards[0] = shaping_reward
 
-        return observation, reward, terminated, truncated, info
+        return obs, reward, terminated, truncated, info
 
 
 GymObs = Union[Tuple, Dict[str, Any], np.ndarray, int]
@@ -308,36 +327,51 @@ class MaxAndSkipEnv(gym.Wrapper):
 
     def __init__(self, env: gym.Env, skip: int = 4):
         gym.Wrapper.__init__(self, env)
-        # most recent raw observations (for max pooling across time steps)
-        self._obs_buffer = np.zeros((2,) + env.observation_space.shape, dtype=env.observation_space.dtype)
         self._skip = skip
+        # Initialize observation buffers for each agent
+        self._obs_buffers = None
 
-    def step(self, action: int) -> GymStepReturn:
-        """
-        Step the environment with the given action
-        Repeat action, sum reward, and max over last observations.
-        :param action: the action
-        :return: observation, reward, terminated, truncated, information
-        """
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        # Initialize observation buffers based on observation shape
+        if isinstance(obs, (list, tuple)):
+            self._obs_buffers = [np.zeros((2,) + o.shape, dtype=o.dtype) for o in obs]
+        else:
+            self._obs_buffers = np.zeros((2,) + obs.shape, dtype=obs.dtype)
+        return obs, info
+
+    def step(self, action):
         total_reward = 0.0
         info = {}
         terminated = truncated = False
+        obs = None
+
         for i in range(self._skip):
             obs, reward, terminated, truncated, info = self.env.step(action)
-            if i == self._skip - 2:
-                self._obs_buffer[0] = obs
-            if i == self._skip - 1:
-                self._obs_buffer[1] = obs
+            if isinstance(obs, (list, tuple)):
+                for idx, o in enumerate(obs):
+                    if i == self._skip - 2:
+                        self._obs_buffers[idx][0] = o
+                    if i == self._skip - 1:
+                        self._obs_buffers[idx][1] = o
+            else:
+                if i == self._skip - 2:
+                    self._obs_buffers[0] = obs
+                if i == self._skip - 1:
+                    self._obs_buffers[1] = obs
             total_reward += reward
-            if terminated | truncated:
+            if terminated or truncated:
                 break
-        # Note that the observation on the done=True frame doesn't matter
-        max_frame = self._obs_buffer.max(axis=0)
+
+        # Max pooling over last observations
+        if isinstance(obs, (list, tuple)):
+            max_frame = type(obs)(
+                np.maximum(buf[0], buf[1]) for buf in self._obs_buffers
+            )
+        else:
+            max_frame = self._obs_buffers.max(axis=0)
 
         return max_frame, total_reward, terminated, truncated, info
-
-    def reset(self, **kwargs) -> Tuple[GymObs, Dict]:
-        return self.env.reset(**kwargs)
 
 
 # wrapper from CleanRL / Stable Baselines
@@ -356,7 +390,11 @@ class ClipRewardEnv(gym.RewardWrapper):
         :param reward:
         :return:
         """
-        return np.sign(reward)
+        if isinstance(reward, (list, tuple)):
+            # Clip each reward in the list or tuple
+            return type(reward)(self.reward(r) for r in reward)
+        else:
+            return np.sign(reward)
 
 
 class EpisodeCounterWrapper(gym.Wrapper):

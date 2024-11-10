@@ -97,7 +97,8 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     verbose = True
 
     train_dir = cfg.train_dir
-    cfg = load_from_checkpoint(cfg)
+    if cfg.timestamp:
+        cfg = load_from_checkpoint(cfg)
     cfg.train_dir = train_dir  # Ensure we are running on the correct machine
 
     env_initials = ''.join(word[0].upper() for word in cfg.env.split('_'))
@@ -126,7 +127,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     )
     cfg.resolution = cfg.resolution_eval
     env_render = make_env_func_batched(
-        cfg, env_config=AttrDict(worker_index=0, vector_index=0, env_id=0), render_mode=render_mode
+        cfg, env_config=AttrDict(worker_index=0, vector_index=0, env_id=1), render_mode=render_mode
     )
     env_info = extract_env_info(env, cfg)
 
@@ -151,9 +152,11 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
         learner_cls = PPODetachedLearner
     else:
         learner_cls = PPOLearner
-    checkpoints = learner_cls.get_checkpoints(learner_cls.checkpoint_dir(cfg, policy_id), f"{name_prefix}_*")
-    checkpoint_dict = learner_cls.load_checkpoint(checkpoints, device)
-    actor_critic.load_state_dict(checkpoint_dict["model"])
+
+    if cfg.timestamp:
+        checkpoints = learner_cls.get_checkpoints(learner_cls.checkpoint_dir(cfg, policy_id), f"{name_prefix}_*")
+        checkpoint_dict = learner_cls.load_checkpoint(checkpoints, device)
+        actor_critic.load_state_dict(checkpoint_dict["model"])
 
     episode_rewards = [deque([], maxlen=100) for _ in range(env.num_agents)]
     episode_costs = [deque([], maxlen=100) for _ in range(env.num_agents)]
@@ -204,7 +207,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
 
                 obs, rew, terminated, truncated, infos = env.step(actions)
                 _, _, _, _, _ = env_render.step(actions)
-                cost = infos[0]['cost']
+                # cost = infos[0]['cost']
                 dones = make_dones(terminated, truncated)
                 infos = [{} for _ in range(env_info.num_agents)] if infos is None else infos
 
@@ -213,7 +216,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                 else:
                     episode_reward += rew.float()
 
-                episode_cost += cost
+                # episode_cost += cost
 
                 num_frames += 1
                 if num_frames % 100 == 0:

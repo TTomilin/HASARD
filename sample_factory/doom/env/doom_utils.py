@@ -6,9 +6,11 @@ from typing import Optional
 from sample_factory.doom.env.action_space import (
     doom_turn_and_attack_only, doom_turn_move_jump_accelerate,
     doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use_jump,
-    doom_action_space, doom_action_space_no_speed, doom_action_space_no_move,
+    doom_action_space, doom_action_space_no_speed, doom_action_space_no_move, doom_move_and_attack_only,
+    doom_turn_attack_move,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
+from sample_factory.doom.env.doom_gym_multi import VizdoomMultiAgentEnv
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
 from sample_factory.doom.env.wrappers.multiplayer_stats import MultiplayerStatsWrapper
 from sample_factory.doom.env.wrappers.observation_space import SetResolutionWrapper, resolutions
@@ -151,6 +153,26 @@ DOOM_ENVS = [
         coord_limits=[-720, -1120, 1804, -360],
         extra_wrappers=[(DoomDetonatorsDilemmaCostFunction, {})]
     ),
+
+    DoomSpec(
+        'multi_duel',
+        doom_move_and_attack_only(),
+        doom_action_space(),
+        max_histogram_len=None,
+        penalty_scaling=1.0,
+        default_timeout=2100,
+        extra_wrappers=[]
+    ),
+
+    DoomSpec(
+        'multi_deathmatch',
+        doom_turn_attack_move(),
+        doom_action_space(),
+        max_histogram_len=None,
+        penalty_scaling=1.0,
+        default_timeout=2100,
+        extra_wrappers=[]
+    ),
 ]
 
 
@@ -216,8 +238,6 @@ def make_doom_env_impl(
                           step_trigger=lambda step: not step % cfg.record_every, video_length=cfg.video_length,
                           dummy_env=env_config is None)
 
-    env = MultiplayerStatsWrapper(env)
-
     resolution = cfg.resolution
     if resolution is None:
         resolution = "256x144" if cfg.wide_aspect_ratio else "160x120"
@@ -259,6 +279,104 @@ def make_doom_env_impl(
     return env
 
 
+def make_doom_ma_env_impl(
+        doom_spec,
+        cfg=None,
+        env_config=None,
+        skip_frames=None,
+        player_id=None,
+        num_agents=2,
+        max_num_players=None,
+        num_bots=0,  # for multi-agent
+        custom_resolution=None,
+        render: bool = False,
+        render_mode: Optional[str] = None,
+        **kwargs,
+):
+    skip_frames = skip_frames if skip_frames is not None else cfg.env_frameskip
+
+    fps = cfg.fps if "fps" in cfg else None
+    async_mode = fps == 0
+
+    if cfg.safety_bound:
+        doom_spec.safety_bound = cfg.safety_bound
+    if cfg.unsafe_reward:
+        doom_spec.unsafe_reward = cfg.unsafe_reward
+
+    config_file = f'{doom_spec.name}_all.cfg' if cfg.all_actions else f'{doom_spec.name}.cfg'
+    action_space = doom_spec.full_action_space if cfg.all_actions else doom_spec.action_space
+    max_histogram_length = cfg.max_histogram_length if cfg.max_histogram_length else doom_spec.max_histogram_len
+
+    # Host address and port
+    host_address = "127.0.0.1"
+    port = 5029 + env_config.env_id  # Use a default port or make it configurable
+
+    env = VizdoomMultiAgentEnv(
+        config_file,
+        action_space,
+        doom_spec.safety_bound,
+        doom_spec.unsafe_reward,
+        doom_spec.default_timeout,
+        level=cfg.level,
+        constraint=cfg.constraint,
+        coord_limits=doom_spec.coord_limits,
+        max_histogram_length=max_histogram_length,
+        skip_frames=skip_frames,
+        show_automap=cfg.show_automap,
+        async_mode=async_mode,
+        render_mode=render_mode,
+        resolution=cfg.resolution,
+        seed=cfg.seed,
+        num_agents=num_agents,
+        host_address=host_address,
+        port=port,
+    )
+
+    record_to = cfg.record_to if "record_to" in cfg else None
+
+    if cfg.record:
+        video_folder = os.path.join(experiment_dir(cfg), cfg.video_dir)
+        env = RecordVideo(env, video_folder=video_folder, name_prefix='doom', with_wandb=cfg.with_wandb,
+                          step_trigger=lambda step: not step % cfg.record_every, video_length=cfg.video_length,
+                          dummy_env=env_config is None)
+
+    # env = MultiplayerStatsWrapper(env)
+
+    resolution = cfg.resolution
+    if resolution is None:
+        resolution = "256x144" if cfg.wide_aspect_ratio else "160x120"
+
+    assert resolution in resolutions
+    env = SetResolutionWrapper(env, resolution)  # default (wide aspect ratio)
+
+    h, w, channels = env.observation_space.shape
+    if w != cfg.res_w or h != cfg.res_h:
+        env = ResizeWrapper(env, cfg.res_w, cfg.res_h, grayscale=False)
+
+    debug_log_every_n(50, "Doom resolution: %s, resize resolution: %r", resolution, (cfg.res_w, cfg.res_h))
+
+    # randomly vary episode duration to somewhat decorrelate the experience
+    timeout = doom_spec.default_timeout
+    episode_horizon = cfg.episode_horizon
+    if episode_horizon is not None and episode_horizon > 0:
+        timeout = episode_horizon
+    if timeout > 0:
+        env = TimeLimitWrapper(env, limit=timeout, random_variation_steps=0)
+
+    pixel_format = cfg.pixel_format if "pixel_format" in cfg else "HWC"
+    if pixel_format == "CHW":
+        env = PixelFormatChwWrapper(env)
+
+    if doom_spec.extra_wrappers is not None:
+        for wrapper_cls, wrapper_kwargs in doom_spec.extra_wrappers:
+            env = wrapper_cls(env, **wrapper_kwargs)
+
+    if doom_spec.reward_scaling != 1.0:
+        env = RewardScalingWrapper(env, doom_spec.reward_scaling)
+
+    return env
+
+
 def make_doom_env(env_name, cfg, env_config, render_mode: Optional[str] = None, **kwargs):
     spec = doom_env_by_name(env_name)
     return make_doom_env_from_spec(spec, env_name, cfg, env_config, render_mode, **kwargs)
@@ -279,4 +397,4 @@ def make_doom_env_from_spec(spec, _env_name, cfg, env_config, render_mode: Optio
     else:
         cfg.record_to = None
 
-    return make_doom_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, **kwargs)
+    return make_doom_ma_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, **kwargs)

@@ -138,5 +138,5 @@ def num_env_steps(infos):
 
     total_num_frames = 0
     for info in infos:
-        total_num_frames += info.get("num_frames", 1)
+        total_num_frames += info[0].get("num_frames", 1)
     return total_num_frames
