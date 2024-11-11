@@ -1,10 +1,13 @@
+import math
 import time
 from multiprocessing import Process, Pipe
 from typing import Optional, Dict, Tuple, Any
 
+import cv2
 import gym
 import gymnasium as gym
 import numpy as np
+import pygame
 import vizdoom as vzd
 from vizdoom import ScreenResolution
 
@@ -92,10 +95,10 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         game.set_window_visible(False)
         game.set_sound_enabled(False)
         game.set_console_enabled(False)
-        game.set_screen_resolution(vzd.ScreenResolution.RES_320X240)
+        game.set_screen_resolution(get_screen_resolution(self.resolution))
 
         # Set game mode to ASYNC_PLAYER for multiplayer
-        game.set_mode(vzd.Mode.ASYNC_PLAYER)
+        # game.set_mode(vzd.Mode.ASYNC_PLAYER)
 
         # Add multiplayer arguments
         if is_host:
@@ -139,18 +142,26 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                 pipe.send((observation, reward, done, info))
 
             elif cmd == 'reset':
+                # Reset the environment and return the current frame
                 game.new_episode()
-                state = game.get_state()
-                if state and state.screen_buffer is not None:
-                    observation = np.transpose(state.screen_buffer, (1, 2, 0))
-                else:
-                    observation = np.zeros((240, 320, 3), dtype=np.uint8)
-                pipe.send(observation)
+                self.send_state(game, pipe)
+
+            elif cmd == 'render':
+                # Handle the render command and return the current frame
+                self.send_state(game, pipe)
 
             elif cmd == 'close':
                 game.close()
                 pipe.close()
                 break
+
+    def send_state(self, game, pipe):
+        state = game.get_state()
+        if state and state.screen_buffer is not None:
+            observation = np.transpose(state.screen_buffer, (1, 2, 0))
+        else:
+            observation = np.zeros((240, 320, 3), dtype=np.uint8)
+        pipe.send(observation)
 
     def reset(self, **kwargs) -> Tuple[np.ndarray, Dict]:
         if "seed" in kwargs and kwargs["seed"]:
@@ -184,15 +195,9 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             dones.append(done)
             infos.append(info)
 
-        # Check if all agents are done
-        all_done = all(dones)
+        truncated = [False] * len(dones)  # TODO implement proper truncation
 
-        # Gym 0.26.0 changes
-        terminated = all_done
-        truncated = False
-
-        # Return observations, rewards, dones, infos
-        return observations, rewards, terminated, truncated, infos
+        return observations, rewards, dones, truncated, infos
 
     def close(self):
         for pipe in self.parent_pipes:
@@ -201,5 +206,70 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         for process in self.processes:
             process.join()
 
-    def render(self, mode='human'):
-        pass  # Rendering can be implemented if needed
+    def render(self) -> Optional[list]:
+        mode = self.render_mode
+        if mode is None:
+            return
+
+        frames = []
+        max_screen_width = 1920  # Max width for display, adjust for screen size
+        max_screen_height = 1080  # Max height for display, adjust for screen size
+
+        try:
+            # Collect frames from each agent
+            for pipe in self.parent_pipes:
+                pipe.send(('render', None))
+                frame = pipe.recv()
+                if frame is not None:
+                    frames.append(frame)
+
+            if mode == "human":
+                num_agents = len(frames)
+                original_frame_h, original_frame_w = frames[0].shape[:2]
+
+                # Determine the optimal grid layout within max screen constraints
+                columns = min(num_agents, max_screen_width // original_frame_w)
+                rows = math.ceil(num_agents / columns)
+
+                # Calculate potential display size with original frame size
+                total_width = columns * original_frame_w
+                total_height = rows * original_frame_h
+
+                # Resize frames if display size exceeds max screen constraints
+                scale_w = max_screen_width / total_width if total_width > max_screen_width else 1.0
+                scale_h = max_screen_height / total_height if total_height > max_screen_height else 1.0
+                scale = min(scale_w, scale_h)
+
+                # Calculate resized frame dimensions and display window size
+                frame_w = int(original_frame_w * scale)
+                frame_h = int(original_frame_h * scale)
+                display_width = min(columns * frame_w, max_screen_width)
+                display_height = min(rows * frame_h, max_screen_height)
+
+                # Initialize or resize the pygame window if needed
+                if not self.screen or self.screen.get_size() != (display_width, display_height):
+                    pygame.init()
+                    self.screen = pygame.display.set_mode((display_width, display_height))
+                    pygame.display.set_caption("Multi-Agent Environment")
+
+                # Render each frame in its grid position
+                for idx, frame in enumerate(frames):
+                    if scale < 1.0:
+                        # Resize the frame if scaling is necessary
+                        frame = cv2.resize(frame, (frame_w, frame_h))
+
+                    col = idx % columns
+                    row = idx // columns
+                    x, y = col * frame_w, row * frame_h
+
+                    surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
+                    self.screen.blit(surface, (x, y))  # Position frame within the grid
+
+                pygame.display.flip()
+                time.sleep(0.01)  # Brief pause to simulate real-time rendering
+
+            elif mode == "rgb_array":
+                return frames  # Return a list of frames for each agent
+
+        except AttributeError:
+            return None

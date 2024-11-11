@@ -203,7 +203,6 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
             rnn_states = policy_outputs["new_rnn_states"]
 
             for _ in range(render_action_repeat):
-                # last_render_start = render_frame(cfg, env, video_frames, num_episodes, last_render_start)
                 last_render_start = render_frame(cfg, env_render, video_frames, num_episodes, last_render_start)
 
                 obs, rew, terminated, truncated, infos = env.step(actions)
@@ -251,11 +250,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                         else:
                             num_episodes += 1
 
-                # if episode terminated synchronously for all agents, pause a bit before starting a new one
-                if all(dones):
-                    # render_frame(cfg, env, video_frames, num_episodes, last_render_start)
-                    render_frame(cfg, env_render, video_frames, num_episodes, last_render_start)
-                    time.sleep(0.05)
+                render_frame(cfg, env_render, video_frames, num_episodes, last_render_start)
 
                 if all(finished_episode):
                     finished_episode = [False] * env.num_agents
