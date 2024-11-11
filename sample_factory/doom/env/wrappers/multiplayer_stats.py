@@ -4,7 +4,7 @@ from sample_factory.algo.utils.rl_utils import make_dones
 
 
 class MultiplayerStatsWrapper(gym.Wrapper):
-    """Add to info things like place in the match, gap to leader, kill-death ratio etc."""
+    """Add to info things like place in the match, gap to leader, kill-death ratio, etc."""
 
     def __init__(self, env):
         super().__init__(env)
@@ -21,11 +21,11 @@ class MultiplayerStatsWrapper(gym.Wrapper):
         # Initialize per-agent previous extra info
         self.prev_extra_info = [{} for _ in range(self.num_agents)]
 
-    def _parse_info(self, infos, done):
+    def _parse_info(self, infos, dones):
         new_infos = []
-        for idx, info in enumerate(infos):
+        for idx, (info, done) in enumerate(zip(infos, dones)):
             if (self.timestep % 20 == 0 or done) and "FRAGCOUNT" in info:
-                # no need to update these stats every frame
+                # No need to update these stats every frame
                 kdr = info.get("FRAGCOUNT", 0.0) / (info.get("DEATHCOUNT", 0.0) + 1)
                 extra_info = {"KDR": float(kdr)}
 
@@ -80,7 +80,7 @@ class MultiplayerStatsWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         self.timestep = 0
         obs, infos = self.env.reset(**kwargs)
-        num_agents = len(infos)
+        num_agents = len(infos) if isinstance(infos, (list, tuple)) else 1
         self.prev_extra_info = [{} for _ in range(num_agents)]
         return obs, infos
 
@@ -89,14 +89,19 @@ class MultiplayerStatsWrapper(gym.Wrapper):
         if obs is None:
             return obs, rewards, terminated, truncated, infos
 
-        # Since terminated and truncated are single booleans, we can use them directly
-        done = make_dones(terminated, truncated)
+        # Ensure terminated and truncated are lists, even if they're single booleans
+        if isinstance(terminated, bool):
+            terminated = [terminated] * self.num_agents
+        if isinstance(truncated, bool):
+            truncated = [truncated] * self.num_agents
+
+        dones = [make_dones(t, tr) for t, tr in zip(terminated, truncated)]
 
         # Ensure infos is a list
         if not isinstance(infos, (list, tuple)):
             infos = [infos] * self.num_agents
 
         # Parse info for each agent
-        infos = self._parse_info(infos, done)
+        infos = self._parse_info(infos, dones)
         self.timestep += 1
         return obs, rewards, terminated, truncated, infos
