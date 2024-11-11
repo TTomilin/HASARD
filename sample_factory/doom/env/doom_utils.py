@@ -309,7 +309,8 @@ def make_doom_ma_env_impl(
 
     # Host address and port
     host_address = "127.0.0.1"
-    port = 5029 + env_config.env_id  # Use a default port or make it configurable
+    # Every env needs a separate port. If env_config is not provided, it is for a creating a mock env
+    port = 5029 + (env_config.env_id if env_config else 0)
 
     env = VizdoomMultiAgentEnv(
         config_file,

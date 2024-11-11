@@ -139,8 +139,6 @@ class PPOLearner(Configurable):
 
         self.env_info = env_info
 
-        self.safety_bound = env_info.safety_bound / env_info.timeout * env_info.frameskip
-
         self.device = None
         self.actor_critic: Optional[ActorCritic] = None
 
