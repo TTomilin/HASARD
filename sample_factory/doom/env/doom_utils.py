@@ -10,9 +10,8 @@ from sample_factory.doom.env.action_space import (
     doom_turn_attack_move,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
-from sample_factory.doom.env.doom_gym_multi import VizdoomMultiAgentEnv
+from sample_factory.doom.env.doom_gym_multi_event import VizdoomMultiAgentEnv
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
-from sample_factory.doom.env.wrappers.multiplayer_stats import MultiplayerStatsWrapper
 from sample_factory.doom.env.wrappers.observation_space import SetResolutionWrapper, resolutions
 from sample_factory.doom.env.wrappers.record_video import RecordVideo
 from sample_factory.doom.env.wrappers.saute import Saute
