@@ -87,6 +87,77 @@ class ResizeWrapper(gym.core.Wrapper):
         return self._observation(obs), reward, terminated, truncated, info
 
 
+class DownsampleWrapper(gym.core.Wrapper):
+    """Downsample observation frames by a factor of 2."""
+
+    def __init__(self, env, grayscale=True, add_channel_dim=False):
+        super(DownsampleWrapper, self).__init__(env)
+
+        self.grayscale = grayscale
+        self.add_channel_dim = add_channel_dim
+
+        if isinstance(env.observation_space, spaces.Dict):
+            # Handle dictionary observation spaces
+            new_spaces = {}
+            for key, space in env.observation_space.spaces.items():
+                new_spaces[key] = self._calc_new_obs_space(space)
+            self.observation_space = spaces.Dict(new_spaces)
+        else:
+            self.observation_space = self._calc_new_obs_space(env.observation_space)
+
+    def _calc_new_obs_space(self, old_space):
+        """Calculate the new observation space after downsampling."""
+        low, high = old_space.low.flat[0], old_space.high.flat[0]
+
+        if len(old_space.shape) == 3:
+            h, w, c = old_space.shape
+        else:
+            h, w = old_space.shape
+            c = 1  # Default to single channel if shape is 2D
+
+        new_h, new_w = h // 2, w // 2
+        if self.grayscale:
+            new_shape = [new_h, new_w, 1] if self.add_channel_dim else [new_h, new_w]
+        else:
+            new_shape = [new_h, new_w, c] if self.add_channel_dim else [new_h, new_w, c]
+
+        return spaces.Box(low, high, shape=new_shape, dtype=old_space.dtype)
+
+    def _convert_obs(self, obs):
+        """Apply ::2 downsampling."""
+        if obs is None:
+            return obs
+
+        # Downsample by taking every second pixel
+        obs = obs[::2, ::2]
+
+        if self.grayscale and obs.ndim == 3:  # Convert to grayscale if RGB
+            obs = np.mean(obs, axis=-1).astype(obs.dtype)
+
+        if self.add_channel_dim:
+            return obs[:, :, None]  # Add channel dimension
+        else:
+            return obs
+
+    def _observation(self, obs):
+        """Handle observations that may be dictionaries."""
+        if isinstance(obs, dict):
+            new_obs = {}
+            for key, value in obs.items():
+                new_obs[key] = self._convert_obs(value)
+            return new_obs
+        else:
+            return self._convert_obs(obs)
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        return self._observation(obs), info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        return self._observation(obs), reward, terminated, truncated, info
+
+
 class RewardScalingWrapper(RewardWrapper):
     def __init__(self, env, scaling_factor):
         super(RewardScalingWrapper, self).__init__(env)

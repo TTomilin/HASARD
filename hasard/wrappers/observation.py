@@ -24,26 +24,6 @@ class Rescale(gymnasium.Wrapper):
         return state / 255. * 2 - 1, reward, done, truncated, info
 
 
-class Resize(gymnasium.Wrapper):
-    """Resize the observation space."""
-
-    def __init__(self, env, height=84, width=84):
-        gymnasium.Wrapper.__init__(self, env)
-        assert height > 0 and width > 0, f"Invalid shape: {height}x{width}"
-        self.shape = (height, width)
-
-        obs_shape = self.shape + self.observation_space.shape[2:]
-        self.observation_space = Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
-
-    def reset(self) -> Tuple[np.ndarray, Dict[str, Any]]:
-        state, info = self.env.reset()
-        return cv2.resize(state, self.shape), info
-
-    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
-        state, reward, done, truncated, info = self.env.step(action)
-        return cv2.resize(state, self.shape), reward, done, truncated, info
-
-
 class RGBStack(gymnasium.Wrapper):
     """Combine the stacked frames with RGB colours. [n_stack, h, w, 3] -> [h, w, n_stack * 3]"""
 
