@@ -9,7 +9,6 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Module
 
@@ -517,7 +516,7 @@ class TRPOLearner(Configurable):
                         force_summaries = True
 
                 with timing.add_time("update"):
-                    self._trpo_step(mb, surrogate_loss, value_loss, num_invalids, mb.valids)
+                    self._trpo_step(mb, actor_loss, value_loss, num_invalids, mb.valids)
                     num_optimization_steps += 1
 
                     curr_policy_version = self.train_step  # policy version before the weight update
@@ -565,12 +564,12 @@ class TRPOLearner(Configurable):
 
         return stats_and_summaries
 
-    def _trpo_step(self, mb, surrogate_loss, value_loss, num_invalids, valids):
+    def _trpo_step(self, mb, actor_loss, value_loss, num_invalids, valids):
         # Implement TRPO update using conjugate gradient and line search
         policy_params = [p for p in self.actor_critic.actor.parameters() if p.requires_grad]
 
         # Compute policy gradients
-        loss = surrogate_loss
+        loss = actor_loss
         for p in policy_params:
             p.grad = None
         loss.backward(retain_graph=True)
@@ -607,7 +606,7 @@ class TRPOLearner(Configurable):
         # Line search to enforce KL constraint
         prev_params = self._get_flat_params_from(policy_params)
         success, new_params = self._line_search(
-            mb, prev_params, full_step, surrogate_loss, valids, num_invalids
+            mb, prev_params, full_step, actor_loss, valids, num_invalids
         )
 
         if success:
@@ -683,7 +682,8 @@ class TRPOLearner(Configurable):
                     actor_core_outputs = build_core_out_from_seq(actor_core_output_seq, inverted_select_inds)
                     critic_core_outputs = build_core_out_from_seq(critic_core_output_seq, inverted_select_inds)
                 else:
-                    actor_core_outputs, critic_core_outputs, _, _ = self.actor_critic.forward_core(head_outputs, rnn_states)
+                    actor_core_outputs, critic_core_outputs, _, _ = self.actor_critic.forward_core(head_outputs,
+                                                                                                   rnn_states)
                 result = self.actor_critic.forward_tail(actor_core_outputs, critic_core_outputs, values_only=False,
                                                         sample_actions=False)
                 action_distribution = self.actor_critic.action_distribution()
@@ -707,7 +707,6 @@ class TRPOLearner(Configurable):
         # If line search fails, revert to previous parameters
         self._set_flat_params_to(params, prev_params)
         return False, prev_params
-
 
     def _get_flat_params_from(self, params):
         return torch.cat([p.data.view(-1) for p in params])
@@ -737,7 +736,8 @@ class TRPOLearner(Configurable):
 
         # Gradient norm
         grad_norm = (
-                sum(p.grad.data.norm(2).item() ** 2 for p in self.actor_critic.parameters() if p.grad is not None) ** 0.5
+                sum(p.grad.data.norm(2).item() ** 2 for p in self.actor_critic.parameters() if
+                    p.grad is not None) ** 0.5
         )
         stats.grad_norm = grad_norm
 
@@ -770,7 +770,6 @@ class TRPOLearner(Configurable):
 
         # Epoch-end statistics for TRPO
         if var.epoch == self.cfg.num_epochs - 1 and var.batch_num == len(var.minibatches) - 1:
-
             # Compute value deltas between current and old value estimates
             value_delta = torch.abs(var.values - var.mb.values)
             value_delta_avg, value_delta_max = value_delta.mean(), value_delta.max()
@@ -797,7 +796,6 @@ class TRPOLearner(Configurable):
             stats[key] = to_scalar(value)
 
         return stats
-
 
     def _entropy_exploration_loss(self, action_distribution, valids, num_invalids: int) -> Tensor:
         entropy = action_distribution.entropy()
@@ -966,11 +964,6 @@ class TRPOLearner(Configurable):
         )
 
         return action_distribution, policy_loss, exploration_loss, value_loss, loss_summaries
-
-    def _value_loss(self, obs, returns):
-        values = self.actor_critic.value_function(obs).view(-1)
-        value_loss = F.mse_loss(values, returns)
-        return value_loss
 
     def _get_flat_params(self):
         params = []
