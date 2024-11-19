@@ -418,6 +418,22 @@ def add_rl_args(p: ArgumentParser):
         help="c_hat clipping parameter of the V-trace algorithm. Low values for c_hat can reduce variance of the advantage estimates (similar to GAE lambda < 1)",
     )
 
+
+    # TRPO-specific parameters
+    p.add_argument(
+        "--max_kl",
+        default=0.01,
+        type=float,
+        help="Maximum KL divergence between old and new policies. Controls how much the policy can change in a single update."
+    )
+    p.add_argument(
+        "--damping_coeff",
+        default=0.1,
+        type=float,
+        help="Coefficient for damping the Fisher information matrix to stabilize the conjugate gradient solution."
+    )
+
+
     # optimization
     p.add_argument("--optimizer", default="adam", type=str, choices=["adam", "lamb"], help="Type of optimizer to use")
     p.add_argument(

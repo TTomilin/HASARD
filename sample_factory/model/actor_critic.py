@@ -16,7 +16,7 @@ from sample_factory.model.action_parameterization import (
 )
 from sample_factory.model.model_utils import model_device
 from sample_factory.utils.normalize import ObservationNormalizer
-from sample_factory.utils.typing import ActionSpace, Config, ObsSpace
+from sample_factory.utils.typing import ActionSpace, Config, ObsSpace, ActionDistribution
 
 
 class ActorCritic(nn.Module, Configurable):
@@ -252,10 +252,10 @@ class ACBase(nn.Module):
         return self.encoder(inputs)
 
     def core(self, head_output, rnn_states):
-        return self._core(head_output[self.sequence_idx], rnn_states[self.sequence_idx])
+        return self._core(head_output, rnn_states[self.sequence_idx])
 
     def tail(self, core_output):
-        x = self.decoder(core_output[self.sequence_idx])
+        x = self.decoder(core_output)
         return self.out_head(x)
 
     def forward(self, inputs, rnn_states):
@@ -305,131 +305,183 @@ class ActorCriticSeparateWeights(ActorCritic):
         self.critic = Critic(model_factory, obs_space, cfg, 1)
         self.encoders = [self.actor.encoder, self.critic.encoder]
 
-    def forward_head(self, normalized_obs_dict: Dict[str, Tensor], values_only=False) -> Tensor:
+    def forward_head(self, normalized_obs_dict: Dict[str, Tensor], values_only=False) -> Tuple[Optional[Tensor], Tensor]:
         critic_head = self.critic.head(normalized_obs_dict)
         actor_head = torch.zeros_like(critic_head) if values_only else self.actor.head(normalized_obs_dict)
-        with torch.no_grad():
-            head_out = torch.cat([actor_head, critic_head], dim=1)
-        return head_out
+        return actor_head, critic_head
 
-    def forward_core(self, head_output, rnn_states=None, values_only=False) -> Tuple[Tensor, Tensor]:
-        num_cores = len(self.encoders)
+    def forward_core(
+            self,
+            actor_head: Optional[Tensor],
+            critic_head: Tensor,
+            rnn_states: Optional[Tensor] = None,
+            values_only: bool = False
+    ) -> Tuple[Optional[Tensor], Tensor, Optional[Tensor], Tensor]:
 
-        rnn_states_split = rnn_states.chunk(num_cores, dim=1)
+        # Check if rnn_states is a tuple or needs to be chunked
+        if not isinstance(rnn_states, tuple):
+            rnn_states = rnn_states.chunk(2, dim=1)
 
-        if isinstance(head_output, PackedSequence):
-            # We cannot chunk PackedSequence directly, we first have to unpack it,
-            # chunk, then pack chunks again to be able to process then through the cores.
-            # Finally we have to return concatenated outputs so we repeat the process,
-            # but this time using concatenation - unpack, cat and pack.
+        # Process the critic core
+        critic_core_output, new_rnn_states_critic = self.critic.core(critic_head, rnn_states)
 
-            unpacked_head_output, lengths = pad_packed_sequence(head_output)
-            unpacked_head_output_split = unpacked_head_output.chunk(num_cores, dim=2)
-
-            head_outputs_split = [
-                pack_padded_sequence(unpacked_head_output_split[i], lengths, enforce_sorted=False)
-                for i in range(num_cores)
-            ]
-
-            actor_core, new_rnn_states_actor = self.actor.core(head_outputs_split, rnn_states_split)
-            critic_core, new_rnn_states_critic = self.critic.core(head_outputs_split, rnn_states_split)
-
-            actor_sequence, actor_lengths = pad_packed_sequence(actor_core)
-            critic_sequence, critic_lengths = pad_packed_sequence(critic_core)
-
-            with torch.no_grad():
-                unpacked_outputs = torch.cat([actor_sequence, critic_sequence], dim=2)
-            outputs = pack_padded_sequence(unpacked_outputs, lengths, enforce_sorted=False)
+        # Process the actor core only if values_only is False
+        if not values_only and actor_head is not None:
+            actor_core_output, new_rnn_states_actor = self.actor.core(actor_head, rnn_states)
         else:
-            head_output = head_output.chunk(num_cores, dim=1)
-            critic_core, new_rnn_states_critic = self.critic.core(head_output, rnn_states_split)
-            actor_core, new_rnn_states_actor = (torch.zeros_like(critic_core), torch.zeros_like(
-                new_rnn_states_critic)) if values_only else self.actor.core(head_output, rnn_states_split)
-            with torch.no_grad():
-                outputs = torch.cat([actor_core, critic_core], dim=1)
-        with torch.no_grad():
-            new_rnn_states = torch.cat([new_rnn_states_actor, new_rnn_states_critic], dim=1)
-        return outputs, new_rnn_states
+            actor_core_output = new_rnn_states_actor = None
 
-    def forward_tail(self, core_outputs, values_only: bool, sample_actions: bool) -> TensorDict:
-        core_outputs = core_outputs.chunk(len(self.encoders), dim=1)
-        values = self.critic.tail(core_outputs).squeeze()
+        return actor_core_output, critic_core_output, new_rnn_states_actor, new_rnn_states_critic
+
+    def forward_tail(
+            self,
+            actor_core_output: Optional[Tensor],
+            critic_core_output: Tensor,
+            values_only: bool,
+            sample_actions: bool
+    ) -> TensorDict:
+        # Process the critic tail to get values
+        values = self.critic.tail(critic_core_output).squeeze()
         result = TensorDict(values=values)
-        if values_only:
-            return result
-        result["action_logits"], self.last_action_distribution = self.actor.tail(core_outputs)
-        self._maybe_sample_actions(sample_actions, result)
+
+        # Process the actor tail only if values_only is False
+        if not values_only and actor_core_output is not None:
+            action_logits, self.last_action_distribution = self.actor.tail(actor_core_output)
+            result["action_logits"] = action_logits
+            self._maybe_sample_actions(sample_actions, result)
+
         return result
 
     def forward(self, normalized_obs_dict, rnn_states=None, values_only=False):
-        head_outputs = self.forward_head(normalized_obs_dict, values_only)
-        core_outputs, new_rnn_states = self.forward_core(head_outputs, rnn_states, values_only)
-        result = self.forward_tail(core_outputs, values_only, sample_actions=True)
-        result["new_rnn_states"] = new_rnn_states
+        # Forward pass through heads
+        actor_head, critic_head = self.forward_head(normalized_obs_dict, values_only)
+
+        # Forward pass through cores
+        actor_core_output, critic_core_output, new_rnn_states_actor, new_rnn_states_critic = self.forward_core(
+            actor_head, critic_head, rnn_states, values_only
+        )
+
+        # Forward pass through tails
+        result = self.forward_tail(actor_core_output, critic_core_output, values_only, sample_actions=True)
+
+        # Combine new RNN states if applicable
+        if rnn_states is not None:
+            if not values_only and new_rnn_states_actor is not None:
+                new_rnn_states = torch.cat([new_rnn_states_actor, new_rnn_states_critic], dim=1)
+            else:
+                new_rnn_states = new_rnn_states_critic
+            result["new_rnn_states"] = new_rnn_states
+
         return result
 
 
-class SafeActorCriticSeparateWeightsNew(ActorCriticSeparateWeights):
+class SafeActorCriticSeparateWeights(ActorCriticSeparateWeights):
 
     def __init__(self, model_factory, obs_space, action_space, cfg):
-        super(SafeActorCriticSeparateWeightsNew, self).__init__(model_factory, obs_space, action_space, cfg)
+        super(SafeActorCriticSeparateWeights, self).__init__(model_factory, obs_space, action_space, cfg)
         self.cost_critic = Critic(model_factory, obs_space, cfg, 2)
         self.encoders.append(self.cost_critic.encoder)
 
-    def forward_head(self, normalized_obs_dict: Dict[str, Tensor], values_only=False) -> Tensor:
-        head_output = super(ConstraintActorCritic, self).forward_head(normalized_obs_dict, values_only)
+    def forward_head(self, normalized_obs_dict: Dict[str, Tensor], values_only=False) -> Tuple[Optional[Tensor], Tensor, Tensor]:
+        # Process critic head
+        critic_head = self.critic.head(normalized_obs_dict)
+        # Process cost critic head
         cost_critic_head = self.cost_critic.head(normalized_obs_dict)
-        with torch.no_grad():
-            head_out = torch.cat([head_output, cost_critic_head], dim=1)
-        return head_out
+        # Process actor head only if values_only is False
+        actor_head = self.actor.head(normalized_obs_dict) if not values_only else None
+        return actor_head, critic_head, cost_critic_head
 
-    def forward_core(self, head_output, rnn_states=None, values_only=False) -> Tuple[Tensor, Tensor]:
-        num_cores = len(self.encoders)
-
-        rnn_states_split = rnn_states.chunk(num_cores, dim=1)
-
-        if isinstance(head_output, PackedSequence):
-            # We cannot chunk PackedSequence directly, we first have to unpack it,
-            # chunk, then pack chunks again to be able to process then through the cores.
-            # Finally we have to return concatenated outputs so we repeat the process,
-            # but this time using concatenation - unpack, cat and pack.
-
-            unpacked_head_output, lengths = pad_packed_sequence(head_output)
-            unpacked_head_output_split = unpacked_head_output.chunk(num_cores, dim=2)
-
-            head_outputs_split = [
-                pack_padded_sequence(unpacked_head_output_split[i], lengths, enforce_sorted=False)
-                for i in range(num_cores)
-            ]
-
-            actor_core, new_rnn_states_actor = self.actor.core(head_outputs_split, rnn_states_split)
-            critic_core, new_rnn_states_critic = self.critic.core(head_outputs_split, rnn_states_split)
-            cost_critic_core, new_rnn_states_cost_critic = self.cost_critic.core(head_outputs_split, rnn_states_split)
-
-            actor_sequence, actor_lengths = pad_packed_sequence(actor_core)
-            critic_sequence, critic_lengths = pad_packed_sequence(critic_core)
-            cost_critic_sequence, cost_critic_lengths = pad_packed_sequence(cost_critic_core)
-
-            with torch.no_grad():
-                unpacked_outputs = torch.cat([actor_sequence, critic_sequence, cost_critic_sequence], dim=2)
-            outputs = pack_padded_sequence(unpacked_outputs, lengths, enforce_sorted=False)
+    def forward_core(
+            self,
+            actor_head: Optional[Tensor],
+            critic_head: Tensor,
+            cost_critic_head: Tensor,
+            rnn_states: Optional[Tensor] = None,
+            values_only: bool = False
+    ) -> Tuple[Optional[Tensor], Tensor, Tensor, Optional[Tensor], Tensor, Tensor]:
+        # Split rnn_states if provided
+        if rnn_states is not None:
+            rnn_states_actor, rnn_states_critic, rnn_states_cost_critic = rnn_states.chunk(3, dim=1)
         else:
-            head_output = head_output.chunk(num_cores, dim=1)
-            critic_core, new_rnn_states_critic = self.critic.core(head_output, rnn_states_split)
-            cost_critic_core, new_rnn_states_cost_critic = self.cost_critic.core(head_output, rnn_states_split)
-            actor_core, new_rnn_states_actor = (torch.zeros_like(critic_core), torch.zeros_like(
-                new_rnn_states_critic)) if values_only else self.actor.core(head_output, rnn_states_split)
-            with torch.no_grad():
-                outputs = torch.cat([actor_core, critic_core, cost_critic_core], dim=1)
-        with torch.no_grad():
-            new_rnn_states = torch.cat([new_rnn_states_actor, new_rnn_states_critic, new_rnn_states_cost_critic], dim=1)
-        return outputs, new_rnn_states
+            rnn_states_actor = rnn_states_critic = rnn_states_cost_critic = None
 
-    def forward_tail(self, core_outputs, values_only: bool, sample_actions: bool) -> TensorDict:
-        result = super(ConstraintActorCritic, self).forward_tail(core_outputs, values_only, sample_actions)
-        core_outputs = core_outputs.chunk(len(self.encoders), dim=1)
-        cost_values = self.cost_critic.tail(core_outputs).squeeze()
-        result["cost_values"] = cost_values
+        # Process critic core
+        critic_core_output, new_rnn_states_critic = self.critic.core(critic_head, rnn_states_critic)
+
+        # Process cost critic core
+        cost_critic_core_output, new_rnn_states_cost_critic = self.cost_critic.core(cost_critic_head, rnn_states_cost_critic)
+
+        # Process actor core only if values_only is False
+        if not values_only and actor_head is not None:
+            actor_core_output, new_rnn_states_actor = self.actor.core(actor_head, rnn_states_actor)
+        else:
+            actor_core_output = new_rnn_states_actor = None
+
+        return (
+            actor_core_output,
+            critic_core_output,
+            cost_critic_core_output,
+            new_rnn_states_actor,
+            new_rnn_states_critic,
+            new_rnn_states_cost_critic,
+        )
+
+    def forward_tail(
+            self,
+            actor_core_output: Optional[Tensor],
+            critic_core_output: Tensor,
+            cost_critic_core_output: Tensor,
+            values_only: bool,
+            sample_actions: bool
+    ) -> TensorDict:
+        # Process critic tail to get values
+        values = self.critic.tail(critic_core_output).squeeze()
+        # Process cost critic tail to get cost values
+        cost_values = self.cost_critic.tail(cost_critic_core_output).squeeze()
+        result = TensorDict(values=values, cost_values=cost_values)
+
+        # Process actor tail only if values_only is False
+        if not values_only and actor_core_output is not None:
+            action_logits, self.last_action_distribution = self.actor.tail(actor_core_output)
+            result["action_logits"] = action_logits
+            self._maybe_sample_actions(sample_actions, result)
+
+        return result
+
+    def forward(self, normalized_obs_dict, rnn_states=None, values_only=False):
+        # Forward pass through heads
+        actor_head, critic_head, cost_critic_head = self.forward_head(normalized_obs_dict, values_only)
+
+        # Forward pass through cores
+        (
+            actor_core_output,
+            critic_core_output,
+            cost_critic_core_output,
+            new_rnn_states_actor,
+            new_rnn_states_critic,
+            new_rnn_states_cost_critic,
+        ) = self.forward_core(actor_head, critic_head, cost_critic_head, rnn_states, values_only)
+
+        # Forward pass through tails
+        result = self.forward_tail(
+            actor_core_output, critic_core_output, cost_critic_core_output, values_only, sample_actions=True
+        )
+
+        # Combine new RNN states if applicable
+        if rnn_states is not None:
+            new_rnn_states_list = []
+            if not values_only and new_rnn_states_actor is not None:
+                new_rnn_states_list.append(new_rnn_states_actor)
+            else:
+                # Placeholder to maintain order if actor is skipped
+                new_rnn_states_list.append(torch.zeros_like(new_rnn_states_critic))
+
+            new_rnn_states_list.append(new_rnn_states_critic)
+            new_rnn_states_list.append(new_rnn_states_cost_critic)
+
+            new_rnn_states = torch.cat(new_rnn_states_list, dim=1)
+            result["new_rnn_states"] = new_rnn_states
+
         return result
 
 
@@ -626,6 +678,16 @@ def default_make_actor_critic_func(cfg: Config, obs_space: ObsSpace, action_spac
         if cfg.actor_critic_share_weights:
             raise ValueError("CPO does not support shared weights")
         return ConstraintActorCritic(model_factory, obs_space, action_space, cfg)
+    elif cfg.algo in ["TRPO"]:
+        cfg.rnn_size = cfg.rnn_size // 2
+        model = ActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
+        cfg.rnn_size = cfg.rnn_size * 2
+        return model
+    elif cfg.algo in ["TRPOLag"]:
+        cfg.rnn_size = cfg.rnn_size // 2
+        model = SafeActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
+        cfg.rnn_size = cfg.rnn_size * 2
+        return model
     elif cfg.algo in ["PPOLag", "PPOPID", "P3O"]:
         return SafeActorCriticSharedWeights(model_factory, obs_space, action_space, cfg)
     elif cfg.algo == "PPOSaute":

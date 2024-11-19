@@ -131,7 +131,7 @@ def build_rnn_inputs(x, dones_cpu, rnn_states, T: int):
     inverted_select_inds = invert_permutation(select_inds)
 
     def device(t):
-        return t.to(device=x.device)
+        return t.to(device=x[0].device if isinstance(x, tuple) else x.device)
 
     select_inds = device(select_inds)
     inverted_select_inds = device(inverted_select_inds)
@@ -139,19 +139,41 @@ def build_rnn_inputs(x, dones_cpu, rnn_states, T: int):
     rollout_starts = device(rollout_starts)
     is_new_episode = device(is_new_episode)
 
-    x_seq = PackedSequence(x.index_select(0, select_inds), batch_sizes, sorted_indices)
+    if isinstance(x, tuple):  # Split head setting
+        # Split rnn_states into actor and critic components
+        rnn_state_dim = rnn_states.shape[-1] // 2
+        actor_rnn_states = rnn_states[:, :rnn_state_dim]
+        critic_rnn_states = rnn_states[:, rnn_state_dim:]
 
-    # We zero-out rnn states for timesteps at the beginning of the episode.
-    # rollout_starts are indices of all starts of sequences
-    # (which can be due to episode boundary or just boundary of a rollout)
-    # (1 - is_new_episode.view(-1, 1)).index_select(0, rollout_starts) gives us a zero for every beginning of
-    # the sequence that is actually also a start of a new episode, and by multiplying this RNN state by zero
-    # we ensure no information transfer across episode boundaries.
-    rnn_states = rnn_states.index_select(0, rollout_starts)
-    is_same_episode = (1 - is_new_episode.view(-1, 1)).index_select(0, rollout_starts)
-    rnn_states = rnn_states * is_same_episode
+        # Create PackedSequences for both actor and critic outputs
+        actor_seq = PackedSequence(x[0].index_select(0, select_inds), batch_sizes, sorted_indices)
+        critic_seq = PackedSequence(x[1].index_select(0, select_inds), batch_sizes, sorted_indices)
 
-    return x_seq, rnn_states, inverted_select_inds
+        # Zero-out RNN states for episode boundaries
+        actor_rnn_states = actor_rnn_states.index_select(0, rollout_starts)
+        critic_rnn_states = critic_rnn_states.index_select(0, rollout_starts)
+        is_same_episode = (1 - is_new_episode.view(-1, 1)).index_select(0, rollout_starts)
+
+        actor_rnn_states = actor_rnn_states * is_same_episode
+        critic_rnn_states = critic_rnn_states * is_same_episode
+
+        return actor_seq, critic_seq, (actor_rnn_states, critic_rnn_states), inverted_select_inds
+
+    else:  # Shared backbone setting
+
+        x_seq = PackedSequence(x.index_select(0, select_inds), batch_sizes, sorted_indices)
+
+        # We zero-out rnn states for timesteps at the beginning of the episode.
+        # rollout_starts are indices of all starts of sequences
+        # (which can be due to episode boundary or just boundary of a rollout)
+        # (1 - is_new_episode.view(-1, 1)).index_select(0, rollout_starts) gives us a zero for every beginning of
+        # the sequence that is actually also a start of a new episode, and by multiplying this RNN state by zero
+        # we ensure no information transfer across episode boundaries.
+        rnn_states = rnn_states.index_select(0, rollout_starts)
+        is_same_episode = (1 - is_new_episode.view(-1, 1)).index_select(0, rollout_starts)
+        rnn_states = rnn_states * is_same_episode
+
+        return x_seq, rnn_states, inverted_select_inds
 
 
 def build_core_out_from_seq(x_seq: PackedSequence, inverted_select_inds):
