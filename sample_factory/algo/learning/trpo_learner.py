@@ -612,6 +612,7 @@ class TRPOLearner(Configurable):
 
         if success:
             self._set_flat_params_to(policy_params, new_params)
+            log.info("Line search succeeded. Updating parameters...")
         else:
             log.warning("Line search failed. No parameter update performed.")
 
@@ -656,7 +657,7 @@ class TRPOLearner(Configurable):
 
     def _line_search(self, mb, prev_params, full_step, prev_loss, valids, num_invalids):
         max_backtracks = 10
-        accept_ratio = 0.1
+        accept_ratio = 0.1  # Not currently used
         stepfrac = 1.0
         params = [p for p in self.actor_critic.actor.parameters() if p.requires_grad]
 
@@ -665,14 +666,37 @@ class TRPOLearner(Configurable):
             self._set_flat_params_to(params, new_params)
 
             with torch.no_grad():
-                # Recompute losses and KL divergence
+                # Recompute forward pass with updated parameters
+                # Forward the observations through the network to get new action distributions
+                head_outputs = self.actor_critic.forward_head(mb.normalized_obs)
+                if self.cfg.use_rnn:
+                    # Rebuild RNN inputs if necessary
+                    done_or_invalid = torch.logical_or(mb.dones_cpu, ~valids.cpu()).float()
+                    actor_head_output_seq, critic_head_output_seq, rnn_states, inverted_select_inds = build_rnn_inputs(
+                        head_outputs,
+                        done_or_invalid,
+                        mb.rnn_states,
+                        self.cfg.recurrence,
+                    )
+                    with torch.backends.cudnn.flags(enabled=False):
+                        actor_core_output_seq, critic_core_output_seq, _, _ = self.actor_critic.forward_core(
+                            actor_head_output_seq, critic_head_output_seq, rnn_states)
+                    actor_core_outputs = build_core_out_from_seq(actor_core_output_seq, inverted_select_inds)
+                    critic_core_outputs = build_core_out_from_seq(critic_core_output_seq, inverted_select_inds)
+                else:
+                    actor_core_outputs, critic_core_outputs, _, _ = self.actor_critic.forward_core(head_outputs, rnn_states)
+                result = self.actor_critic.forward_tail(actor_core_outputs, critic_core_outputs, values_only=False,
+                                                        sample_actions=False)
                 action_distribution = self.actor_critic.action_distribution()
                 log_prob_actions = action_distribution.log_prob(mb.actions)
+
+                # Recompute surrogate loss
                 adv = mb.advantages
                 adv_std, adv_mean = torch.std_mean(masked_select(adv, valids, num_invalids))
                 adv = (adv - adv_mean) / torch.clamp_min(adv_std, 1e-7)
-
                 surrogate_loss = -torch.mean(masked_select(log_prob_actions * adv, valids, num_invalids))
+
+                # Recompute KL divergence
                 kl_div = self._compute_kl(mb, valids, num_invalids).mean()
 
             # Check improvement and KL constraint
@@ -684,6 +708,7 @@ class TRPOLearner(Configurable):
         # If line search fails, revert to previous parameters
         self._set_flat_params_to(params, prev_params)
         return False, prev_params
+
 
     def _get_flat_params_from(self, params):
         return torch.cat([p.data.view(-1) for p in params])
