@@ -426,11 +426,45 @@ def add_rl_args(p: ArgumentParser):
         type=float,
         help="Maximum KL divergence between old and new policies. Controls how much the policy can change in a single update."
     )
+
+    # Conjugate Gradient Parameters
     p.add_argument(
-        "--damping_coeff",
+        "--cg_nsteps",
+        default=10,
+        type=int,
+        help="Number of steps to take in the conjugate gradient solver."
+    )
+    p.add_argument(
+        "--cg_residual_tol",
+        default=1e-10,
+        type=float,
+        help="Residual tolerance for the conjugate gradient solver. Lower values mean higher precision."
+    )
+    p.add_argument(
+        "--cg_damping",
         default=0.1,
         type=float,
-        help="Coefficient for damping the Fisher information matrix to stabilize the conjugate gradient solution."
+        help="Damping coefficient for the Fisher vector product to improve numerical stability."
+    )
+
+    # Line Search Parameters
+    p.add_argument(
+        "--line_search_max_backtracks",
+        default=10,
+        type=int,
+        help="Maximum number of backtracking steps in line search."
+    )
+    p.add_argument(
+        "--line_search_backtrack_coeff",
+        default=0.5,
+        type=float,
+        help="Factor by which to reduce step size during backtracking in line search."
+    )
+    p.add_argument(
+        "--line_search_accept_ratio",
+        default=0.1,
+        type=float,
+        help="Improvement ratio threshold for accepting a step during line search."
     )
 
 

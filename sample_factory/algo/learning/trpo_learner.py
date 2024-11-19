@@ -594,7 +594,7 @@ class TRPOLearner(Configurable):
             kl_hessian = torch.autograd.grad(kl_grad_v, policy_params, retain_graph=True)
             flat_kl_hessian = torch.cat([g.contiguous().view(-1) for g in kl_hessian]).detach()
 
-            return flat_kl_hessian + self.cfg.damping_coeff * v
+            return flat_kl_hessian + self.cfg.cg_damping * v
 
         # Compute step direction using Conjugate Gradient
         step_dir = self._conjugate_gradient(Fvp, grads)
@@ -635,19 +635,19 @@ class TRPOLearner(Configurable):
         kl = masked_select(kl, valids, num_invalids)
         return kl
 
-    def _conjugate_gradient(self, Avp_func, b, nsteps=10, residual_tol=1e-10):
+    def _conjugate_gradient(self, Avp_func, b):
         x = torch.zeros_like(b)
         r = b.clone()
         p = r.clone()
         rdotr = r.dot(r)
 
-        for _ in range(nsteps):
+        for _ in range(self.cfg.cg_nsteps):
             Avp = Avp_func(p)
             alpha = rdotr / (p.dot(Avp) + 1e-8)
             x += alpha * p
             r -= alpha * Avp
             new_rdotr = r.dot(r)
-            if new_rdotr < residual_tol:
+            if new_rdotr < self.cfg.cg_residual_tol:
                 break
             beta = new_rdotr / rdotr
             p = r + beta * p
@@ -656,12 +656,11 @@ class TRPOLearner(Configurable):
         return x
 
     def _line_search(self, mb, prev_params, full_step, prev_loss, valids, num_invalids):
-        max_backtracks = 10
-        accept_ratio = 0.1  # Not currently used
         stepfrac = 1.0
+        accept_ratio = self.cfg.line_search_accept_ratio  # Not currently used
         params = [p for p in self.actor_critic.actor.parameters() if p.requires_grad]
 
-        for _ in range(max_backtracks):
+        for _ in range(self.cfg.line_search_max_backtracks):
             new_params = prev_params + stepfrac * full_step
             self._set_flat_params_to(params, new_params)
 
@@ -703,7 +702,7 @@ class TRPOLearner(Configurable):
             loss_improve = prev_loss - surrogate_loss
             if loss_improve.item() > 0 and kl_div.item() <= self.cfg.max_kl:
                 return True, new_params
-            stepfrac *= 0.5
+            stepfrac *= self.cfg.line_search_backtrack_coeff
 
         # If line search fails, revert to previous parameters
         self._set_flat_params_to(params, prev_params)
@@ -1011,38 +1010,6 @@ class TRPOLearner(Configurable):
             if rdotr < residual_tol:
                 break
         return x
-
-    def fisher_vector_product(self, vector, obs, old_action_distribution):
-        vector = vector.detach()
-        kl = self._compute_kl_divergence(obs, old_action_distribution)
-        grads = torch.autograd.grad(kl, self.actor_critic.parameters(), create_graph=True)
-        flat_grad_kl = torch.cat([grad.view(-1) for grad in grads])
-        kl_v = (flat_grad_kl * vector).sum()
-        grads = torch.autograd.grad(kl_v, self.actor_critic.parameters())
-        fisher_vector_product = torch.cat([grad.contiguous().view(-1) for grad in grads]).detach()
-        return fisher_vector_product + self.cfg.cg_damping * vector
-
-    def _compute_kl_divergence(self, obs, old_action_distribution):
-        outputs = self.actor_critic(obs)
-        new_action_distribution = self.actor_critic.action_distribution()
-        kl = torch.distributions.kl_divergence(old_action_distribution, new_action_distribution)
-        return kl.mean()
-
-    def line_search(self, model, full_step, expected_improve_rate, obs, actions, advantages, old_log_probs):
-        accept_ratio = .1
-        max_backtracks = 10
-        fval = self._compute_surrogate_loss(obs, actions, advantages, old_log_probs).item()
-        for (_n_backtracks, stepfrac) in enumerate(.5 ** np.arange(max_backtracks)):
-            new_params = self._get_flat_params() + stepfrac * full_step
-            self._set_flat_params(new_params)
-            new_fval = self._compute_surrogate_loss(obs, actions, advantages, old_log_probs).item()
-            actual_improve = fval - new_fval
-            expected_improve = expected_improve_rate * stepfrac
-            improve_ratio = actual_improve / expected_improve
-            if improve_ratio > accept_ratio and actual_improve > 0:
-                log.info(f"Accepting step at step size {stepfrac}")
-                return True, new_params
-        return False, self._get_flat_params()
 
     def _compute_surrogate_loss(self, obs, actions, advantages, old_log_probs):
         outputs = self.actor_critic(obs)
