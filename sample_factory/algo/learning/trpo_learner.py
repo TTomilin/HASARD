@@ -696,7 +696,7 @@ class TRPOLearner(Configurable):
                     actor_core_outputs = build_core_out_from_seq(actor_core_output_seq, actor_inverted_inds)
                     critic_core_outputs = build_core_out_from_seq(critic_core_output_seq, critic_inverted_inds)
                 else:
-                    actor_rnn_states = critic_rnn_states = mb.rnn_states[::self.cfg.recurrence]
+                    actor_rnn_states, critic_rnn_states = mb.rnn_states[::self.cfg.recurrence].chunk(2, dim=1)
                     actor_core_outputs, critic_core_outputs, _, _ = self.actor_critic.forward_core(actor_head_outputs, critic_head_outputs,
                                                                                                    actor_rnn_states, critic_rnn_states)
                 result = self.actor_critic.forward_tail(actor_core_outputs, critic_core_outputs, values_only=False,
@@ -914,7 +914,7 @@ class TRPOLearner(Configurable):
                     self.cfg.recurrence,
                 )
             else:
-                actor_rnn_states = critic_rnn_states = mb.rnn_states[::recurrence]
+                actor_rnn_states, critic_rnn_states = mb.rnn_states[::recurrence].chunk(2, dim=1)
 
         # Calculate RNN outputs for each timestep in a loop
         with self.timing.add_time("bptt"):

@@ -352,8 +352,7 @@ class ActorCriticSeparateWeights(ActorCritic):
         # Forward pass through heads
         actor_head, critic_head = self.forward_head(normalized_obs_dict, values_only)
 
-        rnn_states_actor, rnn_states_critic = rnn_states.chunk(2, dim=1) if self.cfg.use_rnn else (
-        rnn_states, rnn_states)
+        rnn_states_actor, rnn_states_critic = rnn_states.chunk(2, dim=1)
 
         # Forward pass through cores
         actor_core_output, critic_core_output, new_rnn_states_actor, new_rnn_states_critic = self.forward_core(
@@ -365,7 +364,7 @@ class ActorCriticSeparateWeights(ActorCritic):
 
         # Combine new RNN states if applicable
         if rnn_states is not None:
-            if not values_only and new_rnn_states_actor is not None and self.cfg.use_rnn:
+            if not values_only and new_rnn_states_actor is not None:
                 new_rnn_states = torch.cat([new_rnn_states_actor, new_rnn_states_critic], dim=1)
             else:
                 new_rnn_states = new_rnn_states_critic
@@ -431,8 +430,7 @@ class SafeActorCriticSeparateWeights(ActorCriticSeparateWeights):
         # Forward pass through heads
         actor_head, critic_head, cost_critic_head = self.forward_head(normalized_obs_dict, values_only)
 
-        rnn_states_actor, rnn_states_critic, rnn_states_cost_critic = rnn_states.chunk(3, dim=1) if self.cfg.use_rnn else (
-        rnn_states, rnn_states, rnn_states)
+        rnn_states_actor, rnn_states_critic, rnn_states_cost_critic = rnn_states.chunk(3, dim=1)
 
         # Forward pass through cores
         (
