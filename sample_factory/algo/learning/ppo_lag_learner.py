@@ -83,7 +83,6 @@ class PPOLagLearner(PPOLearner):
 
             del head_outputs
 
-        num_trajectories = minibatch_size // recurrence
         assert core_outputs.shape[0] == minibatch_size
 
         with self.timing.add_time("tail"):
@@ -108,52 +107,11 @@ class PPOLagLearner(PPOLearner):
 
         # these computations are not the part of the computation graph
         with torch.no_grad(), self.timing.add_time("advantages_returns"):
-            if self.cfg.with_vtrace:
-                # V-trace parameters
-                rho_hat = torch.Tensor([self.cfg.vtrace_rho])
-                c_hat = torch.Tensor([self.cfg.vtrace_c])
-
-                ratios_cpu = ratio.cpu()
-                values_cpu = values.cpu()
-                rewards_cpu = mb.rewards_cpu
-                dones_cpu = mb.dones_cpu
-
-                vtrace_rho = torch.min(rho_hat, ratios_cpu)
-                vtrace_c = torch.min(c_hat, ratios_cpu)
-
-                vs = torch.zeros((num_trajectories * recurrence))
-                adv = torch.zeros((num_trajectories * recurrence))
-
-                next_values = values_cpu[recurrence - 1:: recurrence] - rewards_cpu[recurrence - 1:: recurrence]
-                next_values /= self.cfg.gamma
-                next_vs = next_values
-
-                for i in reversed(range(self.cfg.recurrence)):
-                    rewards = rewards_cpu[i::recurrence]
-                    dones = dones_cpu[i::recurrence]
-                    not_done = 1.0 - dones
-                    not_done_gamma = not_done * self.cfg.gamma
-
-                    curr_values = values_cpu[i::recurrence]
-                    curr_vtrace_rho = vtrace_rho[i::recurrence]
-                    curr_vtrace_c = vtrace_c[i::recurrence]
-
-                    delta_s = curr_vtrace_rho * (rewards + not_done_gamma * next_values - curr_values)
-                    adv[i::recurrence] = curr_vtrace_rho * (rewards + not_done_gamma * next_vs - curr_values)
-                    next_vs = curr_values + delta_s + not_done_gamma * curr_vtrace_c * (next_vs - next_values)
-                    vs[i::recurrence] = next_vs
-
-                    next_values = curr_values
-
-                targets = vs.to(self.device)
-                adv = adv.to(self.device)
-                # TODO implement cost V-trace
-            else:
-                # using regular GAE
-                adv = mb.advantages
-                targets = mb.returns
-                cost_adv = mb.cost_advantages
-                cost_targets = mb.cost_returns
+            # using regular GAE
+            adv = mb.advantages
+            targets = mb.returns
+            cost_adv = mb.cost_advantages
+            cost_targets = mb.cost_returns
 
             adv = self._compute_adv_surrogate(adv, cost_adv)
             adv_std, adv_mean = torch.std_mean(masked_select(adv, valids, num_invalids))
@@ -190,7 +148,6 @@ class PPOLagLearner(PPOLearner):
     def _update_lagrange(self, mean_cost):
         # Calculate the average cost constraint violation
         cost_violation = (mean_cost - self.safety_bound).detach()
-        # cost_violation = ((mb["costs"].mean() - safety_bound) * (1 - self.cfg.gamma) + (ratio * cost_adv)).mean().detach()
         # Update lambda_lagr based on the violation magnitude
         delta_lambda_lagr = cost_violation * self.cfg.lagrangian_coef_rate
         new_lambda_lagr = self.lambda_lagr + delta_lambda_lagr

@@ -672,10 +672,7 @@ class TRPOLearner(Configurable):
                     done_or_invalid = torch.logical_or(mb.dones_cpu, ~valids.cpu()).float()
 
                     # Split rnn_states into actor and critic components
-                    rnn_states = mb.rnn_states
-                    rnn_state_dim = rnn_states.shape[-1] // 2
-                    actor_rnn_states = rnn_states[:, :rnn_state_dim]
-                    critic_rnn_states = rnn_states[:, rnn_state_dim:]
+                    actor_rnn_states, critic_rnn_states = mb.rnn_states.chunk(2, dim=1)
 
                     # Build RNN inputs for actor
                     actor_head_output_seq, actor_rnn_states, actor_inverted_inds = build_rnn_inputs(
@@ -899,10 +896,7 @@ class TRPOLearner(Configurable):
                 done_or_invalid = torch.logical_or(mb.dones_cpu, ~valids.cpu()).float()
 
                 # Split rnn_states into actor and critic components
-                rnn_states = mb.rnn_states
-                rnn_state_dim = rnn_states.shape[-1] // 2
-                actor_rnn_states = rnn_states[:, :rnn_state_dim]
-                critic_rnn_states = rnn_states[:, rnn_state_dim:]
+                actor_rnn_states, critic_rnn_states = mb.rnn_states.chunk(2, dim=1)
 
                 # Build RNN inputs for actor
                 actor_head_output_seq, actor_rnn_states, actor_inverted_inds = build_rnn_inputs(
