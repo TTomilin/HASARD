@@ -450,7 +450,7 @@ def add_rl_args(p: ArgumentParser):
     # Line Search Parameters
     p.add_argument(
         "--line_search_max_backtracks",
-        default=10,
+        default=5,
         type=int,
         help="Maximum number of backtracking steps in line search."
     )
