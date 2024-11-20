@@ -4,13 +4,13 @@ import torch
 from torch import Tensor
 
 from sample_factory.algo.learning.pid_lagrangian import PIDLagrangian
-from sample_factory.algo.learning.ppo_lag_learner import PPOLagLearner
+from sample_factory.algo.learning.trpo_lag_learner import TRPOLagLearner
 from sample_factory.algo.utils.env_info import EnvInfo
 from sample_factory.algo.utils.model_sharing import ParameterServer
 from sample_factory.utils.typing import Config, PolicyID
 
 
-class PPOPidLearner(PPOLagLearner):
+class TRPOPidLearner(TRPOLagLearner):
     def __init__(
             self,
             cfg: Config,
@@ -19,7 +19,7 @@ class PPOPidLearner(PPOLagLearner):
             policy_id: PolicyID,
             param_server: ParameterServer,
     ):
-        PPOLagLearner.__init__(self, cfg, env_info, policy_versions_tensor, policy_id, param_server)
+        TRPOLagLearner.__init__(self, cfg, env_info, policy_versions_tensor, policy_id, param_server)
         self.pid_lagrangian = PIDLagrangian(pid_kp=cfg.pid_kp, pid_ki=cfg.pid_ki, pid_kd=cfg.pid_kd,
                                             pid_d_delay=cfg.pid_d_delay,
                                             pid_delta_p_ema_alpha=cfg.pid_delta_p_ema_alpha,

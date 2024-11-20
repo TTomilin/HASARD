@@ -17,7 +17,7 @@ def get_rnn_size(cfg):
     if cfg.rnn_type == "lstm":
         size *= 2
 
-    if cfg.algo in ["CPO", "TRPOLag"]:
+    if cfg.algo in ["CPO", "TRPOLag", "TRPOPID"]:
         size *= 3  # Also a cost critic
     elif cfg.algo in ["TRPO"] or not cfg.actor_critic_share_weights:
         # actor and critic need separate states

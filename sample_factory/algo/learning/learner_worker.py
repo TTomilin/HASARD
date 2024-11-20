@@ -18,6 +18,7 @@ from sample_factory.algo.learning.ppo_lag_learner import PPOLagLearner
 from sample_factory.algo.learning.ppo_pid_learner import PPOPidLearner
 from sample_factory.algo.learning.trpo_lag_learner import TRPOLagLearner
 from sample_factory.algo.learning.trpo_learner import TRPOLearner
+from sample_factory.algo.learning.trpo_pid_learner import TRPOPidLearner
 from sample_factory.algo.utils.context import SampleFactoryContext, set_global_context
 from sample_factory.algo.utils.env_info import EnvInfo
 from sample_factory.algo.utils.heartbeat import HeartbeatStoppableEventLoopObject
@@ -78,6 +79,8 @@ class LearnerWorker(HeartbeatStoppableEventLoopObject, Configurable):
             learner_cls = TRPOLearner
         elif cfg.algo == 'TRPOLag':
             learner_cls = TRPOLagLearner
+        elif cfg.algo == 'TRPOPID':
+            learner_cls = TRPOPidLearner
         elif cfg.algo == 'CPO':
             learner_cls = CPOLearner
         elif cfg.algo == 'PPOPID':

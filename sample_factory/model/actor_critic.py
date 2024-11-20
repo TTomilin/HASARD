@@ -663,7 +663,7 @@ def default_make_actor_critic_func(cfg: Config, obs_space: ObsSpace, action_spac
         return ConstraintActorCritic(model_factory, obs_space, action_space, cfg)
     elif cfg.algo in ["TRPO"]:
         return ActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
-    elif cfg.algo in ["TRPOLag"]:
+    elif cfg.algo in ["TRPOLag", "TRPOPID"]:
         return SafeActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
     elif cfg.algo in ["PPOLag", "PPOPID", "P3O"]:
         return SafeActorCriticSharedWeights(model_factory, obs_space, action_space, cfg)
