@@ -237,12 +237,11 @@ class SafeActorCriticSharedWeights(ActorCriticSharedWeights):
 
 
 class ACBase(nn.Module):
-    def __init__(self, model_factory, obs_space, cfg, sequence_idx: int):
+    def __init__(self, model_factory, obs_space, cfg):
         super(ACBase, self).__init__()
         self.encoder = model_factory.make_model_encoder_func(cfg, obs_space)
         self._core = model_factory.make_model_core_func(cfg, self.encoder.get_out_size())
         self.decoder = model_factory.make_model_decoder_func(cfg, self._core.get_out_size())
-        self.sequence_idx = sequence_idx
 
     @property
     def out_head(self):
@@ -251,8 +250,8 @@ class ACBase(nn.Module):
     def head(self, inputs):
         return self.encoder(inputs)
 
-    def core(self, head_output, rnn_states):
-        return self._core(head_output, rnn_states[self.sequence_idx])
+    def core(self, head_output, rnn_state):
+        return self._core(head_output, rnn_state)
 
     def tail(self, core_output):
         x = self.decoder(core_output)
@@ -265,8 +264,8 @@ class ACBase(nn.Module):
 
 
 class Actor(ACBase):
-    def __init__(self, model_factory, obs_space, action_space, cfg, sequence_idx: int):
-        super(Actor, self).__init__(model_factory, obs_space, cfg, sequence_idx)
+    def __init__(self, model_factory, obs_space, action_space, cfg):
+        super(Actor, self).__init__(model_factory, obs_space, cfg)
         self.action_parameterization = self.get_action_parameterization(cfg, action_space, self.decoder.get_out_size())
 
     @property
@@ -288,8 +287,8 @@ class Actor(ACBase):
 
 
 class Critic(ACBase):
-    def __init__(self, model_factory, obs_space, cfg, sequence_idx: int):
-        super(Critic, self).__init__(model_factory, obs_space, cfg, sequence_idx)
+    def __init__(self, model_factory, obs_space, cfg):
+        super(Critic, self).__init__(model_factory, obs_space, cfg)
         self.linear = nn.Linear(self.decoder.get_out_size(), 1)
 
     @property
@@ -301,8 +300,8 @@ class ActorCriticSeparateWeights(ActorCritic):
 
     def __init__(self, model_factory, obs_space, action_space, cfg):
         super(ActorCriticSeparateWeights, self).__init__(obs_space, action_space, cfg)
-        self.actor = Actor(model_factory, obs_space, action_space, cfg, 0)
-        self.critic = Critic(model_factory, obs_space, cfg, 1)
+        self.actor = Actor(model_factory, obs_space, action_space, cfg)
+        self.critic = Critic(model_factory, obs_space, cfg)
         self.encoders = [self.actor.encoder, self.critic.encoder]
 
     def forward_head(self, normalized_obs_dict: Dict[str, Tensor], values_only=False) -> Tuple[Optional[Tensor], Tensor]:
@@ -314,20 +313,16 @@ class ActorCriticSeparateWeights(ActorCritic):
             self,
             actor_head: Optional[Tensor],
             critic_head: Tensor,
-            rnn_states: Optional[Tensor] = None,
+            actor_rnn_states: Optional[Tensor] = None,
+            critic_rnn_states: Optional[Tensor] = None,
             values_only: bool = False
     ) -> Tuple[Optional[Tensor], Tensor, Optional[Tensor], Tensor]:
-
-        # Check if rnn_states is a tuple or needs to be chunked
-        if not isinstance(rnn_states, tuple):
-            rnn_states = rnn_states.chunk(2, dim=1)
-
         # Process the critic core
-        critic_core_output, new_rnn_states_critic = self.critic.core(critic_head, rnn_states)
+        critic_core_output, new_rnn_states_critic = self.critic.core(critic_head, critic_rnn_states)
 
         # Process the actor core only if values_only is False
         if not values_only and actor_head is not None:
-            actor_core_output, new_rnn_states_actor = self.actor.core(actor_head, rnn_states)
+            actor_core_output, new_rnn_states_actor = self.actor.core(actor_head, actor_rnn_states)
         else:
             actor_core_output = new_rnn_states_actor = None
 
@@ -356,9 +351,11 @@ class ActorCriticSeparateWeights(ActorCritic):
         # Forward pass through heads
         actor_head, critic_head = self.forward_head(normalized_obs_dict, values_only)
 
+        rnn_states_actor, rnn_states_critic = rnn_states.chunk(2, dim=1) if self.cfg.use_rnn else (rnn_states, rnn_states)
+
         # Forward pass through cores
         actor_core_output, critic_core_output, new_rnn_states_actor, new_rnn_states_critic = self.forward_core(
-            actor_head, critic_head, rnn_states, values_only
+            actor_head, critic_head, rnn_states_actor, rnn_states_critic, values_only
         )
 
         # Forward pass through tails
@@ -366,7 +363,7 @@ class ActorCriticSeparateWeights(ActorCritic):
 
         # Combine new RNN states if applicable
         if rnn_states is not None:
-            if not values_only and new_rnn_states_actor is not None:
+            if not values_only and new_rnn_states_actor is not None and self.cfg.use_rnn:
                 new_rnn_states = torch.cat([new_rnn_states_actor, new_rnn_states_critic], dim=1)
             else:
                 new_rnn_states = new_rnn_states_critic
@@ -383,12 +380,8 @@ class SafeActorCriticSeparateWeights(ActorCriticSeparateWeights):
         self.encoders.append(self.cost_critic.encoder)
 
     def forward_head(self, normalized_obs_dict: Dict[str, Tensor], values_only=False) -> Tuple[Optional[Tensor], Tensor, Tensor]:
-        # Process critic head
-        critic_head = self.critic.head(normalized_obs_dict)
-        # Process cost critic head
+        actor_head, critic_head = super().forward_head(normalized_obs_dict, values_only)
         cost_critic_head = self.cost_critic.head(normalized_obs_dict)
-        # Process actor head only if values_only is False
-        actor_head = self.actor.head(normalized_obs_dict) if not values_only else None
         return actor_head, critic_head, cost_critic_head
 
     def forward_core(
@@ -399,6 +392,13 @@ class SafeActorCriticSeparateWeights(ActorCriticSeparateWeights):
             rnn_states: Optional[Tensor] = None,
             values_only: bool = False
     ) -> Tuple[Optional[Tensor], Tensor, Tensor, Optional[Tensor], Tensor, Tensor]:
+
+        # Check if rnn_states is a tuple or needs to be chunked
+        if not isinstance(rnn_states, tuple):
+            rnn_states = rnn_states.chunk(3, dim=1)
+
+        rnn_states_actor, rnn_states_critic, rnn_states_cost_critic = rnn_states if isinstance(rnn_states, tuple) else rnn_states.chunk(3, dim=1)
+
         # Split rnn_states if provided
         if rnn_states is not None:
             rnn_states_actor, rnn_states_critic, rnn_states_cost_critic = rnn_states.chunk(3, dim=1)
@@ -679,15 +679,9 @@ def default_make_actor_critic_func(cfg: Config, obs_space: ObsSpace, action_spac
             raise ValueError("CPO does not support shared weights")
         return ConstraintActorCritic(model_factory, obs_space, action_space, cfg)
     elif cfg.algo in ["TRPO"]:
-        cfg.rnn_size = cfg.rnn_size // 2
-        model = ActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
-        cfg.rnn_size = cfg.rnn_size * 2
-        return model
+        return ActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
     elif cfg.algo in ["TRPOLag"]:
-        cfg.rnn_size = cfg.rnn_size // 2
-        model = SafeActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
-        cfg.rnn_size = cfg.rnn_size * 2
-        return model
+        return SafeActorCriticSeparateWeights(model_factory, obs_space, action_space, cfg)
     elif cfg.algo in ["PPOLag", "PPOPID", "P3O"]:
         return SafeActorCriticSharedWeights(model_factory, obs_space, action_space, cfg)
     elif cfg.algo == "PPOSaute":

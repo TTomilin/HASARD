@@ -666,24 +666,42 @@ class TRPOLearner(Configurable):
             with torch.no_grad():
                 # Recompute forward pass with updated parameters
                 # Forward the observations through the network to get new action distributions
-                head_outputs = self.actor_critic.forward_head(mb.normalized_obs)
+                actor_head_outputs, critic_head_outputs = self.actor_critic.forward_head(mb.normalized_obs)
                 if self.cfg.use_rnn:
                     # Rebuild RNN inputs if necessary
                     done_or_invalid = torch.logical_or(mb.dones_cpu, ~valids.cpu()).float()
-                    actor_head_output_seq, critic_head_output_seq, rnn_states, inverted_select_inds = build_rnn_inputs(
-                        head_outputs,
+
+                    # Split rnn_states into actor and critic components
+                    rnn_states = mb.rnn_states
+                    rnn_state_dim = rnn_states.shape[-1] // 2
+                    actor_rnn_states = rnn_states[:, :rnn_state_dim]
+                    critic_rnn_states = rnn_states[:, rnn_state_dim:]
+
+                    # Build RNN inputs for actor
+                    actor_head_output_seq, actor_rnn_states, actor_inverted_inds = build_rnn_inputs(
+                        actor_head_outputs,
                         done_or_invalid,
-                        mb.rnn_states,
+                        actor_rnn_states,
                         self.cfg.recurrence,
                     )
+
+                    # Build RNN inputs for critic
+                    critic_head_output_seq, critic_rnn_states, critic_inverted_inds = build_rnn_inputs(
+                        critic_head_outputs,
+                        done_or_invalid,
+                        critic_rnn_states,
+                        self.cfg.recurrence,
+                    )
+
                     with torch.backends.cudnn.flags(enabled=False):
                         actor_core_output_seq, critic_core_output_seq, _, _ = self.actor_critic.forward_core(
-                            actor_head_output_seq, critic_head_output_seq, rnn_states)
-                    actor_core_outputs = build_core_out_from_seq(actor_core_output_seq, inverted_select_inds)
-                    critic_core_outputs = build_core_out_from_seq(critic_core_output_seq, inverted_select_inds)
+                            actor_head_output_seq, critic_head_output_seq, actor_rnn_states, critic_rnn_states)
+                    actor_core_outputs = build_core_out_from_seq(actor_core_output_seq, actor_inverted_inds)
+                    critic_core_outputs = build_core_out_from_seq(critic_core_output_seq, critic_inverted_inds)
                 else:
-                    actor_core_outputs, critic_core_outputs, _, _ = self.actor_critic.forward_core(head_outputs,
-                                                                                                   rnn_states)
+                    actor_rnn_states = critic_rnn_states = mb.rnn_states[::self.cfg.recurrence]
+                    actor_core_outputs, critic_core_outputs, _, _ = self.actor_critic.forward_core(actor_head_outputs, critic_head_outputs,
+                                                                                                   actor_rnn_states, critic_rnn_states)
                 result = self.actor_critic.forward_tail(actor_core_outputs, critic_core_outputs, values_only=False,
                                                         sample_actions=False)
                 action_distribution = self.actor_critic.action_distribution()
@@ -871,22 +889,38 @@ class TRPOLearner(Configurable):
 
         # Calculate policy head outside of recurrent loop
         with self.timing.add_time("forward_head"):
-            head_outputs = self.actor_critic.forward_head(mb.normalized_obs)
-            minibatch_size: int = head_outputs[0].size(0)
+            actor_head_outputs, critic_head_outputs = self.actor_critic.forward_head(mb.normalized_obs)
+            minibatch_size: int = actor_head_outputs.size(0)
 
         # Initial RNN states
         with self.timing.add_time("bptt_initial"):
             if self.cfg.use_rnn:
                 # Stop RNNs from backpropagating through invalid timesteps
                 done_or_invalid = torch.logical_or(mb.dones_cpu, ~valids.cpu()).float()
-                actor_head_output_seq, critic_head_output_seq, rnn_states, inverted_select_inds = build_rnn_inputs(
-                    head_outputs,
+
+                # Split rnn_states into actor and critic components
+                rnn_states = mb.rnn_states
+                rnn_state_dim = rnn_states.shape[-1] // 2
+                actor_rnn_states = rnn_states[:, :rnn_state_dim]
+                critic_rnn_states = rnn_states[:, rnn_state_dim:]
+
+                # Build RNN inputs for actor
+                actor_head_output_seq, actor_rnn_states, actor_inverted_inds = build_rnn_inputs(
+                    actor_head_outputs,
                     done_or_invalid,
-                    mb.rnn_states,
-                    recurrence,
+                    actor_rnn_states,
+                    self.cfg.recurrence,
+                )
+
+                # Build RNN inputs for critic
+                critic_head_output_seq, critic_rnn_states, critic_inverted_inds = build_rnn_inputs(
+                    critic_head_outputs,
+                    done_or_invalid,
+                    critic_rnn_states,
+                    self.cfg.recurrence,
                 )
             else:
-                rnn_states = mb.rnn_states[::recurrence]
+                actor_rnn_states = critic_rnn_states = mb.rnn_states[::recurrence]
 
         # Calculate RNN outputs for each timestep in a loop
         with self.timing.add_time("bptt"):
@@ -895,19 +929,17 @@ class TRPOLearner(Configurable):
                     # Disable CuDNN during the RNN forward pass
                     with torch.backends.cudnn.flags(enabled=False):
                         actor_core_output_seq, critic_core_output_seq, _, _ = self.actor_critic.forward_core(
-                            actor_head_output_seq, critic_head_output_seq, rnn_states)
-                    # actor_core_output_seq, critic_core_output_seq, _, _ = self.actor_critic.forward_core(
-                    #     actor_head_output_seq, critic_head_output_seq, rnn_states)
-                actor_core_outputs = build_core_out_from_seq(actor_core_output_seq, inverted_select_inds)
-                critic_core_outputs = build_core_out_from_seq(critic_core_output_seq, inverted_select_inds)
+                            actor_head_output_seq, critic_head_output_seq, actor_rnn_states, critic_rnn_states)
+                actor_core_outputs = build_core_out_from_seq(actor_core_output_seq, actor_inverted_inds)
+                critic_core_outputs = build_core_out_from_seq(critic_core_output_seq, critic_inverted_inds)
                 del actor_core_output_seq
                 del critic_core_output_seq
             else:
-                actor_core_outputs, critic_core_outputs, _, _ = self.actor_critic.forward_core(head_outputs, rnn_states)
+                actor_core_outputs, critic_core_outputs, _, _ = self.actor_critic.forward_core(actor_head_outputs, critic_head_outputs, actor_rnn_states, critic_rnn_states)
 
-            del head_outputs
+            del actor_head_outputs
+            del critic_head_outputs
 
-        num_trajectories = minibatch_size // recurrence
         assert actor_core_outputs.shape[0] == minibatch_size
 
         with self.timing.add_time("tail"):
