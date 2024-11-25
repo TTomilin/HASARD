@@ -121,7 +121,8 @@ def plot_metrics(data, args):
                                 verticalalignment='top', transform=ax.get_yaxis_transform(), fontsize=10,
                                 style='italic', color='darkred')
 
-    fig.legend(lines, labels, loc='lower center', ncol=len(args.algos), fontsize=12, fancybox=True, shadow=True,
+    fontsize = 12 if len(args.algos) < 9 else 11
+    fig.legend(lines, labels, loc='lower center', ncol=len(args.algos), fontsize=fontsize, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.0))
 
     folder = 'plots'
@@ -136,7 +137,7 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--input", type=str, default='data/main', help="Base input directory containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O"],
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
                         help="Algorithms to download/plot")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",

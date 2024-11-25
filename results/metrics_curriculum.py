@@ -124,7 +124,7 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
     parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/curriculum'],
                         help="Base input directories containing the data")
-    parser.add_argument("--method", type=str, default="PPOPID", choices=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O"],
+    parser.add_argument("--method", type=str, default="PPOPID", choices=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
                         help="Algorithm to analyze")
     parser.add_argument("--level", type=int, default=3, choices=[1, 2, 3], help="Level of the run(s) to compute")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
