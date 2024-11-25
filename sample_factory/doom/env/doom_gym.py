@@ -108,6 +108,7 @@ class VizdoomEnv(gym.Env):
             skip_frames=1,
             async_mode=False,
             record_to=None,
+            env_modification: str = None,
             resolution: str = None,
             seed: Optional[int] = None,
             render_mode: Optional[str] = None,
@@ -155,7 +156,11 @@ class VizdoomEnv(gym.Env):
 
         base_path = self.config_path.replace('_all', '').replace('.cfg', f'_{level}')
         self.hard_constraint = constraint == 'hard'
-        self.scenario_path = f"{base_path}_hard.wad" if self.hard_constraint else f"{base_path}.wad"
+        if self.hard_constraint:
+            base_path += f'_{constraint}'
+        if env_modification:
+            base_path += f'_{env_modification}'
+        self.scenario_path = f"{base_path}.wad"
 
         self.variable_indices = self._parse_variable_indices(self.config_path)
 

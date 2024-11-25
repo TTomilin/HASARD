@@ -204,6 +204,7 @@ def make_doom_env_impl(
         show_automap=cfg.show_automap,
         async_mode=async_mode,
         render_mode=render_mode,
+        env_modification=cfg.env_modification,
         resolution=cfg.resolution,
         seed=cfg.seed,
     )

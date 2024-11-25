@@ -843,6 +843,9 @@ def add_default_env_args(p: ArgumentParser):
         "Frameskip=1 (default) means no frameskip, we process every frame.",
     )
     p.add_argument(
+        "--env_modification", default=None, type=str, help="Name of the environment modification to apply"
+    )
+    p.add_argument(
         "--env_framestack", default=1, type=int, help="Frame stacking (only used in Atari, and it is usually set to 4)"
     )  # <-- this probably should be moved to environment-specific scripts
     p.add_argument(
@@ -995,7 +998,7 @@ def add_logging_args(p: ArgumentParser):
     )
     p.add_argument(
         "--heatmap_log_interval",
-        default=500000,
+        default=int(1e6),
         type=int,
         help="How often to log the heatmap evolution gif",
     )
@@ -1007,7 +1010,7 @@ def add_logging_args(p: ArgumentParser):
     )
     p.add_argument(
         "--gif_log_interval",
-        default=100000000,
+        default=int(1e8),
         type=int,
         help="How often to log the heatmap evolution gif",
     )
