@@ -442,7 +442,7 @@ class Runner(EventLoopObject, Configurable):
         colorbar_width_factor = 0.25  # Approximation of colorbar width to figure width
 
         # Calculate figure dimensions basing the width on a fixed height
-        base_height = 2 if self.env_info.name in ['precipice_plunge', 'detonators_dilemma'] else 7
+        base_height = 2 if self.env_info.name in ['precipice_plunge', 'detonators_dilemma'] else 4
         fig_width = base_height * aspect_ratio * (1 + colorbar_width_factor)
 
         # Create a figure and axis to plot the map and heatmap
@@ -459,12 +459,13 @@ class Runner(EventLoopObject, Configurable):
         plt.yticks([])
 
         # Add a step counter on the frame
-        plt.text(0.99, 0.99, f'Step: {global_step:09d}', fontsize=14, color='white',
+        plt.text(0.99, 0.99, f'Step: {global_step:09d}', fontsize=12, color='white',
                  horizontalalignment='right', verticalalignment='top', transform=plt.gca().transAxes)
 
         # Save the plot to a buffer
         buf = BytesIO()
         plt.savefig(buf, format='png')
+        buf.seek(0)
 
         if not self.frames_dir:
             self.frames_dir = join(frames_dir(experiment_dir(cfg=self.cfg)))  # Create a directory for storing frames
@@ -474,7 +475,6 @@ class Runner(EventLoopObject, Configurable):
         plt.close()
 
         # Log to Weights & Biases
-        buf.seek(0)
         image = Image.open(buf)
 
         wandb.log({tag: wandb.Image(image)}, step=global_step)
@@ -511,7 +511,7 @@ class Runner(EventLoopObject, Configurable):
 
             # Log the GIF to wandb
             wandb.log({tag: wandb.Video(gif_buffer, format="gif")})
-            print(f"GIF uploaded to wandb as {tag}")
+            print(f"{total_duration_secs} second GIF uploaded at {self.last_gif_log} steps to wandb as {tag}")
 
             # Clear the buffer if no longer needed
             gif_buffer.close()
@@ -557,8 +557,8 @@ class Runner(EventLoopObject, Configurable):
                     self.last_heatmap_log = env_steps
 
                 if env_steps - self.last_gif_log >= self.cfg.gif_log_interval:
-                    self.create_and_upload_gif("traversal/evolution")
                     self.last_gif_log = env_steps
+                    self.create_and_upload_gif("traversal/evolution")
 
             for key, stat in self.policy_avg_stats.items():
                 if key == 'heatmap':
@@ -756,6 +756,28 @@ class Runner(EventLoopObject, Configurable):
         base_path = Path(__file__).parent.parent.parent.resolve()
         map_path = join(base_path, "doom", "env", "scenarios", f"{self.env_info.name}.png")
         self.map_img = cv2.imread(map_path)
+
+        # # Check if the image was loaded successfully
+        # if self.map_img is None:
+        #     raise FileNotFoundError(f"Map image not found at path: {map_path}")
+        #
+        # # Define the desired width or height while maintaining aspect ratio
+        # # For example, set the width to 800 pixels
+        # desired_width = 800
+        #
+        # # Get current dimensions
+        # original_height, original_width = self.map_img.shape[:2]
+        # aspect_ratio = original_width / original_height
+        #
+        # # Calculate the new height to maintain aspect ratio
+        # desired_height = int(desired_width / aspect_ratio)
+        #
+        # # Resize the image
+        # self.map_img = cv2.resize(self.map_img, (desired_width, desired_height), interpolation=cv2.INTER_AREA)
+        #
+        # # Optional: Verify the new size
+        # print(f"Resized map image to: {self.map_img.shape[1]}x{self.map_img.shape[0]} pixels")
+
 
         for policy_id in range(self.cfg.num_policies):
             self.reward_shaping[policy_id] = self.env_info.reward_shaping_scheme
