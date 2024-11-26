@@ -882,6 +882,18 @@ def add_default_env_args(p: ArgumentParser):
         action='store_true',
         help="Whether to enable rendering and visitation heatmaps in a topdown view",
     )
+    p.add_argument(
+        "--render_with_labels",
+        default=False,
+        action='store_true',
+        help="Whether to enable rendering with the label buffer for object identification",
+    )
+    p.add_argument(
+        "--use_depth_buffer",
+        default=False,
+        action='store_true',
+        help="Whether to use the depth buffer for rendering and observations",
+    )
 
 
 def add_eval_args(parser):

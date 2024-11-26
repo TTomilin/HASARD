@@ -167,7 +167,7 @@ class DoomEnv(BaseEnv):
         state = self.game.get_state()
         reward = 0.0
         done = self.game.is_player_dead() or self.game.is_episode_finished() or not state
-        truncated = False
+        truncated = self.game.get_episode_time() > self.episode_timeout
         cost, cost_stats = self.calculate_cost()
         info = {
             'cost': cost,

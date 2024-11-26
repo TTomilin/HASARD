@@ -105,6 +105,8 @@ class VizdoomEnv(gym.Env):
             coord_limits=None,
             max_histogram_length=None,
             show_automap=False,
+            use_depth_buffer=False,
+            render_with_labels=False,
             skip_frames=1,
             async_mode=False,
             record_to=None,
@@ -117,7 +119,6 @@ class VizdoomEnv(gym.Env):
 
         # essential game data
         self.game = None
-        self.state = None
         self.curr_seed = 0
         self.rng = None
         self.skip_frames = skip_frames
@@ -126,6 +127,8 @@ class VizdoomEnv(gym.Env):
 
         # optional - for topdown view rendering and visitation heatmaps
         self.show_automap = show_automap
+        self.use_depth_buffer = use_depth_buffer
+        self.render_with_labels = render_with_labels
         self.coord_limits = coord_limits
 
         # can be adjusted after the environment is created (but before any reset() call) via observation space wrapper
@@ -163,9 +166,6 @@ class VizdoomEnv(gym.Env):
         self.scenario_path = f"{base_path}.wad"
 
         self.variable_indices = self._parse_variable_indices(self.config_path)
-
-        # only created if we call render() method
-        self.screen = None
 
         # record full episodes using VizDoom recording functionality
         self.record_to = record_to
@@ -237,6 +237,8 @@ class VizdoomEnv(gym.Env):
         self.game.load_config(self.config_path)
         self.game.set_doom_scenario_path(self.scenario_path)
         self.game.set_seed(self.curr_seed)
+        self.game.set_depth_buffer_enabled(self.use_depth_buffer)
+        self.game.set_labels_buffer_enabled(self.render_with_labels)
 
         if mode == "human" or mode == "replay" or self.render_mode == 'human':
             self.game.add_game_args("+freelook 1")
@@ -381,17 +383,8 @@ class VizdoomEnv(gym.Env):
             # no demo recording (default)
             self.game.new_episode()
 
-        self.state = self.game.get_state()
-        img = None
-        try:
-            img = self.state.screen_buffer
-        except AttributeError:
-            # sometimes Doom does not return screen buffer at all??? Rare bug
-            pass
-
-        if img is None:
-            log.error("Game returned None screen buffer! This is not supposed to happen!")
-            img = self._black_screen()
+        state = self.game.get_state()
+        img = self._get_obs_from_state(state)
 
         info = {}
 
@@ -408,7 +401,7 @@ class VizdoomEnv(gym.Env):
 
         self._num_episodes += 1
 
-        return np.transpose(img, (1, 2, 0)), info  # since Gym 0.26.0, we return dict as second return value
+        return img, info  # since Gym 0.26.0, we return the info dict as second return value
 
     def _convert_actions(self, actions):
         """Convert actions from gym action space to the action space expected by Doom game."""
@@ -457,9 +450,26 @@ class VizdoomEnv(gym.Env):
                 if v in info:
                     info[v] -= self._last_episode_info.get(v, 0)
 
+    def _get_obs_from_state(self, state):
+        try:
+            if self.use_depth_buffer:
+                obs = state.depth_buffer
+                obs = np.stack([obs] * 3, axis=0)
+            elif self.show_automap:
+                obs = state.automap_buffer
+            else:
+                obs = state.screen_buffer
+            obs = np.transpose(obs, (1, 2, 0))
+        except AttributeError:
+            # sometimes Doom does not return screen buffer at all??? Rare bug
+            if not self.game.is_episode_finished():
+                log.error("Game returned None screen buffer! This is not supposed to happen!")
+            obs = self._black_screen()
+        return obs
+
     def _process_game_step(self, state, done, info):
         if not done:
-            observation = np.transpose(state.screen_buffer, (1, 2, 0))
+            observation = self._get_obs_from_state(state)
             game_variables = self._game_variables_dict(state)
             info.update(self.get_info_all(game_variables))
             self._update_histogram(info)
@@ -494,8 +504,8 @@ class VizdoomEnv(gym.Env):
         observation, done, info = self._process_game_step(state, done, default_info)
 
         # Gym 0.26.0 changes
+        truncated = self.game.get_episode_time() > self.timeout
         terminated = done
-        truncated = False
         return observation, reward, terminated, truncated, info
 
     def render(self) -> Optional[np.ndarray]:
@@ -504,32 +514,47 @@ class VizdoomEnv(gym.Env):
             return
 
         try:
-            img = self.game.get_state().screen_buffer
-            img = np.transpose(img, [1, 2, 0])
+            state = self.game.get_state()
+            screen = self._get_obs_from_state(state)
+
+            if self.render_with_labels:
+
+                screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
+                label_buffer = state.labels_buffer  # Per-pixel object ID
+
+                # Normalize label buffer for processing
+                label_buffer = label_buffer.astype(np.uint8)
+
+                # Find unique object IDs in the label buffer
+                unique_ids = np.unique(label_buffer)
+
+                # Create a mask for each object and find contours
+                for obj_id in unique_ids:
+                    if obj_id in [0, 1, 255]:  # Skip background, agent
+                        continue
+
+                    # Create a binary mask for the current object
+                    mask = (label_buffer == obj_id).astype(np.uint8)
+
+                    # Find contours of the object
+                    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                    # Draw bounding boxes around the object
+                    for contour in contours:
+                        x, y, w, h = cv2.boundingRect(contour)
+                        cv2.rectangle(screen, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Green box
+
+                        # Optional: Add object ID as text
+                        cv2.putText(screen, f"ID: {obj_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.5, (0, 255, 0), 1, cv2.LINE_AA)
+
             if mode == "rgb_array":
-                return img
+                return screen
             elif mode == "human":
-                time.sleep(0.01)
+                cv2.imshow("HASARD", screen)
+                cv2.waitKey(1)
 
-            h, w = img.shape[:2]
-            render_h, render_w = h, w
-            max_w = 1280
-            if w < max_w:
-                render_w = max_w
-                render_h = int(max_w * h / w)
-                img = cv2.resize(img, (render_w, render_h))
-
-            import pygame
-
-            if self.screen is None:
-                pygame.init()
-                pygame.display.init()
-                self.screen = pygame.display.set_mode((render_w, render_h))
-
-            pygame.surfarray.blit_array(self.screen, img.swapaxes(0, 1))
-            pygame.display.update()
-
-            return img
+            return screen
         except AttributeError:
             return None
 
@@ -539,14 +564,6 @@ class VizdoomEnv(gym.Env):
                 self.game.close()
         except RuntimeError as exc:
             log.warning("Runtime error in VizDoom game close(): %r", exc)
-
-        # if self.viewer is not None:
-        #     self.viewer.close()
-        if self.screen is not None:
-            import pygame
-
-            pygame.display.quit()
-            pygame.quit()
 
     def get_info(self, variables=None):
         if variables is None:
