@@ -54,6 +54,7 @@ def visualize_policy_inputs(normalized_obs: Dict[str, Tensor]) -> None:
     )  # this will be different frame-by-frame but probably good enough to give us an idea?
     scale = 5
     obs = cv2.resize(obs, (obs.shape[1] * scale, obs.shape[0] * scale), interpolation=cv2.INTER_NEAREST)
+    obs = cv2.cvtColor(obs, cv2.COLOR_RGB2BGR)
 
     cv2.imshow("policy inputs", obs)
     cv2.waitKey(delay=1)

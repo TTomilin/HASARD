@@ -30,7 +30,7 @@ from sample_factory.envs.env_wrappers import (
     PixelFormatChwWrapper,
     ResizeWrapper,
     RewardScalingWrapper,
-    TimeLimitWrapper,
+    TimeLimitWrapper, DepthBufferWrapper,
 )
 from sample_factory.utils.utils import debug_log_every_n, experiment_dir
 
@@ -228,6 +228,9 @@ def make_doom_env_impl(
 
     assert resolution in resolutions
     env = SetResolutionWrapper(env, resolution)  # default (wide aspect ratio)
+
+    if cfg.use_depth_buffer:
+        env = DepthBufferWrapper(env)
 
     h, w, channels = env.observation_space.shape
     if w != cfg.res_w or h != cfg.res_h:

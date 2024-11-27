@@ -470,3 +470,32 @@ class ActionCounterWrapper(gym.Wrapper):
             self.episode_count += 1
 
         return obs, reward, terminated, truncated, info
+
+
+class DepthBufferWrapper(ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        # Update observation space to account for the additional depth channel
+        original_shape = self.observation_space.shape
+        self.observation_space = gym.spaces.Box(
+            low=0,
+            high=255,
+            shape=(original_shape[0], original_shape[1], original_shape[2] + 1),
+            dtype=np.uint8,
+        )
+
+    def observation(self, obs):
+        state = self.env.unwrapped.game.get_state()
+        if not state:
+            return self.black_screen
+
+        # Get the depth buffer from the environment state
+        depth_buffer = state.depth_buffer
+
+        # Add channel dimension to the depth buffer
+        depth_buffer = depth_buffer[:, :, np.newaxis]
+
+        # Concatenate depth buffer as an extra channel
+        obs_with_depth = np.concatenate((obs, depth_buffer), axis=2)
+
+        return obs_with_depth

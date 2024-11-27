@@ -532,64 +532,51 @@ class VizdoomEnv(gym.Env):
                 return color
 
     def _get_obs_from_state(self, state):
-        try:
-            if self.use_depth_buffer:
-                obs = state.depth_buffer
-                obs = np.stack([obs] * 3, axis=0)
-            elif self.show_automap:
-                obs = state.automap_buffer
+        # Default observation: screen buffer
+        obs = state.automap_buffer if self.show_automap else state.screen_buffer
+        obs = np.transpose(obs, (1, 2, 0))  # Transpose to HWC format
+
+        # Apply segmentation if enabled
+        if self.segment_objects:
+            obs = self.segment_obs(obs, state)
+        return obs
+
+    def segment_obs(self, obs, state):
+        # Convert obs to BGR for OpenCV processing
+        obs = cv2.cvtColor(obs, cv2.COLOR_RGB2BGR)
+        # Get label buffer and labels information
+        label_buffer = state.labels_buffer.astype(np.uint8)
+        labels = state.labels  # List of Label objects
+        # Build mapping from label value to object name or ID
+        value_to_object = {}
+        for label in labels:
+            self.unique_label_names.add(label.object_name)
+            value_to_object[label.value] = label.object_name  # or label.object_id
+        # Assign consistent colors to each object
+        for value, object_name in value_to_object.items():
+            if object_name not in self.object_name_to_color:
+                # Assign a unique color to each object_name
+                self.object_name_to_color[object_name] = self._generate_unique_color()
+        # Create segmented observation
+        segmented_obs = np.zeros_like(obs)
+        unique_values = np.unique(label_buffer)
+        for value in unique_values:
+            object_name = value_to_object.get(value, None)
+            if object_name is not None:
+                color = self.object_name_to_color[object_name]
             else:
-                obs = state.screen_buffer
-            obs = np.transpose(obs, (1, 2, 0))
+                color = self.object_id_to_color.get(value, None)
+            if color is None:
+                color = self.default_color  # For undefined values
 
-            # Apply segmentation if enabled
-            if self.segment_objects:
-                # Convert obs to BGR for OpenCV processing
-                obs = cv2.cvtColor(obs, cv2.COLOR_RGB2BGR)
+            # Create a mask for current value
+            mask = (label_buffer == value).astype(np.uint8)
 
-                # Get label buffer and labels information
-                label_buffer = state.labels_buffer.astype(np.uint8)
-                labels = state.labels  # List of Label objects
-
-                # Build mapping from label value to object name or ID
-                value_to_object = {}
-                for label in labels:
-                    self.unique_label_names.add(label.object_name)
-                    value_to_object[label.value] = label.object_name  # or label.object_id
-
-                # Assign consistent colors to each object
-                for value, object_name in value_to_object.items():
-                    if object_name not in self.object_name_to_color:
-                        # Assign a unique color to each object_name
-                        self.object_name_to_color[object_name] = self._generate_unique_color()
-
-                # Create segmented observation
-                segmented_obs = np.zeros_like(obs)
-
-                unique_values = np.unique(label_buffer)
-                for value in unique_values:
-                    object_name = value_to_object.get(value, None)
-                    if object_name is not None:
-                        color = self.object_name_to_color[object_name]
-                    else:
-                        color = self.object_id_to_color.get(value, None)
-                    if color is None:
-                        color = self.default_color  # For undefined values
-
-                    # Create a mask for current value
-                    mask = (label_buffer == value).astype(np.uint8)
-
-                    # Apply color to the segmented observation
-                    for i in range(3):  # Apply color per channel
-                        segmented_obs[:, :, i] += (mask * color[i])
-
-                # Update observation with segmented version
-                obs = segmented_obs
-        except AttributeError:
-            # sometimes Doom does not return screen buffer at all??? Rare bug
-            if not self.game.is_episode_finished():
-                log.error("Game returned None screen buffer! This is not supposed to happen!")
-            obs = self._black_screen()
+            # Apply color to the segmented observation
+            for i in range(3):  # Apply color per channel
+                segmented_obs[:, :, i] += (mask * color[i])
+        # Update observation with segmented version
+        obs = segmented_obs
         return obs
 
     def _process_game_step(self, state, done, info):
@@ -638,50 +625,55 @@ class VizdoomEnv(gym.Env):
         if mode is None:
             return
 
-        try:
-            state = self.game.get_state()
-            screen = self._get_obs_from_state(state)
+        state = self.game.get_state()
+        screen = self._get_obs_from_state(state) if state else self._black_screen()
 
-            if self.render_with_bounding_boxes:
+        if self.render_with_bounding_boxes and state:
+            self.add_bounding_boxes(screen, state)
 
-                screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
-                label_buffer = state.labels_buffer  # Per-pixel object ID
-
-                # Normalize label buffer for processing
-                label_buffer = label_buffer.astype(np.uint8)
-
-                # Find unique object IDs in the label buffer
-                unique_ids = np.unique(label_buffer)
-
-                # Create a mask for each object and find contours
-                for obj_id in unique_ids:
-                    if obj_id in [0, 1, 255]:  # Skip background, agent
-                        continue
-
-                    # Create a binary mask for the current object
-                    mask = (label_buffer == obj_id).astype(np.uint8)
-
-                    # Find contours of the object
-                    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-                    # Draw bounding boxes around the object
-                    for contour in contours:
-                        x, y, w, h = cv2.boundingRect(contour)
-                        cv2.rectangle(screen, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Green box
-
-                        # Optional: Add object ID as text
-                        cv2.putText(screen, f"ID: {obj_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX,
-                                    0.5, (0, 255, 0), 1, cv2.LINE_AA)
-
-            if mode == "rgb_array":
-                return screen
-            elif mode == "human":
-                cv2.imshow("HASARD", screen)
-                cv2.waitKey(1)
-
+        if mode == "rgb_array":
             return screen
-        except AttributeError:
-            return None
+        elif mode == "human":
+            screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
+            cv2.imshow("HASARD", screen)
+
+            # Render a separate screen for the depth buffer
+            if self.use_depth_buffer and state:
+                depth_buffer = state.depth_buffer
+                # Normalize depth buffer for better visualization
+                normalized_depth = (255 * (depth_buffer / np.max(depth_buffer))).astype(np.uint8)
+                cv2.imshow("Depth Buffer", depth_buffer)
+                cv2.imshow("Normalized Depth Buffer", normalized_depth)
+
+            cv2.waitKey(1)
+
+        return screen
+
+    def add_bounding_boxes(self, screen, state):
+        label_buffer = state.labels_buffer  # Per-pixel object ID
+        # Normalize label buffer for processing
+        label_buffer = label_buffer.astype(np.uint8)
+        # Find unique object IDs in the label buffer
+        unique_ids = np.unique(label_buffer)
+        # Create a mask for each object and find contours
+        for obj_id in unique_ids:
+            if obj_id in [0, 1, 255]:  # Skip background, agent
+                continue
+
+            # Create a binary mask for the current object
+            mask = (label_buffer == obj_id).astype(np.uint8)
+
+            # Find contours of the object
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            # Draw bounding boxes around the object
+            for contour in contours:
+                x, y, w, h = cv2.boundingRect(contour)
+                cv2.rectangle(screen, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Green box
+
+                # Optional: Add object ID as text
+                cv2.putText(screen, f"ID: {obj_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5, (0, 255, 0), 1, cv2.LINE_AA)
 
     def close(self):
         try:
