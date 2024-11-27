@@ -132,7 +132,70 @@ class VizdoomEnv(gym.Env):
         self.render_with_bounding_boxes = render_with_bounding_boxes
         self.segment_objects = segment_objects
         self.coord_limits = coord_limits
-        # Prefill the ID-to-color mapping
+
+        self.unique_label_names = set()
+        self.object_name_to_color = {
+            "DoomPlayer": (255, 255, 255),     # White
+
+            # Weapons
+            "Pistol": (64, 64, 64),            # Dark Gray
+            "Shotgun": (139, 69, 19),          # Brown
+            "SuperShotgun": (160, 82, 45),     # Darker Brown
+            "Chaingun": (0, 0, 128),           # Navy Blue
+            "RocketLauncher": (128, 0, 0),     # Maroon
+            "PlasmaRifle": (0, 128, 128),      # Teal
+            "BFG9000": (0, 255, 255),          # Cyan
+
+            # Bonuses and Items
+            "ArmorBonus": (0, 255, 0),         # Bright Green
+            "BlurSphere": (255, 0, 255),       # Magenta
+            "Allmap": (255, 255, 0),           # Yellow
+            "Backpack": (153, 102, 51),        # Dark Beige
+            "RadSuit": (0, 102, 102),          # Dark Teal
+            "Infrared": (255, 165, 0),         # Orange
+
+            # Enemies
+            "CacoDemon": (255, 0, 0),          # Bright Red
+            "LostSoul": (255, 255, 255),       # White
+            "ZombieMan": (128, 128, 128),      # Gray
+            "ShotgunGuy": (64, 0, 64),         # Purple
+            "ChaingunGuy": (0, 64, 128),       # Dark Cyan
+            "DoomImp": (139, 69, 19),          # Saddle Brown
+            "Demon": (255, 105, 180),          # Pink
+            "Revenant": (210, 180, 140),       # Tan
+
+            # Environmental Hazards
+            "ExplosiveBarrel": (255, 0, 0),    # Red
+
+            # Health Items
+            "HealthBonus": (0, 255, 0),        # Green
+            "Stimpack": (192, 0, 0),           # Crimson
+            "Medikit": (255, 0, 0),            # Red
+
+            # Ammo
+            "Shell": (255, 255, 0),            # Yellow
+            "Cell": (0, 0, 255),               # Blue
+            "RocketAmmo": (128, 0, 0),         # Maroon
+
+            # Decorations and Environmental Objects
+            "Stalagtite": (128, 128, 128),     # Light Gray
+            "TorchTree": (0, 255, 150),        # Light Green
+            "BigTree": (0, 200, 100),          # Dark Green
+            "Gibs": (100, 200, 150),           # Light Brownish Green
+            "BrainStem": (100, 0, 200),        # Purple
+            "HeartColumn": (200, 0, 50),       # Deep Red
+            "TechPillar": (150, 150, 255),     # Light Blue
+            "ShortRedColumn": (255, 50, 50),   # Bright Red
+            "ShortGreenColumn": (50, 255, 50), # Bright Green
+            "RocketSmokeTrail": (128, 128, 128),# Smoke Gray
+            "Rocket": (200, 0, 0),             # Bright Red
+            "BulletPuff": (220, 220, 220),     # Light Gray
+            "Blood": (150, 0, 0),              # Blood Red
+            "GibbedMarine": (180, 50, 50),     # Dark Red
+            "TechLamp": (100, 100, 255),       # Light Blue
+            "SmallBloodPool": (80, 0, 0),      # Dark Blood Red
+        }
+
         self.object_id_to_color = {
             0: (0, 0, 0),        # Ground & Walls - Black
             1: (128, 128, 128),  # Ceiling - Gray
@@ -140,7 +203,7 @@ class VizdoomEnv(gym.Env):
         }
 
         # Assign the same color for everything else
-        self.default_color = (0, 0, 255)  # Red for all other IDs
+        self.default_color = (200, 200, 200)  # All unknown objects
 
         # can be adjusted after the environment is created (but before any reset() call) via observation space wrapper
         self.screen_w, self.screen_h, self.channels = 640, 480, 3
@@ -461,6 +524,13 @@ class VizdoomEnv(gym.Env):
                 if v in info:
                     info[v] -= self._last_episode_info.get(v, 0)
 
+    def _generate_unique_color(self):
+        # Generate a unique color not already in use
+        while True:
+            color = tuple(int(c) for c in np.random.randint(0, 255, 3))
+            if color not in self.object_name_to_color.values():
+                return color
+
     def _get_obs_from_state(self, state):
         try:
             if self.use_depth_buffer:
@@ -477,19 +547,37 @@ class VizdoomEnv(gym.Env):
                 # Convert obs to BGR for OpenCV processing
                 obs = cv2.cvtColor(obs, cv2.COLOR_RGB2BGR)
 
-                # Get label buffer
+                # Get label buffer and labels information
                 label_buffer = state.labels_buffer.astype(np.uint8)
+                labels = state.labels  # List of Label objects
 
-                # Replace observation pixels with segmented colors
-                unique_ids = np.unique(label_buffer)
-                segmented_obs = np.zeros_like(obs)  # Initialize segmented observation
+                # Build mapping from label value to object name or ID
+                value_to_object = {}
+                for label in labels:
+                    self.unique_label_names.add(label.object_name)
+                    value_to_object[label.value] = label.object_name  # or label.object_id
 
-                for obj_id in unique_ids:
-                    # Get color for the object, default if not specified
-                    color = self.object_id_to_color.get(obj_id, self.default_color)
+                # Assign consistent colors to each object
+                for value, object_name in value_to_object.items():
+                    if object_name not in self.object_name_to_color:
+                        # Assign a unique color to each object_name
+                        self.object_name_to_color[object_name] = self._generate_unique_color()
 
-                    # Create a binary mask for the current object
-                    mask = (label_buffer == obj_id).astype(np.uint8)
+                # Create segmented observation
+                segmented_obs = np.zeros_like(obs)
+
+                unique_values = np.unique(label_buffer)
+                for value in unique_values:
+                    object_name = value_to_object.get(value, None)
+                    if object_name is not None:
+                        color = self.object_name_to_color[object_name]
+                    else:
+                        color = self.object_id_to_color.get(value, None)
+                    if color is None:
+                        color = self.default_color  # For undefined values
+
+                    # Create a mask for current value
+                    mask = (label_buffer == value).astype(np.uint8)
 
                     # Apply color to the segmented observation
                     for i in range(3):  # Apply color per channel
@@ -553,32 +641,6 @@ class VizdoomEnv(gym.Env):
         try:
             state = self.game.get_state()
             screen = self._get_obs_from_state(state)
-
-            if self.segment_objects:  # Change this to segmentation
-
-                screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
-                label_buffer = state.labels_buffer  # Per-pixel object ID
-
-                # Normalize label buffer for processing
-                label_buffer = label_buffer.astype(np.uint8)
-
-                # Find unique object IDs in the label buffer
-                unique_ids = np.unique(label_buffer)
-
-                # Ensure consistent colors for each object ID
-                for obj_id in unique_ids:
-                    # Get color from dictionary, or default if not explicitly mapped
-                    color = self.object_id_to_color.get(obj_id, self.default_color)
-
-                    # Create a binary mask for the current object
-                    mask = (label_buffer == obj_id).astype(np.uint8)
-
-                    # Find contours of the object
-                    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-                    # Highlight the segmented area for the object
-                    for contour in contours:
-                        cv2.drawContours(screen, [contour], -1, color, thickness=cv2.FILLED)
 
             if self.render_with_bounding_boxes:
 
