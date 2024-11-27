@@ -471,6 +471,32 @@ class VizdoomEnv(gym.Env):
             else:
                 obs = state.screen_buffer
             obs = np.transpose(obs, (1, 2, 0))
+
+            # Apply segmentation if enabled
+            if self.segment_objects:
+                # Convert obs to BGR for OpenCV processing
+                obs = cv2.cvtColor(obs, cv2.COLOR_RGB2BGR)
+
+                # Get label buffer
+                label_buffer = state.labels_buffer.astype(np.uint8)
+
+                # Replace observation pixels with segmented colors
+                unique_ids = np.unique(label_buffer)
+                segmented_obs = np.zeros_like(obs)  # Initialize segmented observation
+
+                for obj_id in unique_ids:
+                    # Get color for the object, default if not specified
+                    color = self.object_id_to_color.get(obj_id, self.default_color)
+
+                    # Create a binary mask for the current object
+                    mask = (label_buffer == obj_id).astype(np.uint8)
+
+                    # Apply color to the segmented observation
+                    for i in range(3):  # Apply color per channel
+                        segmented_obs[:, :, i] += (mask * color[i])
+
+                # Update observation with segmented version
+                obs = segmented_obs
         except AttributeError:
             # sometimes Doom does not return screen buffer at all??? Rare bug
             if not self.game.is_episode_finished():
