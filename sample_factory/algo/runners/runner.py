@@ -647,7 +647,7 @@ class Runner(EventLoopObject, Configurable):
             video_tag = f"video/step_{step_number}"
 
             # Wait for the file to be unlocked, with a timeout
-            if wait_for_file_unlock(video_path, timeout=60):
+            if wait_for_file_unlock(video_path, timeout=180):
                 wandb.log({video_tag: wandb.Video(video_path, format='mp4')})
             else:
                 log.warn(f"Video {video_file} was not fully written within the timeout period.")
