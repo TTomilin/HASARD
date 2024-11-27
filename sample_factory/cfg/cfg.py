@@ -883,10 +883,16 @@ def add_default_env_args(p: ArgumentParser):
         help="Whether to enable rendering and visitation heatmaps in a topdown view",
     )
     p.add_argument(
-        "--render_with_labels",
+        "--render_with_bounding_boxes",
         default=False,
         action='store_true',
-        help="Whether to enable rendering with the label buffer for object identification",
+        help="Enable rendering with the label buffer for object identification and draws bounding boxes",
+    )
+    p.add_argument(
+        "--segment_objects",
+        default=False,
+        action='store_true',
+        help="Whether to enable rendering with the label buffer for object segmentation",
     )
     p.add_argument(
         "--use_depth_buffer",

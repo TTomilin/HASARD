@@ -106,7 +106,8 @@ class VizdoomEnv(gym.Env):
             max_histogram_length=None,
             show_automap=False,
             use_depth_buffer=False,
-            render_with_labels=False,
+            render_with_bounding_boxes=False,
+            segment_objects=False,
             skip_frames=1,
             async_mode=False,
             record_to=None,
@@ -128,8 +129,18 @@ class VizdoomEnv(gym.Env):
         # optional - for topdown view rendering and visitation heatmaps
         self.show_automap = show_automap
         self.use_depth_buffer = use_depth_buffer
-        self.render_with_labels = render_with_labels
+        self.render_with_bounding_boxes = render_with_bounding_boxes
+        self.segment_objects = segment_objects
         self.coord_limits = coord_limits
+        # Prefill the ID-to-color mapping
+        self.object_id_to_color = {
+            0: (0, 0, 0),        # Ground & Walls - Black
+            1: (128, 128, 128),  # Ceiling - Gray
+            255: (255, 255, 255) # Agent - White
+        }
+
+        # Assign the same color for everything else
+        self.default_color = (0, 0, 255)  # Red for all other IDs
 
         # can be adjusted after the environment is created (but before any reset() call) via observation space wrapper
         self.screen_w, self.screen_h, self.channels = 640, 480, 3
@@ -238,7 +249,7 @@ class VizdoomEnv(gym.Env):
         self.game.set_doom_scenario_path(self.scenario_path)
         self.game.set_seed(self.curr_seed)
         self.game.set_depth_buffer_enabled(self.use_depth_buffer)
-        self.game.set_labels_buffer_enabled(self.render_with_labels)
+        self.game.set_labels_buffer_enabled(self.render_with_bounding_boxes or self.segment_objects)
 
         if mode == "human" or mode == "replay" or self.render_mode == 'human':
             self.game.add_game_args("+freelook 1")
@@ -517,7 +528,33 @@ class VizdoomEnv(gym.Env):
             state = self.game.get_state()
             screen = self._get_obs_from_state(state)
 
-            if self.render_with_labels:
+            if self.segment_objects:  # Change this to segmentation
+
+                screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
+                label_buffer = state.labels_buffer  # Per-pixel object ID
+
+                # Normalize label buffer for processing
+                label_buffer = label_buffer.astype(np.uint8)
+
+                # Find unique object IDs in the label buffer
+                unique_ids = np.unique(label_buffer)
+
+                # Ensure consistent colors for each object ID
+                for obj_id in unique_ids:
+                    # Get color from dictionary, or default if not explicitly mapped
+                    color = self.object_id_to_color.get(obj_id, self.default_color)
+
+                    # Create a binary mask for the current object
+                    mask = (label_buffer == obj_id).astype(np.uint8)
+
+                    # Find contours of the object
+                    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                    # Highlight the segmented area for the object
+                    for contour in contours:
+                        cv2.drawContours(screen, [contour], -1, color, thickness=cv2.FILLED)
+
+            if self.render_with_bounding_boxes:
 
                 screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
                 label_buffer = state.labels_buffer  # Per-pixel object ID
