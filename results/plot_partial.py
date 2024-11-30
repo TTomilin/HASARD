@@ -28,6 +28,9 @@ TRANSLATIONS = {
 }
 
 
+BUFFER_PERCENTAGE = 0.05  # 5% buffer
+
+
 def main(args):
     data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level)
     plot_metrics(data, args)
@@ -81,6 +84,8 @@ def plot_metrics(data, args):
 
         for metric_index, metric in enumerate(args.metrics):
             ax = axs[row, col_base + metric_index]
+            max_rew = 0
+            max_cost = 0
             for method in args.algos:
                 key = (env, method, metric)
                 if key in data and data[key]:
@@ -110,15 +115,20 @@ def plot_metrics(data, args):
                     mean = np.mean(all_runs, axis=0)
                     ci = 1.96 * np.std(all_runs, axis=0) / np.sqrt(len(all_runs))
                     x = np.arange(num_data_points) * iterations_per_point
-                    line = ax.plot(x, mean, label=method)
-                    ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
+                    if method in args.algos_to_plot:
+                        line = ax.plot(x, mean, label=method)
+                        ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
                     ax.set_xlim(-args.total_iterations / 60, args.total_iterations)
-                    ax.set_ylim(0, None)
+                    max_rew = max(max_rew, max(mean + ci))
+                    max_cost = max(max_cost, max(mean + ci))
+                    max_lim = max_rew if metric == 'reward' else max_cost
+                    ax.set_ylim(0, max_lim * (1 + BUFFER_PERCENTAGE))
                     ax.set_xlabel('Steps', fontsize=12)
                     ax.set_ylabel(TRANSLATIONS[metric], fontsize=12)
                     if env_index == 1 and metric_index == 1:  # Adjust if needed
-                        lines.append(line[0])
-                        labels.append(method)
+                        if method in args.algos_to_plot:
+                            lines.append(line[0])
+                            labels.append(method)
                     if metric == 'cost' and not args.hard_constraint:
                         threshold_line = ax.axhline(y=SAFETY_THRESHOLDS[env], color='red', linestyle='--',
                                                     label='Safety Threshold')
@@ -133,7 +143,8 @@ def plot_metrics(data, args):
     folder = 'plots'
     file = 'hard' if args.hard_constraint else f'level_{args.level}'
     os.makedirs(folder, exist_ok=True)
-    plt.savefig(f'{folder}/{file}.pdf', dpi=300)
+    suffix = '_'.join(args.algos_to_plot) if args.algos_to_plot else 'empty'
+    plt.savefig(f'{folder}/{file}_{suffix}.png')
     plt.show()
 
 
@@ -142,8 +153,9 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--input", type=str, default='data/main', help="Base input directory containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
-                        help="Algorithms to download/plot")
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOPID", "PPOSaute", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
+                        help="Algorithms to download data for")
+    parser.add_argument("--algos_to_plot", type=str, nargs='+', default=[], help="Algorithms to download/plot")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
                                  "precipice_plunge", "detonators_dilemma"],

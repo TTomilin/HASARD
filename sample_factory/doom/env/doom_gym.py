@@ -106,6 +106,7 @@ class VizdoomEnv(gym.Env):
             max_histogram_length=None,
             show_automap=False,
             use_depth_buffer=False,
+            render_depth_buffer=False,
             render_with_bounding_boxes=False,
             segment_objects=False,
             skip_frames=1,
@@ -129,6 +130,7 @@ class VizdoomEnv(gym.Env):
         # optional - for topdown view rendering and visitation heatmaps
         self.show_automap = show_automap
         self.use_depth_buffer = use_depth_buffer
+        self.render_depth_buffer = render_depth_buffer
         self.render_with_bounding_boxes = render_with_bounding_boxes
         self.segment_objects = segment_objects
         self.coord_limits = coord_limits
@@ -311,7 +313,7 @@ class VizdoomEnv(gym.Env):
         self.game.load_config(self.config_path)
         self.game.set_doom_scenario_path(self.scenario_path)
         self.game.set_seed(self.curr_seed)
-        self.game.set_depth_buffer_enabled(self.use_depth_buffer)
+        self.game.set_depth_buffer_enabled(self.use_depth_buffer or self.render_depth_buffer)
         self.game.set_labels_buffer_enabled(self.render_with_bounding_boxes or self.segment_objects)
 
         if mode == "human" or mode == "replay" or self.render_mode == 'human':
@@ -631,8 +633,10 @@ class VizdoomEnv(gym.Env):
         if self.render_with_bounding_boxes and state:
             self.add_bounding_boxes(screen, state)
 
+        ret = state.depth_buffer if self.render_depth_buffer and state else screen
+
         if mode == "rgb_array":
-            return screen
+            return ret
         elif mode == "human":
             screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
             cv2.imshow("HASARD", screen)
@@ -647,7 +651,7 @@ class VizdoomEnv(gym.Env):
 
             cv2.waitKey(1)
 
-        return screen
+        return ret
 
     def add_bounding_boxes(self, screen, state):
         label_buffer = state.labels_buffer  # Per-pixel object ID

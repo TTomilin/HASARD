@@ -900,6 +900,12 @@ def add_default_env_args(p: ArgumentParser):
         action='store_true',
         help="Whether to use the depth buffer for rendering and observations",
     )
+    p.add_argument(
+        "--render_depth_buffer",
+        default=False,
+        action='store_true',
+        help="Whether to render the depth buffer instead of normal observations",
+    )
 
 
 def add_eval_args(parser):

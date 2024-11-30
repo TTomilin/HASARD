@@ -201,6 +201,7 @@ def make_doom_env_impl(
         coord_limits=doom_spec.coord_limits,
         max_histogram_length=max_histogram_length,
         use_depth_buffer=cfg.use_depth_buffer,
+        render_depth_buffer=cfg.render_depth_buffer,
         segment_objects=cfg.segment_objects,
         render_with_bounding_boxes=cfg.render_with_bounding_boxes,
         skip_frames=skip_frames,

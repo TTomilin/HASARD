@@ -139,7 +139,7 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2], help="Seed(s) of the run(s) to plot")
     parser.add_argument("--algo", type=str, default="PPOLag", help="Name of the algorithm")
     parser.add_argument("--envs", type=str, nargs='+',
-                        default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
+                        default=["armament_burden", "remedy_rush", "volcanic_venture", "collateral_damage",
                                  "precipice_plunge", "detonators_dilemma"],
                         help="Environments to download/plot")
     parser.add_argument("--metrics", type=str, default=['reward', 'cost'], help="Name of the metrics to download/plot")

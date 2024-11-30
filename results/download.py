@@ -6,6 +6,13 @@ import wandb
 from wandb.apis.public import Run
 
 FORBIDDEN_TAGS = ['TEST']
+TAG_TO_FOLDER = {
+    'NIPS': 'main',
+    'SEGMENT_BETTER': 'segment',
+    'DEPTH_OBS': 'depth',
+    'CURRICULUM': 'curriculum',
+    'FULL_ACTIONS': 'full_actions',
+}
 
 
 def main(args: argparse.Namespace) -> None:
@@ -63,8 +70,11 @@ def store_data(run: Run, args: argparse.Namespace) -> None:
     seed = config['seed']
     env = config['env']
     algo = config['algo']
+    tag = config['wandb_tags'][0]
 
-    base_path = args.output  # Directory to store the data
+    # Construct folder path for each configuration
+    folder_path = os.path.join(args.output, f"{TAG_TO_FOLDER[tag]}", env, algo, f"level_{level}", f"seed_{seed}")
+    os.makedirs(folder_path, exist_ok=True)  # Ensure the directory exists
 
     for metric in metrics:
 
@@ -73,10 +83,6 @@ def store_data(run: Run, args: argparse.Namespace) -> None:
             metric = 'policy_stats/avg_total_cost'
         elif algo == 'PPOSaute' and metric == 'reward/reward':
             metric = 'policy_stats/avg_episode_reward'
-
-        # Construct folder path for each configuration
-        folder_path = os.path.join(base_path, env, algo, f"level_{level}", f"seed_{seed}")
-        os.makedirs(folder_path, exist_ok=True)  # Ensure the directory exists
 
         # Filename based on metric
         metric_name = metric.split('/')[-1].split('_')[-1]
@@ -112,7 +118,7 @@ def common_dl_args() -> argparse.ArgumentParser:
                         default=["armament_burden", "volcanic_venture", "remedy_rush",
                                  "collateral_damage", "precipice_plunge", "detonators_dilemma"],
                         help="Environments to download/plot")
-    parser.add_argument("--output", type=str, default='data/main', help="Base output directory to store the data")
+    parser.add_argument("--output", type=str, default='data', help="Base output directory to store the data")
     parser.add_argument("--metrics", type=str, nargs='+',
                         default=['reward/reward', 'policy_stats/avg_cost'],
                         help="Name of the metrics to download/plot")
