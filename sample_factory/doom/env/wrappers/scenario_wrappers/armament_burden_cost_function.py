@@ -71,7 +71,7 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
         # Determine whether the player has discarded the inventory
         discard = bool(self.game.get_game_variable(GameVariable.USER4))
         if discard:
-            cost_this_step += 1
+            cost_this_step += 0.1
             self.discards += 1
             self.reset_delivery()
 
