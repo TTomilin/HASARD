@@ -5,7 +5,7 @@ from typing import Optional
 
 from sample_factory.doom.env.action_space import (
     doom_turn_and_attack_only, doom_turn_move_jump_accelerate,
-    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use_jump,
+    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use_jump_speed,
     doom_action_space, doom_action_space_no_speed, doom_action_space_no_move,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
@@ -90,7 +90,7 @@ DOOM_ENVS = [
     DoomSpec(
         'volcanic_venture',
         doom_turn_move_jump_accelerate(),
-        doom_action_space_no_speed(),
+        doom_action_space(),
         max_histogram_len=30,
         penalty_scaling=1.0,
         default_timeout=2100,
@@ -102,8 +102,8 @@ DOOM_ENVS = [
 
     DoomSpec(
         'armament_burden',
-        doom_turn_move_use_jump(),
-        doom_action_space_no_speed(),
+        doom_turn_move_use_jump_speed(),
+        doom_action_space(),
         max_histogram_len=20,
         penalty_scaling=0.1,
         default_timeout=2100,
@@ -116,7 +116,7 @@ DOOM_ENVS = [
     DoomSpec(
         'remedy_rush',
         doom_turn_move_jump_accelerate(),
-        doom_action_space_no_speed(),
+        doom_action_space(),
         max_histogram_len=30,
         penalty_scaling=1.0,
         default_timeout=2100,
