@@ -150,3 +150,5 @@ sf_examples/vizdoom/doom/multiplayer/tests/_vizdoom/
 /results/data/
 *.bak
 *_local.wad
+
+omnisafe/
