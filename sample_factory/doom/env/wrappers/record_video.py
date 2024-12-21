@@ -90,7 +90,7 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
 
         self.video_folder = os.path.abspath(video_folder)
         if os.path.isdir(self.video_folder) or dummy_env:
-            logger.warn(f"Recording disabled. Another process is already recording video to {self.video_folder} folder")
+            logger.debug(f"Recording disabled. Another process is already recording video to {self.video_folder} folder")
             self.disable_recording = True
         if not self.disable_recording:
             os.makedirs(self.video_folder, exist_ok=True)
