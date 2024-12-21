@@ -2,15 +2,13 @@ import hasard
 
 
 def main():
-    env = hasard.make('ArmamentBurdenLevel1Soft-v0')
+    env = hasard.make('ArmamentBurdenLevel1Soft-v0', full_actions=True)
     env.reset()
-    done = False
-    steps = 0
-    total_cost = 0
-    total_reward = 0
-    while not done:
+    terminated = truncated = False
+    steps = total_cost = total_reward = 0
+    while not terminated or not truncated:
         action = env.action_space.sample()
-        state, reward, cost, done, truncated, info = env.step(action)
+        state, reward, cost, terminated, truncated, info = env.step(action)
         env.render()
         steps += 1
         total_cost += cost
