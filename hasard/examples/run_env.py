@@ -2,7 +2,7 @@ import hasard
 
 
 def main():
-    env = hasard.make('ArmamentBurdenLevel1Soft-v0')
+    env = hasard.make('ArmamentBurdenLevel1-v0')
     env.reset()
     terminated = truncated = False
     steps = total_cost = total_reward = 0

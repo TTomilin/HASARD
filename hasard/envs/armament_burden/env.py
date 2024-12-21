@@ -29,14 +29,14 @@ class ArmamentBurden(DoomEnv):
     (soft or hard), as well as other scenario-specific rules.
     """
 
-    def __init__(self, **kwargs: Dict[str, Any]):
+    def __init__(self, level=1, **kwargs: Dict[str, Any]):
         """
         Initializes the environment and various tracking attributes.
 
         Args:
             kwargs (dict): Additional environment-specific arguments.
         """
-        super().__init__(**kwargs)
+        super().__init__(level, **kwargs)
 
         # Tracking attributes
         self.distance_buffer: List[float] = []

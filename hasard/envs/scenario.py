@@ -6,7 +6,7 @@ import cv2
 import gymnasium as gym
 import numpy as np
 import vizdoom as vzd
-from vizdoom import ScreenResolution
+from vizdoom import ScreenResolution, scenarios_path
 
 from hasard.utils.utils import get_screen_resolution
 from sample_factory.algo.utils.spaces.discretized import Discretized
@@ -33,12 +33,12 @@ class DoomEnv(gym.Env, ABC):
 
     def __init__(self,
                  level: int = 1,
-                 constraint: str = 'soft',
                  seed: int = 0,
                  frame_skip: int = 4,
                  record_every: int = 100,
                  render_mode: str = 'human',
                  full_actions: bool = False,
+                 hard_constraint: bool = False,
                  resolution: Optional[str] = None):
         """
         Initializes the Doom environment.
@@ -55,7 +55,7 @@ class DoomEnv(gym.Env, ABC):
         """
         super().__init__()
         self.level = level
-        self.constraint = constraint.lower()
+        self.hard_constraint = hard_constraint
         self.scenario_name = self.__module__.split('.')[-2]
         self.frame_skip = frame_skip
 
@@ -64,13 +64,18 @@ class DoomEnv(gym.Env, ABC):
         self.record_every = record_every
 
         # Determine the directory of the Hasard scenario
+        constraint = '_hard' if hard_constraint else ''
         scenario_dir = f'{Path(__file__).parent.resolve()}/{self.scenario_name}'
+        scenario_path = f"{scenario_dir}/level_{level}{constraint}.wad"
+        config_path = f"{scenario_dir}/conf.cfg"
 
         # Initialize the Doom game instance
         self.game = vzd.DoomGame()
-        self.game.load_config(f"{scenario_dir}/conf.cfg")
-        self.game.set_doom_scenario_path(f"{scenario_dir}/level_{level}_{self.constraint}.wad")
         self.game.set_seed(seed)
+        self.game.load_config(config_path)
+        self.game.set_doom_scenario_path(scenario_path)
+        self.game.set_depth_buffer_enabled(True)
+        self.game.set_labels_buffer_enabled(True)
         self.episode_timeout = self.game.get_episode_timeout()
 
         # Set the available buttons based on the action space
@@ -94,17 +99,7 @@ class DoomEnv(gym.Env, ABC):
         # Define the action space
         self.action_space = self.full_action_space() if full_actions else self.reduced_action_space()
         self.composite_action_space = hasattr(self.action_space, "spaces")
-        self.delta_actions_scaling_factor = 10.0
-
-    @property
-    def hard_constraint(self) -> bool:
-        """
-        Indicates whether the environment uses a hard constraint.
-
-        Returns:
-            bool: True if the constraint is 'hard', False otherwise.
-        """
-        return self.constraint == 'hard'
+        self.delta_actions_scaling_factor = 7.5
 
     @abstractmethod
     def safety_budget(self) -> float:
@@ -215,7 +210,7 @@ class DoomEnv(gym.Env, ABC):
         reward = self.game.get_last_reward()
         state = self.game.get_state()
         terminated = self.game.is_player_dead() or self.game.is_episode_finished() or not state
-        truncated = self.game.get_episode_time() > self.episode_timeout
+        truncated = self.game.get_episode_time() >= self.episode_timeout
         cost = self.calculate_cost()
         stats = self.get_statistics()
         info = {
@@ -244,19 +239,28 @@ class DoomEnv(gym.Env, ABC):
                 - If rendering fails, returns a black image array.
         """
         state = self.game.get_state()
-        img = np.transpose(state.screen_buffer, [1, 2, 0]) if state else np.uint8(np.zeros(self.game_res))
+        screen = np.transpose(state.screen_buffer, [1, 2, 0]) if state else np.uint8(np.zeros(self.game_res))
 
         if mode == 'human':
             try:
                 # Render the image to the screen with swapped red and blue channels
-                cv2.imshow('DOOM', img[:, :, [2, 1, 0]])
+                screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
+                # cv2.imshow('HASARD', img[:, :, [2, 1, 0]])
+                cv2.imshow('HASARD', screen)
                 cv2.waitKey(1)
+                # Render a separate screen for the depth buffer
+                if state and state.depth_buffer is not None:
+                    depth_buffer = state.depth_buffer
+                    # Normalize depth buffer for better visualization
+                    normalized_depth = (255 * (depth_buffer / np.max(depth_buffer))).astype(np.uint8)
+                    cv2.imshow("Depth Buffer", depth_buffer)
+                    cv2.imshow("Normalized Depth Buffer", normalized_depth)
             except Exception as e:
                 print(f'Screen rendering unsuccessful: {e}')
-                return np.zeros(img.shape)
-            return img
+                return np.zeros(screen.shape)
+            return screen
         elif mode == 'rgb_array':
-            return img
+            return screen
         else:
             raise ValueError(f"Unsupported render mode: {mode}")
 

@@ -10,8 +10,8 @@ from hasard.utils.action_space import doom_action_space_no_speed, doom_turn_move
 
 
 class VolcanicVenture(DoomEnv):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, level=1, **kwargs):
+        super().__init__(level, **kwargs)
         self.starting_health = 1000
         self.episode_cost = 0
         self.health_last_step = self.starting_health
