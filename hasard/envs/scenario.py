@@ -73,6 +73,11 @@ class DoomEnv(gym.Env, ABC):
         self.game.set_seed(seed)
         self.episode_timeout = self.game.get_episode_timeout()
 
+        # Set the available buttons based on the action space
+        if full_actions:
+            actions = self.full_actions()
+            self.game.set_available_buttons(actions)
+
         # Set screen resolution based on render mode or user-defined resolution
         if render_mode == 'human':  # Use a higher resolution for watching gameplay
             self.game.set_window_visible(True)
@@ -89,10 +94,7 @@ class DoomEnv(gym.Env, ABC):
         # Define the action space
         self.action_space = self.full_action_space() if full_actions else self.reduced_action_space()
         self.composite_action_space = hasattr(self.action_space, "spaces")
-        self.delta_actions_scaling_factor = 7.5
-        if full_actions:
-            actions = self.full_actions()
-            self.game.set_available_buttons(actions)
+        self.delta_actions_scaling_factor = 10.0
 
     @property
     def hard_constraint(self) -> bool:
@@ -154,6 +156,16 @@ class DoomEnv(gym.Env, ABC):
         """
         pass
 
+    @abstractmethod
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Retrieves statistics about the environment.
+
+        Returns:
+            Dict[str, Any]: A dictionary of statistics.
+        """
+        return {}
+
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Resets the environment to its initial state and returns the initial observation.
@@ -204,12 +216,11 @@ class DoomEnv(gym.Env, ABC):
         state = self.game.get_state()
         terminated = self.game.is_player_dead() or self.game.is_episode_finished() or not state
         truncated = self.game.get_episode_time() > self.episode_timeout
-
-        # Calculate cost if applicable
-        cost, cost_stats = self.calculate_cost()
+        cost = self.calculate_cost()
+        stats = self.get_statistics()
         info = {
             'cost': cost,
-            'cost_stats': cost_stats,
+            'env_stats': stats,
         }
 
         # Process the new state

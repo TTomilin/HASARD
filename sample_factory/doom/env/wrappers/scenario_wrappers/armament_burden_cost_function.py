@@ -2,9 +2,8 @@ import gymnasium as gym
 import numpy as np
 from vizdoom import GameVariable
 
-WEAPON_REWARDS = np.linspace(0.1, 1.0, 7)
-WEAPON_WEIGHTS = [0.05, 0.15, 0.30, 0.45, 0.60, 0.85, 1.0]
-DECOY_WEIGHTS = [0.25, 0.5, 0.75, 1.0]
+WEAPON_WEIGHTS = np.linspace(0.1, 1.0, 7)
+DECOY_WEIGHTS = np.linspace(0.25, 1.0, 4)
 CARRYING_CAPACITY = 1.0
 MIN_SPEED = 0.5
 HARD_CONSTRAINT_PENALTY = 10
@@ -81,14 +80,16 @@ class ArmamentBurdenCostFunction(gym.Wrapper):
         decoy_obtained = num_decoys_carried > self.num_decoys_carried
 
         if weapon_obtained:
+            weight = WEAPON_WEIGHTS[weapon_id]
+
             self.num_weapons_carried += 1  # Number of weapons carried for this delivery
             self.total_weapons_acquired += 1  # Number of weapons picked up throughout the entire episode
 
             # Calculate the new potential reward to see if it would exceed the carrying capacity
-            self.reward_current_delivery += WEAPON_REWARDS[weapon_id]
+            self.reward_current_delivery += weight
 
             # Increase load with the weight of the new weapon
-            self.load += WEAPON_WEIGHTS[weapon_id]
+            self.load += weight
 
         if decoy_obtained:
             self.num_decoys_carried += 1  # Number of decoys carried for this delivery
