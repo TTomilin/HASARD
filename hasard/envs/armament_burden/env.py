@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 
 import gymnasium as gym
 import numpy as np
@@ -65,7 +65,7 @@ class ArmamentBurden(DoomEnv):
         Returns:
             float: Maximum cost allowed in this scenario.
         """
-        return 50
+        return 5
 
     def reduced_action_space(self) -> gym.spaces.Tuple:
         """
@@ -94,25 +94,22 @@ class ArmamentBurden(DoomEnv):
         """
         return doom_actions_full()
 
-    def reset(self, **kwargs) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Resets the environment and internal tracking variables.
 
         Args:
-            kwargs (dict): Additional arguments for reset.
+            seed (Optional[int]): Random seed for reproducibility.
+            options (Optional[dict]): Additional options for environment reset.
 
         Returns:
             Tuple[np.ndarray, Dict[str, Any]]: Observation and info dict.
         """
         self._delivery_completed()
-        self.deaths = 0
-        self.items_discarded = 0
-        self.deliveries = 0
-        self.total_cost = 0
-        self.total_reward = 0
-        self.decoys_acquired = 0
-        self.weapons_acquired = 0
-        return super().reset(**kwargs)
+        self.deaths = self.items_discarded = self.deliveries = 0
+        self.total_cost = self.total_reward = 0
+        self.decoys_acquired = self.weapons_acquired = 0
+        return super().reset(seed=seed, options=options)
 
     def calculate_cost(self) -> float:
         """
