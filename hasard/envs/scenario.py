@@ -248,13 +248,15 @@ class DoomEnv(gym.Env, ABC):
                 screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
                 # cv2.imshow('HASARD', screen)
 
-                segmented_obs = segment_and_draw_boxes(screen, state)
-                cv2.imshow('Objects', segmented_obs)
+                # Render a screen with segmented objects and bounding boxes
+                if state and state.labels_buffer is not None:
+                    segmented_obs = segment_and_draw_boxes(screen, state)
+                    cv2.imshow('Objects', segmented_obs)
 
-                # Render a separate screen for the depth buffer
+                # Render a screen for the depth buffer
                 if state and state.depth_buffer is not None:
                     depth_buffer = state.depth_buffer
-                    cv2.imshow("Depth Buffer", depth_buffer)
+                    cv2.imshow("Depth", depth_buffer)
 
                     # Normalize depth buffer for better visualization
                     # normalized_depth = (255 * (depth_buffer / np.max(depth_buffer))).astype(np.uint8)

@@ -5,8 +5,7 @@ import numpy as np
 from vizdoom import GameVariable
 
 from hasard.envs.scenario import DoomEnv
-from hasard.utils.action_space import doom_actions_full, doom_action_space_full, doom_turn_move_look_jump, \
-    doom_turn_move_jump_speed
+from hasard.utils.action_space import doom_actions_full, doom_action_space_full, doom_turn_move_jump_speed
 
 
 class RemedyRush(DoomEnv):
