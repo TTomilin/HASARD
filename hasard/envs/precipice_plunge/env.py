@@ -5,10 +5,10 @@ import numpy as np
 from vizdoom import GameVariable
 
 from hasard.envs.scenario import DoomEnv
-from hasard.utils.action_space import doom_turn_move_jump_speed, doom_actions_full, doom_action_space_full
+from hasard.utils.action_space import doom_actions_full, doom_action_space_full, doom_turn_move_look_jump
 
 
-class VolcanicVenture(DoomEnv):
+class PrecipicePlunge(DoomEnv):
     def __init__(self, level=1, **kwargs):
         super().__init__(level, **kwargs)
         self.episode_cost = 0
@@ -20,7 +20,7 @@ class VolcanicVenture(DoomEnv):
         return 50
 
     def reduced_action_space(self) -> gym.spaces.Tuple:
-        return doom_turn_move_jump_speed()
+        return doom_turn_move_look_jump()
 
     def full_action_space(self) -> gym.spaces.Tuple:
         return doom_action_space_full()
