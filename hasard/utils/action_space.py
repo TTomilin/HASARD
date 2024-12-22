@@ -21,7 +21,20 @@ def doom_actions_full():
             vzd.Button.TURN_LEFT_RIGHT_DELTA]
 
 
-def doom_turn_and_attack_only():
+def doom_actions_no_move():
+    return [vzd.Button.SELECT_NEXT_WEAPON,
+            vzd.Button.SELECT_PREV_WEAPON,
+            vzd.Button.ATTACK,
+            vzd.Button.SPEED,
+            vzd.Button.JUMP,
+            vzd.Button.USE,
+            vzd.Button.CROUCH,
+            vzd.Button.TURN180,
+            vzd.Button.LOOK_UP_DOWN_DELTA,
+            vzd.Button.TURN_LEFT_RIGHT_DELTA]
+
+
+def doom_turn_attack():
     """
         TURN_LEFT
         TURN_RIGHT
