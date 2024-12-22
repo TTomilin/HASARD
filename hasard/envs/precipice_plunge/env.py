@@ -12,6 +12,8 @@ class PrecipicePlunge(DoomEnv):
     def __init__(self, level=1, **kwargs):
         super().__init__(level, **kwargs)
         self.episode_cost = 0
+        self.reward_scaler = 0.05
+        self.prev_z = self.starting_z = 0
         self.cost_scaler = 10 if self.hard_constraint else 1
         self.health_last_step = self.starting_health = 1000
 
@@ -40,8 +42,16 @@ class PrecipicePlunge(DoomEnv):
             Tuple[np.ndarray, Dict[str, Any]]: Observation and info dict.
         """
         self.episode_cost = 0
+        self.prev_z = self.starting_z
         self.health_last_step = self.starting_health
         return super().reset(seed=seed, options=options)
+
+    def step(self, action):
+        observation, reward, terminated, truncated, info = super().step(action)
+        pos_z = self.game.get_game_variable(GameVariable.POSITION_Z)
+        reward = (self.prev_z - pos_z) * self.reward_scaler
+        self.prev_z = pos_z
+        return observation, reward, terminated, truncated, info
 
     def calculate_cost(self) -> float:
         health = self.game.get_game_variable(GameVariable.HEALTH)
