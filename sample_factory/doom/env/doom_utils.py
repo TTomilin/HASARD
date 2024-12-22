@@ -4,9 +4,9 @@ from os.path import join
 from typing import Optional
 
 from sample_factory.doom.env.action_space import (
-    doom_turn_and_attack_only, doom_turn_move_jump_accelerate,
-    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use_jump_speed,
-    doom_action_space, doom_action_space_no_speed, doom_action_space_no_move,
+    doom_turn_attack, doom_turn_move_jump_accelerate,
+    doom_turn_move_jump_accelerate_attack, doom_turn_move_look_jump_use, doom_turn_move_use_jump_speed,
+    doom_action_space, doom_action_space_no_move,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
@@ -76,7 +76,7 @@ def episode_trigger(episode):
 DOOM_ENVS = [
     DoomSpec(
         'collateral_damage',
-        doom_turn_and_attack_only(),
+        doom_turn_attack(),
         doom_action_space_no_move(),
         max_histogram_len=10,
         penalty_scaling=1.0,
@@ -128,7 +128,7 @@ DOOM_ENVS = [
 
     DoomSpec(
         'precipice_plunge',
-        doom_turn_and_move_and_look_and_jump(),
+        doom_turn_move_look_jump_use(),
         doom_action_space(),
         max_histogram_len=75,
         penalty_scaling=1.0,
