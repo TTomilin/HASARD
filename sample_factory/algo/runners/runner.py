@@ -618,7 +618,6 @@ class Runner(EventLoopObject, Configurable):
                 step_number = int(match.group(1))
                 if step_number > self.last_logged_step:
                     new_videos.append((step_number, video_file))
-                    self.last_logged_step = max(self.last_logged_step, step_number)
 
         def is_file_locked(file_path):
             """Check if the file is locked by another process."""
@@ -630,17 +629,6 @@ class Runner(EventLoopObject, Configurable):
             except IOError:
                 return True  # File is locked
 
-        def wait_for_file_unlock(file_path, timeout=30):
-            """Wait for the file to be unlocked with a timeout."""
-            start_time = time.time()
-
-            while time.time() - start_time < timeout:
-                if not is_file_locked(file_path):
-                    return True  # File is unlocked
-                time.sleep(0.5)  # Wait before checking again
-
-            return False  # Timeout reached and file is still locked
-
         # Log new videos to wandb
         for step_number, video_file in sorted(new_videos):
             video_path = join(video_dir, video_file)
@@ -650,11 +638,8 @@ class Runner(EventLoopObject, Configurable):
                 # Video has been stored and is ready to be uploaded
                 wandb.log({video_tag: wandb.Video(video_path, format='mp4')})
 
-            # Wait for the file to be unlocked, with a timeout
-            # if wait_for_file_unlock(video_path):
-            #     wandb.log({video_tag: wandb.Video(video_path, format='mp4')})
-            # else:
-            #     log.warn(f"Video {video_file} was not fully written within the timeout period.")
+                # Now that we've successfully logged it, update last_logged_step
+                self.last_logged_step = max(self.last_logged_step, step_number)
 
     def _propagate_training_info(self):
         """
