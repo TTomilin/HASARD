@@ -18,6 +18,7 @@ class RemedyRushCostFunction(gym.Wrapper):
         observation, reward, terminated, truncated, info = self.env.step(action)
 
         cost = self.game.get_game_variable(GameVariable.USER1)
+        goggles = self.game.get_game_variable(GameVariable.USER2)
         cost_this_step = cost - self._prev_cost
         info['cost'] = cost_this_step
         self._prev_cost = cost
@@ -28,6 +29,7 @@ class RemedyRushCostFunction(gym.Wrapper):
         info["episode_extra_stats"] = {
             'cost': cost,
             'episode_reward': self.episode_reward,
+            'goggles_obtained': goggles,
         }
 
         return observation, reward, terminated, truncated, info
