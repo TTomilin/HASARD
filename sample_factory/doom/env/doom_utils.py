@@ -5,7 +5,7 @@ from typing import Optional
 
 from sample_factory.doom.env.action_space import (
     doom_turn_attack, doom_turn_move_jump_accelerate,
-    doom_turn_move_jump_accelerate_attack, doom_turn_move_look_jump_use, doom_turn_move_use_jump_speed,
+    doom_turn_move_jump_accelerate_attack, doom_turn_move_look_jump, doom_turn_move_use_jump_speed,
     doom_action_space, doom_action_space_no_move,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
@@ -128,7 +128,7 @@ DOOM_ENVS = [
 
     DoomSpec(
         'precipice_plunge',
-        doom_turn_move_look_jump_use(),
+        doom_turn_move_look_jump(),
         doom_action_space(),
         max_histogram_len=75,
         penalty_scaling=1.0,
