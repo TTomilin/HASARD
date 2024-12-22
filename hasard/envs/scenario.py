@@ -6,8 +6,9 @@ import cv2
 import gymnasium as gym
 import numpy as np
 import vizdoom as vzd
-from vizdoom import ScreenResolution, scenarios_path
+from vizdoom import ScreenResolution
 
+from hasard.utils.rendering import segment_and_draw_boxes
 from hasard.utils.utils import get_screen_resolution
 from sample_factory.algo.utils.spaces.discretized import Discretized
 
@@ -243,18 +244,23 @@ class DoomEnv(gym.Env, ABC):
 
         if mode == 'human':
             try:
-                # Render the image to the screen with swapped red and blue channels
+                # Render the screen with swapped red and blue channels
                 screen = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
-                # cv2.imshow('HASARD', img[:, :, [2, 1, 0]])
-                cv2.imshow('HASARD', screen)
-                cv2.waitKey(1)
+                # cv2.imshow('HASARD', screen)
+
+                segmented_obs = segment_and_draw_boxes(screen, state)
+                cv2.imshow('Objects', segmented_obs)
+
                 # Render a separate screen for the depth buffer
                 if state and state.depth_buffer is not None:
                     depth_buffer = state.depth_buffer
-                    # Normalize depth buffer for better visualization
-                    normalized_depth = (255 * (depth_buffer / np.max(depth_buffer))).astype(np.uint8)
                     cv2.imshow("Depth Buffer", depth_buffer)
-                    cv2.imshow("Normalized Depth Buffer", normalized_depth)
+
+                    # Normalize depth buffer for better visualization
+                    # normalized_depth = (255 * (depth_buffer / np.max(depth_buffer))).astype(np.uint8)
+                    # cv2.imshow("Normalized Depth Buffer", normalized_depth)
+
+                cv2.waitKey(1)
             except Exception as e:
                 print(f'Screen rendering unsuccessful: {e}')
                 return np.zeros(screen.shape)
