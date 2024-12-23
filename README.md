@@ -5,6 +5,13 @@ egocentric perception 3D environments derived from the classic DOOM video game. 
 across 3 levels of difficulty. HASARD challenges the agent to effectively integrate strategic planning, risk assessment, 
 and adaptive learning within safe operating parameters.
 
+[//]: # (A short demo of HASARD is available on [Youtube]&#40;https://www.youtube.com/watch?v=FUm2B8MZ6d0&list=PL6nJZHA3y2fxQK73jmuI5teM3n6Mydcf7&#41;.)
+<p align="center">
+  <img src="assets/gifs/HASARD_Short.gif" alt="Demo1" style="vertical-align: top;"/>
+
+[//]: # (  <img src="assets/gifs/HASARD_Short_Med.gif" alt="Demo2" style="vertical-align: top;"/>)
+</p>
+
 [//]: # ( TODO Add three gifs side by side, each for one level. Combine 6 clips of every env for each. Synchronize them.)
 
 | Environment             | Level 1                                                                                                  | Level 2                                                                                              | Level 3                                                                                              |
@@ -16,15 +23,6 @@ and adaptive learning within safe operating parameters.
 | **Collateral Damage**   | <img src="assets/images/collateral_damage/level_1.png" alt="Level 1" style="width:400px; height:auto;"/> | <img src="assets/images/collateral_damage/level_2.png" alt="Level 2" style="width:400px; height:auto;"/>  | <img src="assets/images/collateral_damage/level_3.png" alt="Level 3" style="width:400px; height:auto;"/>  |
 | **Remedy Rush**         | <img src="assets/images/remedy_rush/level_1.png" alt="Level 1" style="width:400px; height:auto;"/>       | <img src="assets/images/remedy_rush/level_2.png" alt="Level 2" style="width:400px; height:auto;"/>        | <img src="assets/images/remedy_rush/level_3.png" alt="Level 3" style="width:400px; height:auto;"/>        |
 
-[//]: # (A short demo of HASARD is available on [Youtube]&#40;https://www.youtube.com/watch?v=FUm2B8MZ6d0&list=PL6nJZHA3y2fxQK73jmuI5teM3n6Mydcf7&#41;.)
-
-[//]: # (<p align="center">)
-
-[//]: # (  <img src="assets/gifs/demo1.gif" alt="Demo1" style="vertical-align: top;"/>)
-
-[//]: # (  <img src="assets/gifs/demo2.gif" alt="Demo2" style="vertical-align: top;"/>)
-
-[//]: # (</p>)
 
 ### Key Features
 - **Egocentric Perception**: Agents operate from a first-person viewpoint, necessitating robust visual processing to successfully navigate the environment.
