@@ -47,7 +47,7 @@ env = hasard.make('ArmamentBurdenLevel1-v0')
 env.reset()
 terminated = truncated = False
 steps = total_cost = total_reward = 0
-while not terminated or not truncated:
+while not (terminated or truncated):
     action = env.action_space.sample()
     state, reward, cost, terminated, truncated, info = env.step(action)
     env.render()

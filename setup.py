@@ -16,8 +16,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     version="1.0.0",
-    # url="https://github.com/TTomilin/safety-doom",
-    # author="Tristan Tomilin",
+    url="https://github.com/TTomilin/HASARD",
+    author="Tristan Tomilin",
     license="MIT",
     keywords=["safe rl", "reinforcement learning", "vizdoom", "benchmark", "safety"],
     install_requires=[
@@ -35,7 +35,6 @@ setup(
         "filelock",
         "opencv-python",
         "wandb>=0.12.9",
-        "huggingface-hub>=0.10.0,<1.0",
         "pandas",
         "vizdoom",
     ],
