@@ -1,9 +1,9 @@
 # HASARD: A Benchmark for Harnessing Safe Reinforcement Learning with Doom
 
-**HASARD** (**Ha**rnessing **Sa**fe **R**einforcement Learning with **D**oom) is a benchmark for Safe Reinforcement Learning within complex,
-egocentric perception 3D environments derived from the classic DOOM video game. It consists of 6 diverse tasks sequences 
-across 3 levels of difficulty. HASARD challenges the agent to effectively integrate strategic planning, risk assessment, 
-and adaptive learning within safe operating parameters. A short demo of HASARD is available on [Youtube](https://www.youtube.com/watch?v=Bi8hSG_Rf4E).
+**HASARD** (**Ha**rnessing **Sa**fe **R**einforcement Learning with **D**oom) is a benchmark for Safe Reinforcement 
+Learning within complex, egocentric perception 3D environments derived from the classic DOOM video game. It features 6 
+diverse scenarios each spanning across 3 levels of difficulty. A short demo of HASARD is available on 
+[Youtube](https://www.youtube.com/watch?v=Bi8hSG_Rf4E).
 
 <p align="center">
   <img src="assets/gifs/HASARD_Short_1.gif" alt="Demo1" style="vertical-align: top;"/>
@@ -12,7 +12,7 @@ and adaptive learning within safe operating parameters. A short demo of HASARD i
 
 [//]: # ( TODO Add three gifs side by side, each for one level. Combine 6 clips of every env for each. Synchronize them.)
 
-| Environment             | Level 1                                                                                                  | Level 2                                                                                              | Level 3                                                                                              |
+| Scenario                | Level 1                                                                                                  | Level 2                                                                                              | Level 3                                                                                              |
 |-------------------------|----------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
 | **Armament Burden**     | <img src="assets/images/armament_burden/level_1.png" alt="Level 1" style="width:400px; height:auto;"/>   | <img src="assets/images/armament_burden/level_2.png" alt="Level 2" style="width:400px; height:auto;"/>    | <img src="assets/images/armament_burden/level_3.png" alt="Level 3" style="width:400px; height:auto;"/>    |
 | **Detonator’s Dilemma** | <img src="assets/images/detonators_dilemma/level_1.png" alt="Level 1" style="width:400px; height:auto;"/> | <img src="assets/images/detonators_dilemma/level_2.png" alt="Level 2" style="width:400px; height:auto;"/> | <img src="assets/images/detonators_dilemma/level_3.png" alt="Level 3" style="width:400px; height:auto;"/> |
@@ -23,9 +23,13 @@ and adaptive learning within safe operating parameters. A short demo of HASARD i
 
 
 ### Key Features
-- **Egocentric Perception**: Agents operate from a first-person viewpoint, necessitating robust visual processing to successfully navigate the environment.
-- **Complex Interactions**: Beyond simple navigation, tasks require strategic planning, threat assessment, and adherence to safety protocols, mimicking real-world complexity.
-- **Dynamic Environments**: Each task introduces elements of unpredictability, from moving hazards to sudden environmental changes, ensuring that tasks remain challenging and relevant.
+- **Egocentric Perception**: Agents learn solely from first-person pixel observations under partial observability.
+- **Beyond Simple Navigation**: Whereas prior benchmarks merely require the agent to reach goal locations on flat surfaces while avoiding obstacles, HASARD necessitates comprehending complex environment dynamics, anticipating the movement of entities, and grasping spatial relationships. 
+- **Dynamic Environments**: HASARD features random spawns, unpredictably moving units, and terrain that is constantly moving or periodically changing.
+- **Difficulty Levels**: Higher levels go beyond parameter adjustments, introducing entirely new elements and mechanics.
+- **Reward-Cost Trade-offs**: Rewards and costs are closely intertwined, with tightening cost budget necessitating a sacrifice of rewards.
+- **Safety Constraints**: Each scenario features a hard constraint setting, where any error results in immediate in-game penalties.
+- **Focus on Safety**: Achieving high rewards is straightforward, but doing so while staying within the safety budget demands learning complex and nuanced behaviors. 
 
 ## Installation
 To install HASARD, simply clone or download the repository and run:
