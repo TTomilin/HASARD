@@ -7,9 +7,8 @@ and adaptive learning within safe operating parameters.
 
 [//]: # (A short demo of HASARD is available on [Youtube]&#40;https://www.youtube.com/watch?v=FUm2B8MZ6d0&list=PL6nJZHA3y2fxQK73jmuI5teM3n6Mydcf7&#41;.)
 <p align="center">
-  <img src="assets/gifs/HASARD_Short.gif" alt="Demo1" style="vertical-align: top;"/>
-
-[//]: # (  <img src="assets/gifs/HASARD_Short_Med.gif" alt="Demo2" style="vertical-align: top;"/>)
+  <img src="assets/gifs/HASARD_Short_1.gif" alt="Demo1" style="vertical-align: top;"/>
+  <img src="assets/gifs/HASARD_Short_2.gif" alt="Demo2" style="vertical-align: top;"/>
 </p>
 
 [//]: # ( TODO Add three gifs side by side, each for one level. Combine 6 clips of every env for each. Synchronize them.)
