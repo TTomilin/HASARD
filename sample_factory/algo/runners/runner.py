@@ -640,6 +640,10 @@ class Runner(EventLoopObject, Configurable):
 
                 # Now that we've successfully logged it, update last_logged_step
                 self.last_logged_step = max(self.last_logged_step, step_number)
+                log.info(f"Logged video at step {step_number} to wandb as {video_tag}. New last_logged_step: {self.last_logged_step}")
+            else:
+                log.warning(f"Video at step {step_number} is locked and cannot be uploaded to wandb. Last logged step: {self.last_logged_step}")
+
 
     def _propagate_training_info(self):
         """
