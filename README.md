@@ -63,5 +63,3 @@ env.close()
 HASARD environments are built on top of the [ViZDoom](https://github.com/mwydmuch/ViZDoom) platform.  
 Our Safe RL baseline methods are implemented in [Sample-Factory](https://github.com/alex-petrenko/sample-factory).  
 Our experiments were managed using [WandB](https://wandb.ai).
-
-[//]: # (The `Cross-Domain` task sequences and the `run_and_gun` scenario environment modification were inspired by the [LevDoom]&#40;https://github.com/TTomilin/LevDoom&#41; generalization benchmark.  )

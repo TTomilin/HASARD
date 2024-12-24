@@ -38,6 +38,8 @@ class DoomEnv(gym.Env, ABC):
                  frame_skip: int = 4,
                  record_every: int = 100,
                  render_mode: str = 'human',
+                 render_boxes: bool = False,
+                 render_segmented: bool = False,
                  full_actions: bool = False,
                  hard_constraint: bool = False,
                  resolution: Optional[str] = None):
@@ -87,11 +89,15 @@ class DoomEnv(gym.Env, ABC):
         # Set screen resolution based on render mode or user-defined resolution
         if render_mode == 'human':  # Use a higher resolution for watching gameplay
             self.game.set_window_visible(True)
-            self.game.set_screen_resolution(ScreenResolution.RES_1280X720)
+            self.game.set_screen_resolution(ScreenResolution.RES_1280X1024)
             self.frame_skip = 1
         elif resolution:  # User-defined resolution
             self.game.set_screen_resolution(get_screen_resolution(resolution))
         self.game.init()
+
+        # Rendering options
+        self.render_segmented = render_segmented
+        self.render_boxes = render_boxes
 
         # Define the observation space
         self.game_res = (self.game.get_screen_height(), self.game.get_screen_width(), 3)
@@ -250,7 +256,8 @@ class DoomEnv(gym.Env, ABC):
 
                 # Render a screen with segmented objects and bounding boxes
                 if state and state.labels_buffer is not None:
-                    segmented_obs = segment_and_draw_boxes(screen, state)
+                    segmented_obs = segment_and_draw_boxes(screen, state, do_segment=self.render_segmented,
+                                                           do_boxes=self.render_boxes)
                     cv2.imshow('Objects', segmented_obs)
 
                 # Render a screen for the depth buffer
