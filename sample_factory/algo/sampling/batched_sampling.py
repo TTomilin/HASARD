@@ -42,14 +42,34 @@ def preprocess_actions(env_info: EnvInfo, actions: Tensor | np.ndarray) -> Tenso
     elif isinstance(env_info.action_space, gym.spaces.Box):
         return process_action_space(actions, env_info.gpu_actions, is_discrete=False)
     elif isinstance(env_info.action_space, gym.spaces.Tuple):
-        # input is (num_envs, num_actions)
+        # Split actions for each sub-space
+        splits = torch.split(actions, env_info.action_splits, dim=1)
+
+        # Process each sub-action
+        processed_sub_actions = [
+            process_action_space(s, env_info.gpu_actions, is_discrete=isinstance(sp, gym.spaces.Discrete))
+            for s, sp in zip(splits, env_info.action_space)
+        ]
+
+        # Combine into final format per environment: [int, int, ..., [float, ...], [float, ...], ...]
         out_actions = []
-        for split, space in zip(torch.split(actions, env_info.action_splits, 1), env_info.action_space):
-            out_actions.append(
-                process_action_space(split, env_info.gpu_actions, isinstance(space, gym.spaces.Discrete))
-            )
-        # this line can be used to transpose the actions, perhaps add as an option ?
-        # out_actions = list(zip(*out_actions)) # transpose
+        num_envs = processed_sub_actions[0].shape[0]  # all should have same first dimension
+
+        for env_idx in range(num_envs):
+            env_actions = []
+            for sub_action, sp in zip(processed_sub_actions, env_info.action_space):
+                if isinstance(sp, gym.spaces.Discrete):
+                    # Store discrete as a plain int
+                    env_actions.append(int(sub_action[env_idx]))
+                else:
+                    # Keep continuous as a NumPy array or convert from Torch
+                    if isinstance(sub_action, np.ndarray):
+                        env_actions.append(sub_action[env_idx])
+                    else:
+                        # If it's still a torch.Tensor (e.g., because gpu_actions=True), convert to NumPy
+                        env_actions.append(sub_action[env_idx].cpu().numpy())
+            out_actions.append(env_actions)
+
         return out_actions
 
     raise NotImplementedError(f"Unknown action space type: {env_info.action_space}")
