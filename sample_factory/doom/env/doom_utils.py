@@ -75,32 +75,6 @@ def episode_trigger(episode):
 
 DOOM_ENVS = [
     DoomSpec(
-        'collateral_damage',
-        doom_turn_attack(),
-        doom_action_space_no_move(),
-        max_histogram_len=10,
-        penalty_scaling=1.0,
-        default_timeout=2100,
-        safety_bound=5,
-        unsafe_reward=-0.1,
-        coord_limits=[-576, -640, 256, 640],
-        extra_wrappers=[(DoomCollateralDamageCostFunction, {})]
-    ),
-
-    DoomSpec(
-        'volcanic_venture',
-        doom_turn_move_jump_accelerate(),
-        doom_action_space(),
-        max_histogram_len=30,
-        penalty_scaling=1.0,
-        default_timeout=2100,
-        safety_bound=50,
-        unsafe_reward=-0.01,
-        coord_limits=[0, 64, 2176, 2240],
-        extra_wrappers=[(VolcanicVentureCostFunction, {})]
-    ),
-
-    DoomSpec(
         'armament_burden',
         doom_turn_move_use_jump_speed(),
         doom_action_space(),
@@ -112,20 +86,30 @@ DOOM_ENVS = [
         coord_limits=[0, 256, 960, 1216],
         extra_wrappers=[(ArmamentBurdenCostFunction, {})]
     ),
-
     DoomSpec(
-        'remedy_rush',
-        doom_turn_move_jump_accelerate(),
-        doom_action_space(),
-        max_histogram_len=30,
+        'collateral_damage',
+        doom_turn_attack(),
+        doom_action_space_no_move(),
+        max_histogram_len=10,
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
-        unsafe_reward=-0.025,
-        coord_limits=[-608, -736, 1040, 1296],
-        extra_wrappers=[(RemedyRushCostFunction, {})]
+        unsafe_reward=-0.1,
+        coord_limits=[-576, -640, 256, 640],
+        extra_wrappers=[(DoomCollateralDamageCostFunction, {})]
     ),
-
+    DoomSpec(
+        'detonators_dilemma',
+        doom_turn_move_jump_accelerate_attack(),
+        doom_action_space(),
+        max_histogram_len=50,
+        penalty_scaling=1.0,
+        default_timeout=2100,
+        safety_bound=5,
+        unsafe_reward=-0.01,
+        coord_limits=[-720, -1120, 1804, -360],
+        extra_wrappers=[(DoomDetonatorsDilemmaCostFunction, {})]
+    ),
     DoomSpec(
         'precipice_plunge',
         doom_turn_move_look_jump(),
@@ -138,18 +122,29 @@ DOOM_ENVS = [
         coord_limits=[0, 0, 2176, 448],
         extra_wrappers=[(PrecipicePlungeRewardFunction, {}), (PrecipicePlungeCostFunction, {})]
     ),
-
     DoomSpec(
-        'detonators_dilemma',
-        doom_turn_move_jump_accelerate_attack(),
+        'remedy_rush',
+        doom_turn_move_jump_accelerate(),
         doom_action_space(),
-        max_histogram_len=50,
+        max_histogram_len=30,
         penalty_scaling=1.0,
         default_timeout=2100,
         safety_bound=5,
+        unsafe_reward=-0.025,
+        coord_limits=[-608, -736, 1040, 1296],
+        extra_wrappers=[(RemedyRushCostFunction, {})]
+    ),
+    DoomSpec(
+        'volcanic_venture',
+        doom_turn_move_jump_accelerate(),
+        doom_action_space(),
+        max_histogram_len=30,
+        penalty_scaling=1.0,
+        default_timeout=2100,
+        safety_bound=50,
         unsafe_reward=-0.01,
-        coord_limits=[-720, -1120, 1804, -360],
-        extra_wrappers=[(DoomDetonatorsDilemmaCostFunction, {})]
+        coord_limits=[0, 64, 2176, 2240],
+        extra_wrappers=[(VolcanicVentureCostFunction, {})]
     ),
 ]
 
