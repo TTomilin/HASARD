@@ -103,7 +103,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     cfg.train_dir = train_dir  # Ensure we are running on the correct machine
 
     env_initials = ''.join(word[0].upper() for word in cfg.env.split('_'))
-    video_file_path = f"{experiment_dir(cfg)}/{env_initials}_L{cfg.level}_{cfg.algo}.mp4"
+    video_file_path = f"{experiment_dir(cfg)}/{env_initials}_L{cfg.level}_{cfg.algo}_{cfg.resolution_eval}.mp4"
     if os.path.exists(video_file_path) and cfg.save_video and not cfg.overwrite_video:
         print(f"Video for {video_file_path} already exists. Skipping...")
         return ExperimentStatus.SUCCESS, 0
