@@ -4,14 +4,6 @@ import os
 
 import numpy as np
 
-SAFETY_THRESHOLDS = {
-    "armament_burden": 50,
-    "volcanic_venture": 50,
-    "remedy_rush": 5,
-    "collateral_damage": 5,
-    "precipice_plunge": 50,
-    "detonators_dilemma": 5,
-}
 
 TRANSLATIONS = {
     'armament_burden': 'Armament Burden',
@@ -22,15 +14,15 @@ TRANSLATIONS = {
     'detonators_dilemma': 'Detonator\'s Dilemma',
     'reward': 'Reward',
     'cost': 'Cost',
-    'data/main': 'Regular',
-    'data/curriculum': 'Curriculum',
+    'data/main': 'Simplified Actions',
+    'data/full_actions': 'Full Actions',
     'diff': 'Difference',
 }
 
 
 # Data Loading
-def load_data(base_path, method, environment, seed, level, metric_key):
-    file_path = os.path.join(base_path, environment, method, f"level_{level}", f"seed_{seed}", f"{metric_key}.json")
+def load_data(base_path, environment, seed, level, metric_key):
+    file_path = os.path.join(base_path, environment, "PPOLag", f"level_{level}", f"seed_{seed}", f"{metric_key}.json")
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
             data = json.load(file)
@@ -39,40 +31,41 @@ def load_data(base_path, method, environment, seed, level, metric_key):
 
 
 # Data Processing
-def process_data(base_paths, method, environments, seeds, metrics, level, n_data_points):
+# Modified process_data function to include percentage decrease calculation
+def process_data(base_paths, environments, seeds, metrics, n_data_points):
     results = {}
-    data = {base_path: {} for base_path in base_paths}
+    action_space_data = {base_path: {} for base_path in base_paths}
 
     for env in environments:
         for base_path in base_paths:
             for metric in metrics:
-                processed_data = process_metric(base_path, method, env, seeds, metric, level, n_data_points)
+                processed_data = process_metric(base_path, env, seeds, metric, n_data_points)
                 key = (base_path, env, metric)
-                data[key] = processed_data
+                action_space_data[key] = processed_data
 
     # Calculate percentage decreases and store in results
     for env in environments:
         results[env] = {}
         for metric in metrics:
-            regular = data[('data/main', env, metric)]['mean']
-            curriculum = data[('data/curriculum', env, metric)]['mean']
-            if regular and curriculum:
-                percent_decrease = -((regular - curriculum) / regular) * 100
+            simplified = action_space_data[('data/main', env, metric)]['mean']
+            full = action_space_data[('data/full_actions', env, metric)]['mean']
+            if simplified and full:
+                percent_decrease = -((simplified - full) / simplified) * 100
                 results[env][metric] = {
-                    'data/main': regular,
-                    'data/curriculum': curriculum,
+                    'data/main': simplified,
+                    'data/full_actions': full,
                     'diff': percent_decrease
                 }
     return results
 
 
-def process_metric(base_path, method, env, seeds, metric, level, n_data_points):
+def process_metric(action_space, env, seeds, metric, n_data_points):
+    level = 1
     metric_values = []
+
     for seed in seeds:
-        data = load_data(base_path, method, env, seed, level, metric)
+        data = load_data(action_space, env, seed, level, metric)
         if data and len(data) >= n_data_points:
-            if base_path == 'data/main':
-                data = data[:300]
             last_data_points = data[-n_data_points:]
             metric_values.extend(last_data_points)
     mean = np.mean(metric_values)
@@ -94,7 +87,7 @@ def generate_latex_table(data, row_headers, caption=''):
     latex_str = "\\begin{table}[h!]\n\\centering\n\\small{\n\\begin{tabularx}{\\textwidth}{c " + "X@{\\hspace{0.5cm}}X" * len(
         environments) + "}\n"
     latex_str += "\\toprule\n"
-    latex_str += "\\multirow{2}{*}{Training} & " + " & ".join(headers) + " \\\\\n"
+    latex_str += "\\multirow{2}{*}{Action Space} & " + " & ".join(headers) + " \\\\\n"
     subheader_row = "& " + "\\textbf{R $\\uparrow$} & \\textbf{C $\\downarrow$} & " * len(environments)
     latex_str += subheader_row.rstrip(' & ') + "\\\\\n\\midrule\n"
 
@@ -115,18 +108,15 @@ def generate_latex_table(data, row_headers, caption=''):
 
 
 def main(args):
-    data = process_data(args.inputs, args.method, args.envs, args.seeds, args.metrics, args.level, args.n_data_points)
+    data = process_data(args.inputs, args.envs, args.seeds, args.metrics, args.n_data_points)
     table = generate_latex_table(data, args.inputs)
     print(table)
 
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
-    parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/curriculum'],
+    parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/full_actions'],
                         help="Base input directories containing the data")
-    parser.add_argument("--method", type=str, default="PPOPID", choices=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
-                        help="Algorithm to analyze")
-    parser.add_argument("--level", type=int, default=3, choices=[1, 2, 3], help="Level of the run(s) to compute")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
     parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
     parser.add_argument("--envs", type=str, nargs='+',

@@ -3,29 +3,9 @@ import json
 import os
 
 import matplotlib.pyplot as plt
-from matplotlib import cm
 import numpy as np
-from matplotlib import colormaps
 
-SAFETY_THRESHOLDS = {
-    "armament_burden": 50,
-    "volcanic_venture": 50,
-    "remedy_rush": 5,
-    "collateral_damage": 5,
-    "precipice_plunge": 50,
-    "detonators_dilemma": 5,
-}
-
-TRANSLATIONS = {
-    'armament_burden': 'Armament Burden',
-    'volcanic_venture': 'Volcanic Venture',
-    'remedy_rush': 'Remedy Rush',
-    'collateral_damage': 'Collateral Damage',
-    'precipice_plunge': 'Precipice Plunge',
-    'detonators_dilemma': 'Detonator\'s Dilemma',
-    'reward': 'Reward',
-    'cost': 'Cost',
-}
+from results.commons import TRANSLATIONS
 
 
 def main(args):
@@ -63,7 +43,8 @@ def plot_metrics(data, args):
     # Dictionary to track lines by label to prevent duplicates
     line_label_dict = {}
 
-    title_axes = [fig.add_subplot(3, 2, i + 1, frame_on=False) for i in range(6)]  # Update to match the number of environments
+    title_axes = [fig.add_subplot(3, 2, i + 1, frame_on=False) for i in
+                  range(6)]  # Update to match the number of environments
     for ax in title_axes:
         ax.set_xticks([])
         ax.set_yticks([])
@@ -125,7 +106,7 @@ def plot_metrics(data, args):
     fig.legend(lines, labels, loc='lower center', ncol=len(all_bounds), fontsize=12, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.0))
 
-    folder = 'plots'
+    folder = 'figures'
     file = f'bounds_{args.algo}_level_{args.level}'
     os.makedirs(folder, exist_ok=True)
     plt.savefig(f'{folder}/{file}.pdf', dpi=300)
@@ -134,7 +115,8 @@ def plot_metrics(data, args):
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plot metrics from structured data directory.")
-    parser.add_argument("--input", type=str, default='data/safety_bound', help="Base input directory containing the data")
+    parser.add_argument("--input", type=str, default='data/safety_bound',
+                        help="Base input directory containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2], help="Seed(s) of the run(s) to plot")
     parser.add_argument("--algo", type=str, default="PPOLag", help="Name of the algorithm")

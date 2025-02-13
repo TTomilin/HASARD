@@ -3,21 +3,9 @@ import json
 import os
 import numpy as np
 
+from results.commons import TRANSLATIONS
 from sample_factory.doom.env.doom_utils import DOOM_ENVS
 
-TRANSLATIONS = {
-    'armament_burden': 'Armament Burden',
-    'volcanic_venture': 'Volcanic Venture',
-    'remedy_rush': 'Remedy Rush',
-    'collateral_damage': 'Collateral Damage',
-    'precipice_plunge': 'Precipice Plunge',
-    'detonators_dilemma': 'Detonator\'s Dilemma',
-    'reward': 'Reward',
-    'cost': 'Cost',
-    'data/main': 'Default Obs',
-    'data/depth': 'Default Obs + Depth Buffer',
-    'data/segment': 'Segmentation',
-}
 
 def main(args):
     if len(args.total_iterations) != len(args.inputs):

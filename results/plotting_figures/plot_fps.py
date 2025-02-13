@@ -4,7 +4,7 @@ import pandas as pd
 
 # Load the updated Safety-Gymnasium CSV file
 safety_gym_df = pd.read_csv('data/fps/SafetyPointGoal.csv')
-hasard_df = pd.read_csv('data/fps/VolcanicVenture.csv')
+hasard_df = pd.read_csv('../data/fps/VolcanicVenture.csv')
 
 # Extracting the relevant columns again
 safety_gym_time = safety_gym_df['Time/Total']
@@ -67,7 +67,7 @@ plt.legend()
 plt.grid(True, ls=":")
 
 # Save and show the plot
-plt.savefig(f'plots/FPS.pdf', dpi=300)
+plt.savefig(f'figures/FPS.pdf', dpi=300)
 plt.show()
 
 

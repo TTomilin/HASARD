@@ -53,7 +53,7 @@ time_minutes = safety_gym_time / 60  # Convert seconds to minutes
 # safety_gym_time = np.cumsum(safety_gym_updates)
 
 # Calculate cumulative updates for HASARD
-log_path = 'data/fps/VolcanicVenture_Updates.out'
+log_path = '../data/fps/VolcanicVenture_Updates.out'
 hasard_timestamps = parse_log_updates(log_path)
 start_time = hasard_timestamps[0]
 hasard_minutes = [(ts - start_time).total_seconds() / 60 for ts in hasard_timestamps]
@@ -70,5 +70,5 @@ plt.ylabel('Cumulative Updates (log scale)')
 # plt.title('Cumulative Policy Updates Over Time')
 plt.grid(True, ls=":")
 plt.legend()
-plt.savefig(f'plots/policy_updates.pdf', dpi=300)
+plt.savefig(f'figures/policy_updates.pdf', dpi=300)
 plt.show()

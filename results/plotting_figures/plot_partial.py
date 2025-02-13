@@ -5,41 +5,28 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-SAFETY_THRESHOLDS = {
-    "armament_burden": 50,
-    "volcanic_venture": 50,
-    "remedy_rush": 5,
-    "collateral_damage": 5,
-    "precipice_plunge": 50,
-    "detonators_dilemma": 5,
-}
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS
+from sample_factory.doom.env.doom_utils import DOOM_ENVS
 
-TRANSLATIONS = {
-    'armament_burden': 'Armament Burden',
-    'volcanic_venture': 'Volcanic Venture',
-    'remedy_rush': 'Remedy Rush',
-    'collateral_damage': 'Collateral Damage',
-    'precipice_plunge': 'Precipice Plunge',
-    'detonators_dilemma': 'Detonator\'s Dilemma',
-    'reward': 'Reward',
-    'cost': 'Cost',
-}
+
+BUFFER_PERCENTAGE = 0.05  # 5% buffer
 
 
 def main(args):
-    data = load_data(args.input, args.envs, args.algo, args.seeds, args.metrics, args.scales, args.level)
+    data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level)
     plot_metrics(data, args)
 
 
-def load_data(base_path, environments, method, seeds, metrics, scales, level):
+def load_data(base_path, environments, methods, seeds, metrics, level):
     """Load data from structured directory."""
     data = {}
     for env in environments:
-        for seed in seeds:
-            for metric in metrics:
-                for scale in scales:
-                    file_path = os.path.join(base_path, env, method, f"level_{level}", f"scale_{scale}", f"seed_{seed}", f"{metric}.json")
-                    key = (env, scale, metric)
+        for method in methods:
+            for seed in seeds:
+                for metric in metrics:
+                    metric_name = f"{metric}_hard" if args.hard_constraint else metric
+                    file_path = os.path.join(base_path, env, method, f"level_{level}", f"seed_{seed}", f"{metric_name}.json")
+                    key = (env, method, metric)
                     if key not in data:
                         data[key] = []
                     if os.path.exists(file_path):
@@ -59,6 +46,8 @@ def plot_metrics(data, args):
     lines = []
     labels = []
 
+    doom_env_lookup = {spec.name: spec for spec in DOOM_ENVS}
+
     title_axes = [fig.add_subplot(3, 2, i + 1, frame_on=False) for i in range(6)]  # Update to match the number of environments
     for ax in title_axes:
         ax.set_xticks([])
@@ -76,67 +65,78 @@ def plot_metrics(data, args):
 
         for metric_index, metric in enumerate(args.metrics):
             ax = axs[row, col_base + metric_index]
-            for scale in args.scales:
-                scale_label = f"Cost Scaler {float(scale)}"
-                key = (env, scale, metric)
+            max_rew = 0
+            max_cost = 0
+            for method in args.algos:
+                key = (env, method, metric)
                 if key in data and data[key]:
+                    # all_runs = np.array(data[key])
+
+                    # Hacky workaround for If some runs crashed and there is an uneven number of datapoints
                     runs = data[key]
-                    min_length = min(len(runs[0]), len(runs[1]))
-                    runs[0] = runs[0][:min_length]
-                    runs[1] = runs[1][:min_length]
+                    min_length = min(len(run) for run in runs)
+                    for i in range(len(runs)):
+                        runs[i] = runs[i][:min_length]
                     all_runs = np.array(runs)
+
                     if all_runs.size == 0 or len(all_runs.shape) < 2:
                         continue
 
                     # The reward of PPOCost is logged with the cost subtracted from it
                     # We need to add it back for a fair comparison
-                    if metric == "reward":
-                        cost_key = (env, scale, "cost")
+                    if method == "PPOCost" and metric == "reward":
+                        cost_key = (env, method, "cost")
                         if cost_key in data:
-                            run_cost = data[cost_key]
-                            min_length = min(len(run_cost[0]), len(run_cost[1]))
-                            run_cost[0] = run_cost[0][:min_length]
-                            run_cost[1] = run_cost[1][:min_length]
-                            all_costs = np.array(run_cost)
-                            all_runs += all_costs  # Modify this line to adjust how cost influences reward
+                            all_costs = np.array(data[cost_key])
+                            cost_scalar = doom_env_lookup[env].penalty_scaling
+                            all_runs += all_costs * cost_scalar
 
                     num_data_points = all_runs.shape[1]
                     iterations_per_point = args.total_iterations / num_data_points
                     mean = np.mean(all_runs, axis=0)
                     ci = 1.96 * np.std(all_runs, axis=0) / np.sqrt(len(all_runs))
                     x = np.arange(num_data_points) * iterations_per_point
-                    line = ax.plot(x, mean, label=scale_label)
-                    ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
+                    if method in args.algos_to_plot:
+                        line = ax.plot(x, mean, label=method)
+                        ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
                     ax.set_xlim(-args.total_iterations / 60, args.total_iterations)
-
-                    y_lim = None
-                    if env == 'armament_burden':
-                        y_lim = 19 if metric == 'reward' else 11
-
-                    ax.set_ylim(0, y_lim)
+                    max_rew = max(max_rew, max(mean + ci))
+                    max_cost = max(max_cost, max(mean + ci))
+                    max_lim = max_rew if metric == 'reward' else max_cost
+                    ax.set_ylim(0, max_lim * (1 + BUFFER_PERCENTAGE))
                     ax.set_xlabel('Steps', fontsize=12)
                     ax.set_ylabel(TRANSLATIONS[metric], fontsize=12)
                     if env_index == 1 and metric_index == 1:  # Adjust if needed
-                        lines.append(line[0])
-                        labels.append(scale_label)
+                        if method in args.algos_to_plot:
+                            lines.append(line[0])
+                            labels.append(method)
+                    if metric == 'cost' and not args.hard_constraint:
+                        threshold_line = ax.axhline(y=SAFETY_THRESHOLDS[env], color='red', linestyle='--',
+                                                    label='Safety Threshold')
+                        ax.text(0.5, SAFETY_THRESHOLDS[env], 'Safety Threshold', horizontalalignment='center',
+                                verticalalignment='top', transform=ax.get_yaxis_transform(), fontsize=10,
+                                style='italic', color='darkred')
 
-    fig.legend(lines, labels, loc='lower center', ncol=len(args.scales), fontsize=12, fancybox=True, shadow=True,
+    fontsize = 12 if len(args.algos) < 9 else 11
+    fig.legend(lines, labels, loc='lower center', ncol=len(args.algos), fontsize=fontsize, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.0))
 
-    folder = 'plots'
-    file = f'cost_scales_level_{args.level}'
+    folder = 'figures'
+    file = 'hard' if args.hard_constraint else f'level_{args.level}'
     os.makedirs(folder, exist_ok=True)
-    plt.savefig(f'{folder}/{file}.pdf', dpi=300)
+    suffix = '_'.join(args.algos_to_plot) if args.algos_to_plot else 'empty'
+    plt.savefig(f'{folder}/{file}_{suffix}.png')
     plt.show()
 
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plot metrics from structured data directory.")
-    parser.add_argument("--input", type=str, default='data/cost_scale', help="Base input directory containing the data")
+    parser.add_argument("--input", type=str, default='data/main', help="Base input directory containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--scales", type=float, nargs='+', default=[0.1, 0.5, 1, 2], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--algo", type=str, default="PPOCost", help="Name of the algorithm")
+    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOPID", "PPOSaute", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
+                        help="Algorithms to download data for")
+    parser.add_argument("--algos_to_plot", type=str, nargs='+', default=[], help="Algorithms to download/plot")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
                                  "precipice_plunge", "detonators_dilemma"],
