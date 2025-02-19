@@ -17,13 +17,13 @@ from vizdoom import AutomapMode, DoomGame, Mode, ScreenResolution
 from sample_factory.algo.utils.spaces.discretized import Discretized
 from sample_factory.utils.utils import log, project_tmp_dir
 
-resolutions = {'1920x1080': ScreenResolution.RES_1920X1080,
-               '1600x1200': ScreenResolution.RES_1600X1200,
-               '1280x720': ScreenResolution.RES_1280X720,
-               '800x600': ScreenResolution.RES_800X600,
-               '640x480': ScreenResolution.RES_640X480,
-               '320x240': ScreenResolution.RES_320X240,
-               '160x120': ScreenResolution.RES_160X120}
+resolutions = {'1920x1080': ScreenResolution.RES_1920X1080,  # 16:9
+               '1600x1200': ScreenResolution.RES_1600X1200,  # 4:3
+               '1280x720': ScreenResolution.RES_1280X720,  # 16:9
+               '800x600': ScreenResolution.RES_800X600,  # 4:3
+               '640x480': ScreenResolution.RES_640X480,  # 4:3
+               '320x240': ScreenResolution.RES_320X240,  # 4:3
+               '160x120': ScreenResolution.RES_160X120}  # 4:3
 
 
 def doom_lock_file(max_parallel):
