@@ -39,26 +39,25 @@ def animate_metrics(data, args):
     plt.style.use('seaborn-v0_8-paper')
     num_metrics = len(args.metrics)
     fig, axs = plt.subplots(1, num_metrics, figsize=(4 * num_metrics, 2.5))
+    fig.subplots_adjust(bottom=0.2)
     if num_metrics == 1:
         axs = [axs]
-    doom_env_lookup = {spec.name: spec for spec in DOOM_ENVS}
 
-    # dp_dict holds the number of datapoints to consider for each input.
     dp_dict = dict(zip(args.inputs, args.num_datapoints))
-    steps_per_dp = args.steps_per_dp  # new multiplier: e.g. 1e6 steps per datapoint
+    steps_per_dp = args.steps_per_dp
 
-    # Precompute plot data per metric and base_path.
-    # For each, store (x_vals, mean, ci, effective_length)
+    # Precompute plot data and global y-limits.
     plot_data = {metric: {} for metric in args.metrics}
     global_frames = {}
+    global_ymax = {m: 0 for m in args.metrics}
     for metric in args.metrics:
         frames_list = []
         for base_path in args.inputs:
             runs = data[metric].get(base_path, [])
             if not runs:
                 continue
-            desired_points = int(dp_dict[base_path])  # use only this many datapoints
-            total_steps = desired_points * steps_per_dp  # x_max value
+            desired_points = int(dp_dict[base_path])
+            total_steps = desired_points * steps_per_dp
             sliced_runs = []
             for run in runs:
                 if len(run) >= 1:
@@ -80,41 +79,44 @@ def animate_metrics(data, args):
                         cost_sliced = [r[:cost_effective] for r in cost_sliced]
                         cost_arr = np.stack(cost_sliced, axis=0)
                         common_len = min(effective_len, cost_arr.shape[1])
-                        arr = arr[:, :common_len] + cost_arr[:, :common_len] * doom_env_lookup[args.env].penalty_scaling
+                        arr = arr[:, :common_len] + cost_arr[:, :common_len] * DOOM_ENVS[args.env].penalty_scaling
                         effective_len = common_len
             mean = np.mean(arr, axis=0)
             ci = 1.96 * np.std(arr, axis=0) / np.sqrt(arr.shape[0])
-            # x_vals now spans 0 to total_steps even if effective_len < desired_points
             x_vals = np.linspace(0, total_steps, effective_len)
             plot_data[metric][base_path] = (x_vals, mean, ci, effective_len)
             frames_list.append(effective_len)
+            global_ymax[metric] = max(global_ymax[metric], np.max(mean + ci))
         global_frames[metric] = max(frames_list) if frames_list else 0
 
     if not any(global_frames.values()):
         print("No data available for animation.")
         return
 
-    # Prepare line objects storage.
     lines_info = {metric: {} for metric in args.metrics}
+    max_steps = max(dp * steps_per_dp for dp in args.num_datapoints)
 
     def init():
         for i, metric in enumerate(args.metrics):
             ax = axs[i]
             ax.clear()
-            ax.set_title(TRANSLATIONS.get(metric, metric), fontsize=12)
             ax.set_xlabel('Steps', fontsize=12)
             ax.set_ylabel(TRANSLATIONS.get(metric, metric), fontsize=12)
             if metric == 'cost' and not args.hard_constraint:
                 thr = SAFETY_THRESHOLDS.get(args.env, None)
                 if thr is not None:
                     ax.axhline(y=thr, color='red', linestyle='--', label='Safety Threshold')
-            # Set x-limit as the maximum steps among inputs.
-            max_steps = max(dp * steps_per_dp for dp in args.num_datapoints)
-            ax.set_xlim(0, max_steps)
-            ax.set_ylim(0, None)
+
+            # Fix y-axis based on overall max.
+            ax.set_ylim(0, global_ymax[metric] * 1.1)
+            # Set fixed x-axis limit if not shifting.
+            if not args.shift_x_axis:
+                ax.set_xlim(0, max_steps)
+
             for base_path in plot_data[metric]:
                 line, = ax.plot([], [], label=TRANSLATIONS.get(base_path, base_path))
                 lines_info[metric][base_path] = line
+
             if args.plot_legend:
                 ax.legend()
         return []
@@ -122,41 +124,47 @@ def animate_metrics(data, args):
     def update(frame):
         for i, metric in enumerate(args.metrics):
             ax = axs[i]
+            # Remove previous fill_between collections.
             for coll in list(ax.collections):
                 coll.remove()
+
             for base_path, line in lines_info[metric].items():
                 x_vals, mean, ci, eff_len = plot_data[metric][base_path]
-                current = frame if frame < eff_len else eff_len
-                line.set_data(x_vals[:current], mean[:current])
-                ax.fill_between(x_vals[:current],
-                                (mean - ci)[:current],
-                                (mean + ci)[:current],
-                                alpha=0.2)
-            max_steps = max(dp * steps_per_dp for dp in args.num_datapoints)
-            ax.set_xlim(0, max_steps)
-            all_y = []
-            for base_path in plot_data[metric]:
-                _, m, _, eff_len = plot_data[metric][base_path]
-                current = frame if frame < eff_len else eff_len
-                all_y.extend(m[:current])
-            if all_y:
-                ax.set_ylim(0, max(all_y) * 1.1)
+                current = min(frame, eff_len - 1)
+                revealed_mean = np.full_like(mean, np.nan)
+                revealed_mean[:current + 1] = mean[:current + 1]
+                line.set_data(x_vals, revealed_mean)
+                color = line.get_color()
+
+                revealed_lower = np.full_like(mean, np.nan)
+                revealed_upper = np.full_like(mean, np.nan)
+                revealed_lower[:current + 1] = (mean - ci)[:current + 1]
+                revealed_upper[:current + 1] = (mean + ci)[:current + 1]
+                ax.fill_between(x_vals, revealed_lower, revealed_upper, facecolor=color, alpha=0.2)
+
+            # Update x-axis only if shifting is enabled.
+            if args.shift_x_axis:
+                # Get current x-value from any dataset.
+                x_vals_any = next(iter(plot_data[metric].values()))[0]
+                current_x = x_vals_any[min(frame, len(x_vals_any) - 1)]
+                ax.set_xlim(0, current_x)
         return []
 
     max_frames = max(global_frames.values())
-    skip = 1
-    anim = FuncAnimation(fig, update, frames=range(0, max_frames, skip), init_func=init, blit=False, interval=10)
-    folder = 'figures'
+    anim = FuncAnimation(fig, update, frames=range(max_frames), init_func=init,
+                         blit=False, interval=10)
+    folder = 'figures/animated'
     os.makedirs(folder, exist_ok=True)
-    file_name = f'{args.algo}_{args.env}_level_{args.level}_{args.inputs[-1].split("/")[-1]}_animated.gif'
-    anim.save(os.path.join(folder, file_name), writer='pillow', fps=20)
+    metrics_str = f'_{args.metrics[0]}' if len(args.metrics) == 1 else ''
+    shift_str = f'_shifting' if args.shift_x_axis else ''
+    file_name = f'{args.algo}_{args.env}_level_{args.level}{metrics_str}{shift_str}.gif'
+    anim.save(os.path.join(folder, file_name), writer='pillow', fps=args.fps, dpi=300)
     plt.show()
 
 
 def common_plot_args():
     parser = argparse.ArgumentParser(
-        description="Animate metrics from structured data, "
-                    "only considering data from index 0 to num_datapoints (each representing several env steps)."
+        description="Animate metrics from structured data, using a fixed y-axis and configurable x-axis behavior."
     )
     parser.add_argument("--inputs", type=str, nargs='+', default=['data/main'],
                         help="Base input directories")
@@ -174,8 +182,11 @@ def common_plot_args():
                         help="Number of datapoints per input directory to consider (each datapoint represents multiple steps)")
     parser.add_argument("--steps_per_dp", type=float, default=1e6,
                         help="Number of environment steps represented by one datapoint")
+    parser.add_argument("--fps", type=float, default=20, help="Number of datapoints to animate per second")
     parser.add_argument("--hard_constraint", action='store_true')
     parser.add_argument("--plot_legend", action='store_true')
+    parser.add_argument("--shift_x_axis", action='store_true',
+                        help="Shift the x-axis with new data (otherwise remains fixed)")
     return parser
 
 
