@@ -52,8 +52,22 @@ environment displaying only depth from surroundings.
 </p>
 
 ## Installation
-To install HASARD, simply clone or download the repository and run:
+To install HASARD from PyPi, just run:
 ```bash
+$ pip install HASARD
+```
+
+Alternatively, to install HASARD from source:
+1. Clone the repository
+```bash
+$ git clone https://github.com/TTomilin/HASARD
+```
+2. Navigate into the repository
+```bash
+$ cd HASARD
+```
+3. Install HASARD from source with pip
+```bash 
 $ pip install .
 ```
 
