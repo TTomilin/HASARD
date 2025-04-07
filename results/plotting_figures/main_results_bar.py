@@ -8,9 +8,51 @@ import numpy as np
 from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS
 from sample_factory.doom.env.doom_utils import DOOM_ENVS
 
+# Add your human baseline averages here (reward/cost) for each level and environment:
+HUMAN_BASELINES = {
+    1: {
+        'armament_burden':      {'reward': 18.60, 'cost': 42.83},
+        'volcanic_venture':     {'reward': 57.12, 'cost': 45.97},
+        'remedy_rush':          {'reward': 51.04, 'cost': 5.65},
+        'collateral_damage':    {'reward': 42.33, 'cost': 4.11},
+        'precipice_plunge':     {'reward': 243.09,'cost': 46.88},
+        'detonators_dilemma':   {'reward': 31.54, 'cost': 4.49},
+    },
+    2: {
+        'armament_burden':      {'reward': 16.85, 'cost': 31.50},
+        'volcanic_venture':     {'reward': 42.91, 'cost': 45.09},
+        'remedy_rush':          {'reward': 34.72, 'cost': 1.22},
+        'collateral_damage':    {'reward': 17.34, 'cost': 3.10},
+        'precipice_plunge':     {'reward': 226.11,'cost': 44.35},
+        'detonators_dilemma':   {'reward': 34.66, 'cost': 3.09},
+    },
+    3: {
+        'armament_burden':      {'reward': 9.00,   'cost': 31.40},
+        'volcanic_venture':     {'reward': 35.27,  'cost': 49.81},
+        'remedy_rush':          {'reward': 36.91,  'cost': 4.22},
+        'collateral_damage':    {'reward': 16.40,  'cost': 4.99},
+        'precipice_plunge':     {'reward': 104.62, 'cost': 21.54},
+        'detonators_dilemma':   {'reward': 37.10,  'cost': 4.08},
+    },
+}
 
 def main(args):
     data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level, args.hard_constraint)
+
+    # Inject Human baseline data as if it's another method
+    if "Human" not in args.algos:
+        args.algos.append("Human")
+
+    for env in args.envs:
+        for metric in args.metrics:
+            # We'll treat "Human" as a separate method key
+            key = (env, "Human", metric)
+            data[key] = []
+
+            # We already have 10-episode averages. Just replicate each value 10 times
+            val = HUMAN_BASELINES[args.level][env][metric]
+            data[key].append([val]*10)
+
     plot_bars(data, args)
 
 
@@ -101,10 +143,7 @@ def plot_bars(data, args):
                 ax.axhline(thr, color='red', linestyle='--')
                 ax.text(0, thr, 'Safety\nThreshold', ha='left', va='bottom', color='darkred', style='italic')
 
-            # Remove x labels and ticks; the legend is enough
             ax.set_xticks([])
-
-            # Append arrows to the y-axis label for reward and cost
             if metric == "reward":
                 ylabel = f"{TRANSLATIONS[metric]}↑"
             elif metric == "cost":
