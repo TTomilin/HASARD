@@ -5,33 +5,13 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_data
 from sample_factory.doom.env.doom_utils import DOOM_ENVS
 
 
 def main(args):
-    data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level)
+    data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level, args.hard_constraint)
     plot_metrics(data, args)
-
-
-def load_data(base_path, environments, methods, seeds, metrics, level):
-    """Load data from structured directory."""
-    data = {}
-    for env in environments:
-        for method in methods:
-            for seed in seeds:
-                for metric in metrics:
-                    metric_name = f"{metric}_hard" if args.hard_constraint else metric
-                    file_path = os.path.join(base_path, env, method, f"level_{level}", f"seed_{seed}", f"{metric_name}.json")
-                    key = (env, method, metric)
-                    if key not in data:
-                        data[key] = []
-                    if os.path.exists(file_path):
-                        with open(file_path, 'r') as file:
-                            data[key].append(json.load(file))
-                    else:
-                        print(f"File not found: {file_path}")
-    return data
 
 
 def plot_metrics(data, args):

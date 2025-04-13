@@ -1,11 +1,10 @@
 import argparse
-import json
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_data
 from sample_factory.doom.env.doom_utils import DOOM_ENVS
 
 # Add your human baseline averages here (reward/cost) for each level and environment:
@@ -54,25 +53,6 @@ def main(args):
             data[key].append([val]*10)
 
     plot_bars(data, args)
-
-
-def load_data(base_path, environments, methods, seeds, metrics, level, hard_constraint):
-    data = {}
-    for env in environments:
-        for method in methods:
-            for seed in seeds:
-                for metric in metrics:
-                    metric_name = f"{metric}_hard" if hard_constraint else metric
-                    path = os.path.join(base_path, env, method, f"level_{level}", f"seed_{seed}", f"{metric_name}.json")
-                    key = (env, method, metric)
-                    if key not in data:
-                        data[key] = []
-                    if os.path.exists(path):
-                        with open(path, 'r') as f:
-                            data[key].append(json.load(f))
-                    else:
-                        print(f"File not found: {path}")
-    return data
 
 
 def plot_bars(data, args):

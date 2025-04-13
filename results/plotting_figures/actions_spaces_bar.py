@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 
+from results.commons import ENV_INITIALS
+
 TRANSLATIONS = {
     'armament_burden': 'Armament Burden',
     'volcanic_venture': 'Volcanic Venture',
@@ -18,15 +20,6 @@ TRANSLATIONS = {
     'data/main': 'Simplified Actions',
     'data/full_actions': 'Full Actions',
     'diff': 'Difference',
-}
-
-ENV_INITIALS = {
-    'armament_burden': 'AB',
-    'volcanic_venture': 'VV',
-    'remedy_rush': 'RR',
-    'collateral_damage': 'CD',
-    'precipice_plunge': 'PP',
-    'detonators_dilemma': 'DD'
 }
 
 
@@ -128,8 +121,7 @@ def plot_action_space_comparison(results, args):
         Line2D([0], [0], color='red', lw=2, linestyle='--', label='Safety Threshold')
     ]
     # Increase bottom margin so the legend fits
-    fig.legend(handles=custom_handles,
-               loc='lower center', ncol=3, bbox_to_anchor=(0.5, 0))
+    fig.legend(handles=custom_handles, loc='lower center', ncol=3, bbox_to_anchor=(0.5, 0))
     fig.tight_layout(rect=[0, 0.1, 1, 1])
     folder = 'figures'
     os.makedirs(folder, exist_ok=True)
