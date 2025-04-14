@@ -150,7 +150,7 @@ def common_plot_args() -> argparse.ArgumentParser:
                                  "precipice_plunge", "detonators_dilemma"],
                         help="Environment to compute")
     parser.add_argument("--metrics", type=str, nargs='+', default=['reward', 'cost'], help="Name of the metrics to compute")
-    parser.add_argument("--total_iterations", type=float, nargs='+', default=[5e8, 2e8],
+    parser.add_argument("--total_iterations", type=float, nargs='+', default=[5e8],
                         help="Total number of environment iterations for each input directory")
     parser.add_argument("--hard_constraint", action='store_true', help="Whether to use hard constraints")
     return parser

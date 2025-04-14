@@ -4,7 +4,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_data
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data
 from sample_factory.doom.env.doom_utils import DOOM_ENVS
 
 # Add your human baseline averages here (reward/cost) for each level and environment:
@@ -36,7 +36,7 @@ HUMAN_BASELINES = {
 }
 
 def main(args):
-    data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level, args.hard_constraint)
+    data = load_full_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level, args.hard_constraint)
 
     # Inject Human baseline data as if it's another method
     if "Human" not in args.algos:

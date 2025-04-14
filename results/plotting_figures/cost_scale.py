@@ -5,30 +5,27 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS
+from results.commons import TRANSLATIONS, load_data
 
 
 def main(args):
-    data = load_data(args.input, args.envs, args.algo, args.seeds, args.metrics, args.scales, args.level)
+    data = load_full_data(args.input, args.envs, args.algo, args.seeds, args.metrics, args.scales, args.level)
     plot_metrics(data, args)
 
 
-def load_data(base_path, environments, method, seeds, metrics, scales, level):
+def load_full_data(base_path, environments, method, seeds, metrics, scales, level):
     """Load data from structured directory."""
     data = {}
     for env in environments:
         for seed in seeds:
             for metric in metrics:
                 for scale in scales:
-                    file_path = os.path.join(base_path, env, method, f"level_{level}", f"scale_{scale}", f"seed_{seed}", f"{metric}.json")
                     key = (env, scale, metric)
                     if key not in data:
                         data[key] = []
-                    if os.path.exists(file_path):
-                        with open(file_path, 'r') as file:
-                            data[key].append(json.load(file))
-                    else:
-                        print(f"File not found: {file_path}")
+                    exp_data = load_data(base_path, method, env, seed, level, metric, "scale", scale)
+                    if exp_data:
+                        data[key].append(exp_data)
     return data
 
 

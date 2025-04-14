@@ -5,12 +5,12 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_data
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data
 from sample_factory.doom.env.doom_utils import DOOM_ENVS
 
 
 def main(args):
-    data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level, args.hard_constraint)
+    data = load_full_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level, args.hard_constraint)
     plot_metrics(data, args)
 
 
@@ -103,7 +103,7 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--input", type=str, default='data/main', help="Base input directory containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O"],
                         help="Algorithms to download/plot")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",

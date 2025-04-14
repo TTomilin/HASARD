@@ -4,14 +4,14 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_data
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data
 from sample_factory.doom.env.doom_utils import DOOM_ENVS
 
 BUFFER_PERCENTAGE = 0.05  # 5% buffer
 
 
 def main(args):
-    data = load_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level, args.hard_constraint)
+    data = load_full_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level, args.hard_constraint)
     plot_metrics(data, args)
 
 

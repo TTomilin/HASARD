@@ -1,33 +1,10 @@
 import argparse
-import json
-import os
 
 import numpy as np
 
+from results.commons import TRANSLATIONS, load_data
 
-TRANSLATIONS = {
-    'armament_burden': 'Armament Burden',
-    'volcanic_venture': 'Volcanic Venture',
-    'remedy_rush': 'Remedy Rush',
-    'collateral_damage': 'Collateral Damage',
-    'precipice_plunge': 'Precipice Plunge',
-    'detonators_dilemma': 'Detonator\'s Dilemma',
-    'reward': 'Reward',
-    'cost': 'Cost',
-    'data/main': 'Regular',
-    'data/curriculum': 'Curriculum',
-    'diff': 'Difference',
-}
-
-
-# Data Loading
-def load_data(base_path, method, environment, seed, level, metric_key):
-    file_path = os.path.join(base_path, environment, method, f"level_{level}", f"seed_{seed}", f"{metric_key}.json")
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-            return data
-    return None
+TRANSLATIONS['data/main'] = 'Regular'
 
 
 # Data Processing
@@ -116,13 +93,15 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
     parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/curriculum'],
                         help="Base input directories containing the data")
-    parser.add_argument("--method", type=str, default="PPOPID", choices=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
+    parser.add_argument("--method", type=str, default="PPOPID",
+                        choices=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
                         help="Algorithm to analyze")
     parser.add_argument("--level", type=int, default=3, choices=[1, 2, 3], help="Level of the run(s) to compute")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
     parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
     parser.add_argument("--envs", type=str, nargs='+',
-                        default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
+                        default=["remedy_rush", "collateral_damage"],
+                        choices=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
                                  "precipice_plunge", "detonators_dilemma"],
                         help="Environments to analyze")
     parser.add_argument("--metrics", type=str, nargs='+', default=['reward', 'cost'], help="Metrics to aggregate")

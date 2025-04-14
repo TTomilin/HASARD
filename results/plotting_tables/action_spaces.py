@@ -1,45 +1,22 @@
 import argparse
-import json
-import os
 
 import numpy as np
 
+from results.commons import load_data, TRANSLATIONS
 
-TRANSLATIONS = {
-    'armament_burden': 'Armament Burden',
-    'volcanic_venture': 'Volcanic Venture',
-    'remedy_rush': 'Remedy Rush',
-    'collateral_damage': 'Collateral Damage',
-    'precipice_plunge': 'Precipice Plunge',
-    'detonators_dilemma': 'Detonator\'s Dilemma',
-    'reward': 'Reward',
-    'cost': 'Cost',
-    'data/main': 'Simplified Actions',
-    'data/full_actions': 'Full Actions',
-    'diff': 'Difference',
-}
-
-
-# Data Loading
-def load_data(base_path, environment, seed, level, metric_key):
-    file_path = os.path.join(base_path, environment, "PPOLag", f"level_{level}", f"seed_{seed}", f"{metric_key}.json")
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-            return data
-    return None
+TRANSLATIONS['data/main'] = 'Simplified Actions'
 
 
 # Data Processing
 # Modified process_data function to include percentage decrease calculation
-def process_data(base_paths, environments, seeds, metrics, n_data_points):
+def process_data(base_paths, algo, environments, seeds, metrics, n_data_points):
     results = {}
     action_space_data = {base_path: {} for base_path in base_paths}
 
     for env in environments:
         for base_path in base_paths:
             for metric in metrics:
-                processed_data = process_metric(base_path, env, seeds, metric, n_data_points)
+                processed_data = process_metric(base_path, algo, env, seeds, metric, n_data_points)
                 key = (base_path, env, metric)
                 action_space_data[key] = processed_data
 
@@ -59,12 +36,12 @@ def process_data(base_paths, environments, seeds, metrics, n_data_points):
     return results
 
 
-def process_metric(action_space, env, seeds, metric, n_data_points):
+def process_metric(action_space, algo, env, seeds, metric, n_data_points):
     level = 1
     metric_values = []
 
     for seed in seeds:
-        data = load_data(action_space, env, seed, level, metric)
+        data = load_data(action_space, algo, env, seed, level, metric)
         if data and len(data) >= n_data_points:
             last_data_points = data[-n_data_points:]
             metric_values.extend(last_data_points)
@@ -108,7 +85,7 @@ def generate_latex_table(data, row_headers, caption=''):
 
 
 def main(args):
-    data = process_data(args.inputs, args.envs, args.seeds, args.metrics, args.n_data_points)
+    data = process_data(args.inputs, args.algo, args.envs, args.seeds, args.metrics, args.n_data_points)
     table = generate_latex_table(data, args.inputs)
     print(table)
 
@@ -117,6 +94,9 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
     parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/full_actions'],
                         help="Base input directories containing the data")
+    parser.add_argument("--algo", type=str, default='PPOLag',
+                        choices=["PPO", "PPOCost", "PPOLag", "PPOSaute",
+                                 "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"])
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
     parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
     parser.add_argument("--envs", type=str, nargs='+',

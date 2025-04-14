@@ -4,44 +4,44 @@ import os
 
 import numpy as np
 
-from results.commons import TRANSLATIONS
+from results.commons import TRANSLATIONS, load_data
 
 
 # Data Loading
-def load_data(base_path, environment, scale, seed, level, metric_key):
-    file_path = os.path.join(base_path, environment, "PPOCost", f"level_{level}", f"scale_{scale}", f"seed_{seed}",
-                             f"{metric_key}.json")
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-            return data
-    return None
+# def load_data(base_path, algo, environment, scale, seed, level, metric_key):
+#     file_path = os.path.join(base_path, environment, "PPOCost", f"level_{level}", f"scale_{scale}", f"seed_{seed}",
+#                              f"{metric_key}.json")
+#     if os.path.exists(file_path):
+#         with open(file_path, 'r') as file:
+#             data = json.load(file)
+#             return data
+#     return None
 
 
 # Data Processing
-def process_data(base_path, environments, scales, seeds, metrics, n_data_points):
+def process_data(base_path, algo, environments, scales, seeds, metrics, n_data_points):
     results = {}
     for env in environments:
         results[env] = {}
         for scale in scales:
             results[env][scale] = {}
             for metric in metrics:
-                process_metric(results, base_path, env, scale, seeds, metric, n_data_points)
+                process_metric(results, base_path, algo, env, scale, seeds, metric, n_data_points)
     return results
 
 
-def process_metric(results, base_path, env, scale, seeds, metric, n_data_points):
+def process_metric(results, base_path, algo, env, scale, seeds, metric, n_data_points):
     level = 1
     metric_values = []
     cost_data_combined = []
 
     for seed in seeds:
         # Load the metric data
-        data = load_data(base_path, env, scale, seed, level, metric)
+        data = load_data(base_path, algo, env, seed, level, metric, "scale", scale)
 
         # Load cost data if the metric is 'reward' and the method is 'PPOCost'
         if metric == 'reward':
-            cost_data = load_data(base_path, env, scale, seed, level, "cost")
+            cost_data = load_data(base_path, algo, env, seed, level, "cost", "scale", scale)
             if data and cost_data and len(data) >= n_data_points and len(cost_data) >= n_data_points:
                 # Combine reward and cost data if both are sufficiently long
                 last_reward_data = data[-n_data_points:]
@@ -105,7 +105,7 @@ def generate_latex_table(data, scales, caption=''):
 
 
 def main(args):
-    data = process_data(args.input, args.envs, args.scales, args.seeds, args.metrics, args.n_data_points)
+    data = process_data(args.input, args.algo, args.envs, args.scales, args.seeds, args.metrics, args.n_data_points)
     table = generate_latex_table(data, args.scales)
     print(table)
 
@@ -113,7 +113,8 @@ def main(args):
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
     parser.add_argument("--input", type=str, default='data/cost_scale', help="Base input directory containing the data")
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
+    parser.add_argument("--algo", type=str, default='PPOCost')
+    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2], help="Seed(s) of the run(s) to compute")
     parser.add_argument("--scales", type=float, nargs='+', default=[0.1, 0.5, 1, 2],
                         help="Seed(s) of the run(s) to compute")
     parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")

@@ -4,17 +4,7 @@ import os
 
 import numpy as np
 
-from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS
-
-
-# Data Loading
-def load_data(base_path, environment, method, seed, level, metric_key):
-    file_path = os.path.join(base_path, environment, method, f"level_{level}", f"seed_{seed}", f"{metric_key}.json")
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-            return data
-    return None
+from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS, load_data
 
 
 # Data Processing
@@ -39,12 +29,12 @@ def process_metric(results, base_path, env, method, seeds, level, metric, constr
 
         for seed in seeds:
             # Load the metric data
-            data = load_data(base_path, env, method, seed, level, metric_key)
+            data = load_data(base_path, method, env, seed, level, metric_key)
 
             # Load cost data if the metric is 'reward' and the method is 'PPOCost'
             if metric == 'reward' and method == 'PPOCost':
                 cost_key = f"cost{suffix}"
-                cost_data = load_data(base_path, env, method, seed, level, cost_key)
+                cost_data = load_data(base_path, method, env, seed, level, cost_key)
                 if data and cost_data and len(data) >= n_data_points and len(cost_data) >= n_data_points:
                     # Combine reward and cost data if both are sufficiently long
                     last_reward_data = data[-n_data_points:]
@@ -175,7 +165,7 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
     parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
     parser.add_argument("--constraints", type=str, nargs='+', default=["Soft", "Hard"], help="Constraints to analyze")
-    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O"],
                         help="Algorithms to analyze")
     parser.add_argument("--envs", type=str, nargs='+',
                         default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",

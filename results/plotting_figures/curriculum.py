@@ -6,30 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 
-from results.commons import ENV_INITIALS
+from results.commons import ENV_INITIALS, TRANSLATIONS, load_data
 
-TRANSLATIONS = {
-    'armament_burden': 'Armament Burden',
-    'volcanic_venture': 'Volcanic Venture',
-    'remedy_rush': 'Remedy Rush',
-    'collateral_damage': 'Collateral Damage',
-    'precipice_plunge': 'Precipice Plunge',
-    'detonators_dilemma': "Detonator's Dilemma",
-    'reward': 'Reward',
-    'cost': 'Cost',
-    'data/main': 'Regular',
-    'data/curriculum': 'Curriculum'
-}
-
-
-def load_data(base_path, method, environment, seed, level, metric_key):
-    file_path = os.path.join(
-        base_path, environment, method, f"level_{level}", f"seed_{seed}", f"{metric_key}.json"
-    )
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
-            return json.load(f)
-    return None
+TRANSLATIONS['data/main'] = 'Regular'
 
 
 def process_metric(base_path, method, env, seeds, metric, level, n_data_points):
@@ -105,15 +84,7 @@ def plot_results(results, base_paths, environments):
 
 
 def main(args):
-    data = process_data(
-        args.inputs,
-        args.method,
-        args.envs,
-        args.seeds,
-        args.metrics,
-        args.level,
-        args.n_data_points
-    )
+    data = process_data(args.inputs, args.method, args.envs, args.seeds, args.metrics, args.level, args.n_data_points)
     plot_results(data, args.inputs, args.envs)
 
 

@@ -1,36 +1,13 @@
 import argparse
-import json
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 
-from results.commons import ENV_INITIALS
+from results.commons import ENV_INITIALS, TRANSLATIONS, load_data
 
-TRANSLATIONS = {
-    'armament_burden': 'Armament Burden',
-    'volcanic_venture': 'Volcanic Venture',
-    'remedy_rush': 'Remedy Rush',
-    'collateral_damage': 'Collateral Damage',
-    'precipice_plunge': 'Precipice Plunge',
-    'detonators_dilemma': "Detonator's Dilemma",
-    'reward': 'Reward',
-    'cost': 'Cost',
-    'data/main': 'Simplified Actions',
-    'data/full_actions': 'Full Actions',
-    'diff': 'Difference',
-}
-
-
-def load_data(base_path, algo, environment, seed, level, metric_key):
-    file_path = os.path.join(
-        base_path, environment, algo, f"level_{level}", f"seed_{seed}", f"{metric_key}.json"
-    )
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as file:
-            return json.load(file)
-    return None
+TRANSLATIONS['data/main'] = 'Simplified Actions'
 
 
 def process_metric(base_path, algo, env, seeds, metric, level, n_data_points, total_iterations):
@@ -143,6 +120,7 @@ def get_parser():
     parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/full_actions'],
                         help="Directories: 'data/main' = Simplified, 'data/full_actions' = Original.")
     parser.add_argument("--level", type=int, default=1, help="Which level to plot.")
+    parser.add_argument("--algo", type=str, default="PPOLag", help="Name of the algorithm")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3],
                         help="Which seeds to include.")
     parser.add_argument("--n_data_points", type=int, default=10,
