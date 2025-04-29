@@ -97,3 +97,14 @@ env.close()
 HASARD environments are built on top of the [ViZDoom](https://github.com/mwydmuch/ViZDoom) platform.  
 Our Safe RL baseline methods are implemented in [Sample-Factory](https://github.com/alex-petrenko/sample-factory).  
 Our experiments were managed using [WandB](https://wandb.ai).
+
+# Citation
+If you use our work in your research, please cite it as follows:
+```
+@inproceedings{tomilin2025hasard,
+    title={HASARD: A Benchmark for Vision-Based Safe Reinforcement Learning in Embodied Agents},
+    author={T. Tomilin, M. Fang, and M. Pechenizkiy},
+    booktitle={The Thirteenth International Conference on Learning Representations},
+    year={2025}
+}
+```
