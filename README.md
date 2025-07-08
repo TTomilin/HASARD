@@ -2,8 +2,13 @@
 
 **HASARD** (**Ha**rnessing **Sa**fe **R**einforcement Learning with **D**oom) is a benchmark for Safe Reinforcement 
 Learning within complex, egocentric perception 3D environments derived from the classic DOOM video game. It features 6 
-diverse scenarios each spanning across 3 levels of difficulty. A short demo of HASARD is available on 
-[Youtube](https://www.youtube.com/watch?v=Bi8hSG_Rf4E).
+diverse scenarios each spanning across 3 levels of difficulty.
+
+## 🔗 Useful Links
+- 🌐 [Project Page](https://sites.google.com/view/hasard-bench/)
+- 🎥 [Short Presentation](https://www.youtube.com/watch?v=A-uKxVVKfvo)
+- 🎮 [Demo Video](https://www.youtube.com/watch?v=A-uKxVVKfvo)
+
 
 <p align="center">
   <img src="assets/gifs/HASARD_Short_1.gif" alt="Demo1" width="49%"/>
