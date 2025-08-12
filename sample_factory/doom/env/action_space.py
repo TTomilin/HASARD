@@ -2,13 +2,34 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.spaces import Box, Discrete
 
-from sample_factory.algo.utils.spaces.discretized import Discretized
+
+def key_to_action_basic(key):
+    from pynput.keyboard import Key
+
+    table = {Key.left: 0, Key.right: 1, Key.up: 2, Key.down: 3}
+    return table.get(key, None)
 
 
 def doom_turn_attack():
     """
     TURN_LEFT
     TURN_RIGHT
+    ATTACK
+    """
+    space = gym.spaces.Tuple(
+        (
+            Discrete(3),
+            Discrete(2),
+        )
+    )  # noop, turn left, turn right  # noop, attack
+
+    return space
+
+
+def doom_move_attack():
+    """
+    MOVE_LEFT
+    MOVE_RIGHT
     ATTACK
     """
     space = gym.spaces.Tuple(
@@ -33,6 +54,25 @@ def doom_turn_move():
             Discrete(2),
         )
     )  # noop, turn left, turn right  # noop, move forward
+
+    return space
+
+
+def doom_turn_attack_move():
+    """
+    TURN_LEFT
+    TURN_RIGHT
+    ATTACK
+    MOVE_FORWARD
+    MOVE_BACKWARD
+    """
+    space = gym.spaces.Tuple(
+        (
+            Discrete(3),
+            Discrete(2),
+            Discrete(3),
+        )
+    )  # noop, turn left, turn right  # noop, attack  # noop, move forward, move backward
 
     return space
 

@@ -208,7 +208,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
 
                 obs, rew, terminated, truncated, infos = env.step(actions)
                 _, _, _, _, _ = env_render.step(actions)
-                cost = infos[0]['cost']
+                # cost = infos[0]['cost']
                 dones = make_dones(terminated, truncated)
                 infos = [{} for _ in range(env_info.num_agents)] if infos is None else infos
 
@@ -217,7 +217,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                 else:
                     episode_reward += rew.float()
 
-                episode_cost += cost
+                # episode_cost += cost
 
                 num_frames += 1
                 if num_frames % 100 == 0:
