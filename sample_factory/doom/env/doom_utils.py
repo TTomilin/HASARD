@@ -7,6 +7,10 @@ from sample_factory.doom.env.action_space import (
     doom_turn_attack, doom_turn_move_look_jump, doom_turn_move_use_jump_speed, doom_turn_move_jump_accelerate,
     doom_turn_move_jump_accelerate_attack, doom_action_space, doom_action_space_no_move, doom_turn_attack_move,
     doom_move_attack,
+    doom_turn_and_attack_only, doom_turn_move_jump_accelerate,
+    doom_turn_move_jump_accelerate_attack, doom_turn_and_move_and_look_and_jump, doom_turn_move_use_jump,
+    doom_action_space, doom_action_space_no_speed, doom_action_space_no_move, doom_move_and_attack_only,
+    doom_turn_attack_move,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.doom_gym_multi_event import VizdoomMultiAgentEnv
@@ -48,7 +52,7 @@ class DoomSpec:
             safety_bound=None,
             unsafe_reward=None,
             coord_limits=None,
-            num_agents=2,
+            num_agents=1,
             respawn_delay=0,
             timelimit=4.0,
             extra_wrappers=None,
@@ -414,7 +418,7 @@ def make_doom_env_from_spec(spec, _env_name, cfg, env_config, render_mode: Optio
     # Choose between single-agent and multi-agent environment creation
     if num_agents > 1:
         # Multi-agent environment
-        return make_doom_ma_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, 
+        return make_doom_ma_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode,
                                    num_agents=num_agents, **kwargs)
     else:
         # Single-agent environment

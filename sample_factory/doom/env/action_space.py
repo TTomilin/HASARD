@@ -10,7 +10,23 @@ def key_to_action_basic(key):
     return table.get(key, None)
 
 
-def doom_turn_attack():
+def doom_move_and_attack_only():
+    """
+    MOVE_LEFT
+    MOVE_RIGHT
+    ATTACK
+    """
+    space = gym.spaces.Tuple(
+        (
+            Discrete(3),
+            Discrete(2),
+        )
+    )  # noop, turn left, turn right  # noop, attack
+
+    return space
+
+
+def doom_turn_and_attack_only():
     """
     TURN_LEFT
     TURN_RIGHT
@@ -54,6 +70,25 @@ def doom_turn_move():
             Discrete(2),
         )
     )  # noop, turn left, turn right  # noop, move forward
+
+    return space
+
+
+def doom_turn_attack_move():
+    """
+    TURN_LEFT
+    TURN_RIGHT
+    ATTACK
+    MOVE_FORWARD
+    MOVE_BACKWARD
+    """
+    space = gym.spaces.Tuple(
+        (
+            Discrete(3),
+            Discrete(2),
+            Discrete(3),
+        )
+    )  # noop, turn left, turn right  # noop, attack  # noop, move forward, move backward
 
     return space
 

@@ -2,6 +2,7 @@ import json  # For safe serialization of 'info'
 import math
 import time
 from multiprocessing import Process, Event, shared_memory, Array, Value
+from ctypes import c_int
 from typing import Optional, Dict, Tuple, Any, List
 
 import cv2
@@ -12,6 +13,8 @@ import vizdoom as vzd
 from vizdoom import ScreenResolution, Mode
 
 from sample_factory.doom.env.doom_gym import VizdoomEnv
+
+import json  # For safe serialization of 'info'
 
 # Define screen resolutions
 resolutions = {

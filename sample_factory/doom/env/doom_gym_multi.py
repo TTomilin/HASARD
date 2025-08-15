@@ -216,6 +216,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         # Wait a bit to ensure all processes are ready
         time.sleep(1.0)
 
+    # @profile
     def reset(self, **kwargs) -> Tuple[np.ndarray, Dict]:
         if "seed" in kwargs and kwargs["seed"]:
             self.seed(kwargs["seed"])
@@ -231,6 +232,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
         return observations, {}
 
+    # @profile
     def step(self, actions) -> Tuple[Any, Any, Any, Any, Any]:
         for pipe, action in zip(self.parent_pipes, actions):
             pipe.send(('step', action))
@@ -275,12 +277,8 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                 process.join()
 
         # Clean up shared memory
-        try:
-            self.shm.close()
-            self.shm.unlink()
-        except (OSError, FileNotFoundError):
-            # Shared memory already cleaned up
-            pass
+        self.shm.close()
+        self.shm.unlink()
 
         # Mark as closed
         self._closed = True
