@@ -150,6 +150,8 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
                 # Write observation into shared memory
                 observations[instance_id] = observation
 
+                previous_health = game.get_game_variable(vzd.GameVariable.HEALTH)
+
                 # Increment the shared counter
                 with num_completed.get_lock():
                     num_completed.value += 1
