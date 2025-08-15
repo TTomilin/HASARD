@@ -297,7 +297,6 @@ def make_doom_ma_env_impl(
     skip_frames = skip_frames if skip_frames is not None else cfg.env_frameskip
 
     fps = cfg.fps if "fps" in cfg else None
-    async_mode = fps == 0
 
     if cfg.safety_bound:
         doom_spec.safety_bound = cfg.safety_bound
@@ -326,7 +325,6 @@ def make_doom_ma_env_impl(
         max_histogram_length=max_histogram_length,
         skip_frames=skip_frames,
         show_automap=cfg.show_automap,
-        async_mode=async_mode,
         render_mode=render_mode,
         resolution=cfg.resolution,
         seed=cfg.seed,
@@ -335,7 +333,7 @@ def make_doom_ma_env_impl(
         port=port,
         env_config=env_config,
         netmode=cfg.netmode,
-        vizdoom_async_mode=cfg.vizdoom_async_mode,
+        async_mode=cfg.async_mode,
     )
 
     record_to = cfg.record_to if "record_to" in cfg else None

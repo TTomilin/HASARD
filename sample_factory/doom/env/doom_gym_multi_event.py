@@ -193,7 +193,6 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             port: int = 5029,
             env_config=None,
             netmode: int = 0,
-            vizdoom_async_mode: bool = False,
     ):
         super().__init__(config_file, action_space, safety_bound, unsafe_reward, timeout, level, constraint,
                          coord_limits, max_histogram_length, show_automap, use_depth_buffer, render_depth_buffer,
@@ -205,7 +204,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         self.resolution = resolution
         self.env_config = env_config
         self.netmode = netmode
-        self.vizdoom_async_mode = vizdoom_async_mode
+        self.async_mode = async_mode
 
         # Extract worker and environment information for logging
         self.worker_idx = env_config.worker_index if env_config else -1
@@ -262,7 +261,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                     shared_command, self.step_event, self.all_done_event,
                     self.num_completed, self.num_agents, i, is_host, self.port,
                     self.shm.name, multi_obs_shape, self.worker_idx, self.env_id,
-                    self.netmode, self.vizdoom_async_mode
+                    self.netmode, self.async_mode
                 ),
             )
             process.daemon = True
