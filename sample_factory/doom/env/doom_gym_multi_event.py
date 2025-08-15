@@ -78,7 +78,8 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
     existing_shm = shared_memory.SharedMemory(name=shm_name)
     observations = np.ndarray(obs_shape, dtype=np.uint8, buffer=existing_shm.buf)
 
-    previous_health = game.get_game_variable(vzd.GameVariable.HEALTH)
+    starting_health = 100
+    previous_health = starting_health
 
     try:
         while True:
@@ -150,7 +151,7 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
                 # Write observation into shared memory
                 observations[instance_id] = observation
 
-                previous_health = game.get_game_variable(vzd.GameVariable.HEALTH)
+                previous_health = starting_health
 
                 # Increment the shared counter
                 with num_completed.get_lock():
