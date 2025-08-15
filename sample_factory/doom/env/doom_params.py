@@ -46,13 +46,13 @@ def add_doom_env_args(parser):
     p.add_argument('--resolution_eval', type=str, default='1280x720', help='Screen resolution of the evaluation video')
     p.add_argument(
         "--netmode", 
-        default=0, 
+        default=1,
         type=int, 
         choices=[0, 1],
         help="VizDoom networking mode: 0=P2P (faster locally), 1=PacketServer (for clusters)"
     )
     p.add_argument(
-        "--vizdoom_async_mode",
+        "--async_mode",
         default=False,
         type=str2bool,
         help="Use VizDoom ASYNC_PLAYER mode instead of PLAYER mode for multiplayer"
