@@ -6,7 +6,7 @@ from ctypes import c_int
 from typing import Optional, Dict, Tuple, Any, List
 
 import cv2
-import gym
+import gymnasium as gym
 import numpy as np
 import pygame
 import vizdoom as vzd

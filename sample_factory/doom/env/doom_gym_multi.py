@@ -4,7 +4,7 @@ from multiprocessing import Process, Pipe, shared_memory
 from typing import Optional, Dict, Tuple, Any
 
 import cv2
-import gym
+import gymnasium as gym
 import numpy as np
 import pygame
 import vizdoom as vzd
