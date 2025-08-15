@@ -104,12 +104,12 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
                     else:
                         observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
-                    info = {}
+                    info = {"num_frames": skip_frames if skip_frames is not None else 1}
                 else:
                     reward = 0.0
                     done = True
                     observation = np.zeros(obs_shape[1:], dtype=np.uint8)
-                    info = {}
+                    info = {"num_frames": skip_frames if skip_frames is not None else 1}
 
                 # Write observation into shared memory
                 observations[instance_id] = observation
