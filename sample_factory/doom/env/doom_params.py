@@ -38,7 +38,7 @@ def add_doom_env_args(parser):
     p.add_argument('--level', type=int, default=1, choices=[1, 2, 3], help='Difficulty level')
     p.add_argument('--constraint', type=str, default='soft', choices=['soft', 'hard'], help='Soft/Hard safety constraint')
     p.add_argument('--render_mode', type=str, default='rgb_array', help='Rendering mode')
-    p.add_argument("--video_dir", default='videos', type=str, help="Record episodes to this folder after an internval.")
+    p.add_argument("--video_dir", default='videos', type=str, help="Record episodes to this folder after an interval.")
     p.add_argument("--video_length", default=2100, type=int, help="Length of recorded video.")
     p.add_argument("--record_every", default=5000, type=int, help="Interval after how many steps to record a video.")
     p.add_argument("--record", default=True, type=str2bool, help="Whether to record gameplay.")

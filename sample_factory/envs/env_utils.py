@@ -138,5 +138,11 @@ def num_env_steps(infos):
 
     total_num_frames = 0
     for info in infos:
-        total_num_frames += info[0].get("num_frames", 1)
+        if isinstance(info, list):
+            # Multi-agent case: info is a list of dictionaries
+            for agent_info in info:
+                total_num_frames += agent_info.get("num_frames", 1)
+        else:
+            # Single-agent case: info is a dictionary
+            total_num_frames += info.get("num_frames", 1)
     return total_num_frames

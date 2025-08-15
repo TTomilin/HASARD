@@ -4,10 +4,50 @@ import os
 from typing import Callable, Optional
 
 import gymnasium as gym
+import numpy as np
 from gymnasium import logger
 from gymnasium.wrappers.monitoring import video_recorder
 
 from sample_factory.utils.utils import log
+
+
+class NonClosingVideoRecorder(video_recorder.VideoRecorder):
+    """Custom VideoRecorder that doesn't close the environment when recording is finished.
+
+    This prevents issues with VizDoom environments where closing the game instance
+    causes problems for subsequent operations.
+    """
+
+    def close(self):
+        """Flush all data to disk and close any open frame encoders without closing the environment."""
+        if not self.enabled or self._closed:
+            return
+
+        # NOTE: We intentionally skip calling self.env.close() here to prevent
+        # closing the VizDoom game instance, which causes issues.
+
+        # Close the encoder
+        if len(self.recorded_frames) > 0:
+            try:
+                from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
+            except ImportError as e:
+                raise gym.error.DependencyNotInstalled(
+                    "moviepy is not installed, run `pip install moviepy`"
+                ) from e
+
+            clip = ImageSequenceClip(self.recorded_frames, fps=self.frames_per_sec)
+            moviepy_logger = None if self.disable_logger else "bar"
+            clip.write_videofile(self.path, logger=moviepy_logger)
+        else:
+            # No frames captured. Set metadata.
+            if self.metadata is None:
+                self.metadata = {}
+            self.metadata["empty"] = True
+
+        self.write_metadata()
+
+        # Stop tracking this for autoclose
+        self._closed = True
 
 
 def capped_cubic_video_schedule(episode_id: int) -> bool:
@@ -83,7 +123,7 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
 
         self.episode_trigger = episode_trigger
         self.step_trigger = step_trigger
-        self.video_recorder: Optional[video_recorder.VideoRecorder] = None
+        self.video_recorder: Optional[NonClosingVideoRecorder] = None
         self.disable_logger = disable_logger
         self.disable_recording = False
         self.with_wandb = with_wandb
@@ -134,7 +174,7 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
             video_name = f"{self.name_prefix}-episode-{self.episode_id}"
 
         base_path = os.path.join(self.video_folder, video_name)
-        self.video_recorder = video_recorder.VideoRecorder(
+        self.video_recorder = NonClosingVideoRecorder(
             env=self.env,
             base_path=base_path,
             metadata={"step_id": self.step_id, "episode_id": self.episode_id},
@@ -167,13 +207,9 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
         if self.disable_recording:
             return observations, rewards, terminated, truncated, infos
 
-        if not (self.terminated or self.truncated):
+        if not np.any(terminated) and not np.any(truncated):
             # increment steps and episodes
             self.step_id += 1
-            if terminated or truncated:
-                self.episode_id += 1
-                self.terminated = terminated
-                self.truncated = truncated
 
             if self.recording:
                 assert self.video_recorder is not None
@@ -182,12 +218,15 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
                 if self.video_length > 0:
                     if self.recorded_frames > self.video_length:
                         self.close_video_recorder()
-                else:
-                    if terminated or truncated:
-                        self.close_video_recorder()
 
             elif self._video_enabled():
                 self.start_video_recorder()
+
+        # Handle episode termination - close video recorder if recording
+        if np.any(terminated) or np.any(truncated):
+            self.episode_id += 1
+            self.terminated = terminated
+            self.truncated = truncated
 
         return observations, rewards, terminated, truncated, infos
 
@@ -198,7 +237,10 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
             self.video_recorder.close()
 
             # Unlock the file after closing (releasing the lock)
-            base_path = os.path.join(self.video_folder, f"{self.name_prefix}-step-{self.step_id}.mp4")
+            video_name = f"{self.name_prefix}-step-{self.step_id}.mp4"
+            if self.episode_trigger:
+                video_name = f"{self.name_prefix}-episode-{self.episode_id - 1}.mp4"
+            base_path = os.path.join(self.video_folder, video_name)
             self._unlock_file(base_path)
         self.recording = False
         self.recorded_frames = 1
@@ -238,5 +280,5 @@ class RecordVideo(gym.Wrapper, gym.utils.RecordConstructorArgs):
 
     def close(self):
         """Closes the wrapper then the video recorder."""
-        super().close()
+        # super().close()
         self.close_video_recorder()

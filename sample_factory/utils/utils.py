@@ -27,7 +27,7 @@ log = logging.getLogger("rl")
 log.setLevel(logging.DEBUG)
 log.handlers = []  # No duplicated handlers
 log.propagate = False  # workaround for duplicated logs in ipython
-log_level = logging.DEBUG
+log_level = logging.INFO  # Default to INFO level
 
 stream_handler = logging.StreamHandler()
 stream_handler.setLevel(log_level)
@@ -55,6 +55,29 @@ log.addHandler(stream_handler)
 signal_slot.signal_slot.configure_logger(log)
 
 
+def configure_logging_level(cfg: Config) -> None:
+    """Configure the logging level based on the configuration."""
+    global log_level
+
+    # Convert string log level to logging constant
+    level_str = getattr(cfg, 'log_level', 'INFO').upper()
+    level_mapping = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL,
+    }
+
+    new_level = level_mapping.get(level_str, logging.INFO)
+    log_level = new_level
+
+    # Update the logger and all existing handlers
+    log.setLevel(new_level)
+    for handler in log.handlers:
+        handler.setLevel(new_level)
+
+
 def has_file_handler() -> bool:
     for handler in log.handlers:
         if isinstance(handler, logging.FileHandler):
@@ -71,7 +94,7 @@ def init_file_logger(cfg: Config) -> None:
 
     experiment_dir_ = experiment_dir(cfg)
     file_handler = logging.FileHandler(join(experiment_dir_, "sf_log.txt"))
-    file_handler.setLevel(log_level)
+    file_handler.setLevel(cfg.log_level)
     file_formatter = logging.Formatter(fmt="[%(asctime)s][%(process)05d] %(message)s", datefmt=None, style="%")
     file_handler.setFormatter(file_formatter)
     log.addHandler(file_handler)

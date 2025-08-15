@@ -1,7 +1,7 @@
+import json  # For safe serialization of 'info'
 import math
 import time
 from multiprocessing import Process, Event, shared_memory, Array, Value
-from ctypes import c_int
 from typing import Optional, Dict, Tuple, Any, List
 
 import cv2
@@ -12,8 +12,6 @@ import vizdoom as vzd
 from vizdoom import ScreenResolution, Mode
 
 from sample_factory.doom.env.doom_gym import VizdoomEnv
-
-import json  # For safe serialization of 'info'
 
 # Define screen resolutions
 resolutions = {
@@ -26,10 +24,12 @@ resolutions = {
     '160x120': ScreenResolution.RES_160X120
 }
 
+
 def get_screen_resolution(resolution: str) -> ScreenResolution:
     if resolution not in resolutions:
         raise ValueError(f'Invalid resolution: {resolution}')
     return resolutions[resolution]
+
 
 def game_process(config_path, resolution, skip_frames, shared_command, step_event, all_done_event,
                  num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape):
@@ -42,7 +42,8 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
     game.set_sound_enabled(False)
     game.set_console_enabled(False)
     game.set_screen_resolution(get_screen_resolution(resolution))
-    game.set_mode(Mode.ASYNC_PLAYER)  # Use ASYNC_PLAYER for multiplayer
+    # game.set_mode(Mode.ASYNC_PLAYER)  # Use ASYNC_PLAYER for multiplayer
+    game.set_mode(Mode.PLAYER)
     game.set_ticrate(1000)
 
     if is_host:
@@ -77,7 +78,10 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
             if cmd == 'step':
                 action = data
                 if not game.is_episode_finished():
-                    game.make_action(action, skip_frames)
+                    if skip_frames is not None:
+                        game.make_action(action, skip_frames)
+                    else:
+                        game.make_action(action)
                     state = game.get_state()
                     reward = game.get_last_reward()
                     done = game.is_episode_finished()
@@ -146,6 +150,7 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
     finally:
         pass  # Cleanup if necessary
 
+
 class VizdoomMultiAgentEnv(VizdoomEnv):
     def __init__(
             self,
@@ -159,10 +164,15 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             coord_limits=None,
             max_histogram_length=None,
             show_automap=False,
+            use_depth_buffer=False,
+            render_depth_buffer=False,
+            render_with_bounding_boxes=False,
+            segment_objects=False,
             skip_frames=1,
             async_mode=False,
             record_to=None,
-            resolution: str = None,
+            env_modification: str = None,
+            resolution: str = "160x120",
             seed: Optional[int] = None,
             render_mode: Optional[str] = None,
             num_agents: int = 2,
@@ -170,11 +180,16 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             port: int = 5029,
     ):
         super().__init__(config_file, action_space, safety_bound, unsafe_reward, timeout, level, constraint,
-                         coord_limits, max_histogram_length, show_automap, skip_frames, async_mode, record_to,
-                         resolution, seed, render_mode)
+                         coord_limits, max_histogram_length, show_automap, use_depth_buffer, render_depth_buffer,
+                         render_with_bounding_boxes, segment_objects, skip_frames, async_mode, record_to,
+                         env_modification, resolution, seed, render_mode)
         self.num_agents = num_agents
         self.host_address = host_address
         self.port = port
+        self.resolution = resolution
+
+        # Initialize pygame screen for rendering
+        self.screen = None
 
         parts = resolution.lower().split("x")
         width = int(parts[0])
@@ -267,7 +282,8 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             shared_command['cmd'].value = b'step'
             # Ensure action is a tuple or list of integers
             if len(action) != len(shared_command['data']):
-                raise ValueError(f"Action tuple length {len(action)} does not match expected {len(shared_command['data'])}.")
+                raise ValueError(
+                    f"Action tuple length {len(action)} does not match expected {len(shared_command['data'])}.")
             shared_command['data'][:] = action
 
         # Reset the shared counter
@@ -315,9 +331,60 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         for process in self.processes:
             process.join()
 
+        # Clean up pygame resources
+        if hasattr(self, 'screen') and self.screen is not None:
+            pygame.quit()
+            self.screen = None
+
         # Clean up shared memory
-        self.shm.close()
-        self.shm.unlink()
+        try:
+            self.shm.close()
+            self.shm.unlink()
+        except FileNotFoundError:
+            # Shared memory already cleaned up, ignore
+            pass
+
+    def _calculate_grid_layout(self, num_agents: int, original_frame_w: int, max_screen_width: int = 1920) -> Tuple[
+        int, int]:
+        """Calculate optimal grid layout for multi-agent rendering."""
+        columns = min(num_agents, max_screen_width // original_frame_w)
+        rows = math.ceil(num_agents / columns)
+        return columns, rows
+
+    def _calculate_frame_scaling(self, columns: int, rows: int, original_frame_w: int, original_frame_h: int,
+                                 max_screen_width: int = 1920, max_screen_height: int = 1080) -> Tuple[
+        float, int, int, int, int]:
+        """Calculate frame scaling and display dimensions."""
+        # Calculate potential display size with original frame size
+        total_width = columns * original_frame_w
+        total_height = rows * original_frame_h
+
+        # Resize frames if display size exceeds max screen constraints
+        scale_w = max_screen_width / total_width if total_width > max_screen_width else 1.0
+        scale_h = max_screen_height / total_height if total_height > max_screen_height else 1.0
+        scale = min(scale_w, scale_h)
+
+        # Calculate resized frame dimensions and display window size
+        frame_w = int(original_frame_w * scale)
+        frame_h = int(original_frame_h * scale)
+        display_width = min(columns * frame_w, max_screen_width)
+        display_height = min(rows * frame_h, max_screen_height)
+
+        return scale, frame_w, frame_h, display_width, display_height
+
+    def _process_frame_for_position(self, frame: np.ndarray, idx: int, columns: int, scale: float,
+                                    frame_w: int, frame_h: int) -> Tuple[np.ndarray, int, int]:
+        """Process a frame for positioning in the grid."""
+        # Resize the frame if scaling is necessary
+        if scale < 1.0:
+            frame = cv2.resize(frame, (frame_w, frame_h))
+
+        # Calculate grid position
+        col = idx % columns
+        row = idx // columns
+        x, y = col * frame_w, row * frame_h
+
+        return frame, x, y
 
     def render(self) -> Optional[List[np.ndarray]]:
         """
@@ -334,36 +401,20 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         try:
             # Read observations from shared memory
             observations = [self.observations[i].copy() for i in range(self.num_agents)]
+            frames = observations
+            num_agents = len(frames)
+
+            if num_agents == 0:
+                return None if mode == "rgb_array" else None
+
+            original_frame_h, original_frame_w = frames[0].shape[:2]
+
+            # Calculate grid layout and frame scaling (common for both modes)
+            columns, rows = self._calculate_grid_layout(num_agents, original_frame_w)
+            scale, frame_w, frame_h, display_width, display_height = self._calculate_frame_scaling(
+                columns, rows, original_frame_w, original_frame_h)
 
             if mode == "human":
-                frames = observations
-                num_agents = len(frames)
-                if num_agents == 0:
-                    return
-
-                original_frame_h, original_frame_w = frames[0].shape[:2]
-
-                # Determine the optimal grid layout within max screen constraints
-                max_screen_width = 1920
-                max_screen_height = 1080
-                columns = min(num_agents, max_screen_width // original_frame_w)
-                rows = math.ceil(num_agents / columns)
-
-                # Calculate potential display size with original frame size
-                total_width = columns * original_frame_w
-                total_height = rows * original_frame_h
-
-                # Resize frames if display size exceeds max screen constraints
-                scale_w = max_screen_width / total_width if total_width > max_screen_width else 1.0
-                scale_h = max_screen_height / total_height if total_height > max_screen_height else 1.0
-                scale = min(scale_w, scale_h)
-
-                # Calculate resized frame dimensions and display window size
-                frame_w = int(original_frame_w * scale)
-                frame_h = int(original_frame_h * scale)
-                display_width = min(columns * frame_w, max_screen_width)
-                display_height = min(rows * frame_h, max_screen_height)
-
                 # Initialize or resize the pygame window if needed
                 if not self.screen or self.screen.get_size() != (display_width, display_height):
                     pygame.init()
@@ -379,23 +430,43 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
                 # Render each frame in its grid position
                 for idx, frame in enumerate(frames):
-                    if scale < 1.0:
-                        # Resize the frame if scaling is necessary
-                        frame = cv2.resize(frame, (frame_w, frame_h))
-
-                    col = idx % columns
-                    row = idx // columns
-                    x, y = col * frame_w, row * frame_h
+                    processed_frame, x, y = self._process_frame_for_position(
+                        frame, idx, columns, scale, frame_w, frame_h)
 
                     # Convert frame to surface
-                    surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
+                    surface = pygame.surfarray.make_surface(processed_frame.swapaxes(0, 1))
                     self.screen.blit(surface, (x, y))  # Position frame within the grid
 
                 pygame.display.flip()
                 time.sleep(0.01)  # Brief pause to simulate real-time rendering
 
             elif mode == "rgb_array":
-                return observations  # Return a list of frames for each agent
+                num_channels = frames[0].shape[2] if len(frames[0].shape) > 2 else 1
+
+                # Create the combined array
+                if num_channels > 1:
+                    combined_frame = np.zeros((display_height, display_width, num_channels), dtype=frames[0].dtype)
+                else:
+                    combined_frame = np.zeros((display_height, display_width), dtype=frames[0].dtype)
+
+                # Place each frame in its grid position
+                for idx, frame in enumerate(frames):
+                    processed_frame, x, y = self._process_frame_for_position(
+                        frame, idx, columns, scale, frame_w, frame_h)
+
+                    # Ensure we don't exceed the combined frame boundaries
+                    end_x = min(x + frame_w, display_width)
+                    end_y = min(y + frame_h, display_height)
+                    frame_end_x = end_x - x
+                    frame_end_y = end_y - y
+
+                    # Place the frame in the combined array
+                    if num_channels > 1:
+                        combined_frame[y:end_y, x:end_x] = processed_frame[:frame_end_y, :frame_end_x]
+                    else:
+                        combined_frame[y:end_y, x:end_x] = processed_frame[:frame_end_y, :frame_end_x]
+
+                return combined_frame
 
         except Exception as e:
             print(f"Rendering Error: {e}")

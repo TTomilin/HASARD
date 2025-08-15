@@ -48,7 +48,7 @@ class DoomSpec:
             safety_bound=None,
             unsafe_reward=None,
             coord_limits=None,
-            num_agents=1,
+            num_agents=2,
             respawn_delay=0,
             timelimit=4.0,
             extra_wrappers=None,
@@ -163,6 +163,7 @@ DOOM_ENVS = [
         max_histogram_len=None,
         penalty_scaling=1.0,
         default_timeout=2100,
+        num_agents=4,
         extra_wrappers=[]
     ),
 ]
@@ -311,6 +312,7 @@ def make_doom_ma_env_impl(
     host_address = "127.0.0.1"
     # Every env needs a separate port. If env_config is not provided, it is for a creating a mock env
     port = 5029 + (env_config.env_id if env_config else 0)
+    print(f"Creating env on {host_address}:{port}. Env ID: {env_config.env_id if env_config else 'N/A'}")
 
     env = VizdoomMultiAgentEnv(
         config_file,
@@ -398,4 +400,22 @@ def make_doom_env_from_spec(spec, _env_name, cfg, env_config, render_mode: Optio
     else:
         cfg.record_to = None
 
-    return make_doom_ma_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, **kwargs)
+    # Determine the number of agents - configurable from main cfg
+    if cfg.num_agents != -1:
+        # Use the configurable num_agents from cfg
+        num_agents = cfg.num_agents
+    elif hasattr(spec, 'num_agents') and spec.num_agents is not None:
+        # Use the spec's default num_agents
+        num_agents = spec.num_agents
+    else:
+        # Default to 2 agents
+        num_agents = 2
+
+    # Choose between single-agent and multi-agent environment creation
+    if num_agents > 1:
+        # Multi-agent environment
+        return make_doom_ma_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, 
+                                   num_agents=num_agents, **kwargs)
+    else:
+        # Single-agent environment
+        return make_doom_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, **kwargs)

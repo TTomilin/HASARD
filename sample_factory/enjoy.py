@@ -25,7 +25,7 @@ from sample_factory.model.actor_critic import create_actor_critic
 from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config, StatusCode
-from sample_factory.utils.utils import debug_log_every_n, experiment_dir, log
+from sample_factory.utils.utils import configure_logging_level, debug_log_every_n, experiment_dir, log
 
 
 def visualize_policy_inputs(normalized_obs: Dict[str, Tensor]) -> None:
@@ -95,6 +95,9 @@ def save_video(frames, file_path):
 
 
 def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
+    # Configure logging level based on the configuration
+    configure_logging_level(cfg)
+
     verbose = True
 
     train_dir = cfg.train_dir

@@ -986,6 +986,13 @@ def add_eval_args(parser):
 
 def add_logging_args(p: ArgumentParser):
     """Weights and Biases experiment monitoring."""
+    p.add_argument(
+        "--log_level",
+        default="INFO",
+        type=str,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
     p.add_argument("--with_wandb", default=False, type=str2bool, help="Enables Weights and Biases integration")
     p.add_argument(
         "--wandb_user",

@@ -83,13 +83,13 @@ def game_process(config_path, resolution, skip_frames, pipe, instance_id, is_hos
                     if state and state.screen_buffer is not None:
                         observation = np.transpose(state.screen_buffer, (1, 2, 0))
                     else:
-                        observation = np.zeros(obs_shape, dtype=np.uint8)
+                        observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
                     info = {}
                 else:
                     reward = 0.0
                     done = True
-                    observation = np.zeros(obs_shape, dtype=np.uint8)
+                    observation = np.zeros(obs_shape[1:], dtype=np.uint8)
                     info = {}
 
                 # Write observation into shared memory
@@ -106,11 +106,21 @@ def game_process(config_path, resolution, skip_frames, pipe, instance_id, is_hos
                 if state and state.screen_buffer is not None:
                     observation = np.transpose(state.screen_buffer, (1, 2, 0))
                 else:
-                    observation = np.zeros(obs_shape, dtype=np.uint8)
+                    observation = np.zeros(obs_shape[1:], dtype=np.uint8)
                 # Write observation into shared memory
                 observations[instance_id] = observation
                 # Signal that reset is done
                 pipe.send(None)
+
+            elif cmd == 'render':
+                # Get current screen buffer for rendering
+                state = game.get_state()
+                if state and state.screen_buffer is not None:
+                    frame = np.transpose(state.screen_buffer, (1, 2, 0))
+                    pipe.send(frame)
+                else:
+                    # Send a black frame if no state available
+                    pipe.send(np.zeros(obs_shape[1:], dtype=np.uint8))
 
             elif cmd == 'close':
                 game.close()
@@ -137,10 +147,15 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             coord_limits=None,
             max_histogram_length=None,
             show_automap=False,
+            use_depth_buffer=False,
+            render_depth_buffer=False,
+            render_with_bounding_boxes=False,
+            segment_objects=False,
             skip_frames=1,
             async_mode=False,
             record_to=None,
-            resolution: str = None,
+            env_modification: str = None,
+            resolution: str = "160x120",
             seed: Optional[int] = None,
             render_mode: Optional[str] = None,
             num_agents: int = 2,
@@ -148,11 +163,16 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             port: int = 5029,
     ):
         super().__init__(config_file, action_space, safety_bound, unsafe_reward, timeout, level, constraint,
-                         coord_limits, max_histogram_length, show_automap, skip_frames, async_mode, record_to,
-                         resolution, seed, render_mode)
+                         coord_limits, max_histogram_length, show_automap, use_depth_buffer, render_depth_buffer,
+                         render_with_bounding_boxes, segment_objects, skip_frames, async_mode, record_to,
+                         env_modification, resolution, seed, render_mode)
         self.num_agents = num_agents
         self.host_address = host_address
         self.port = port
+        self.resolution = resolution
+
+        # Initialize pygame screen for rendering
+        self.screen = None
 
         parts = resolution.lower().split("x")
         width = int(parts[0])
@@ -196,7 +216,6 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         # Wait a bit to ensure all processes are ready
         time.sleep(1.0)
 
-    # @profile
     def reset(self, **kwargs) -> Tuple[np.ndarray, Dict]:
         if "seed" in kwargs and kwargs["seed"]:
             self.seed(kwargs["seed"])
@@ -212,7 +231,6 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
         return observations, {}
 
-    # @profile
     def step(self, actions) -> Tuple[Any, Any, Any, Any, Any]:
         for pipe, action in zip(self.parent_pipes, actions):
             pipe.send(('step', action))
@@ -234,15 +252,38 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         return observations, rewards, dones, truncated, infos
 
     def close(self):
+        # Prevent multiple close calls
+        if hasattr(self, '_closed') and self._closed:
+            return
+
+        # Send close messages to all processes, handling already-closed pipes
         for pipe in self.parent_pipes:
-            pipe.send(('close', None))
-            pipe.close()
+            try:
+                pipe.send(('close', None))
+            except OSError:
+                # Pipe is already closed, continue with cleanup
+                pass
+            try:
+                pipe.close()
+            except OSError:
+                # Pipe is already closed, continue with cleanup
+                pass
+
+        # Wait for all processes to finish
         for process in self.processes:
-            process.join()
+            if process.is_alive():
+                process.join()
 
         # Clean up shared memory
-        self.shm.close()
-        self.shm.unlink()
+        try:
+            self.shm.close()
+            self.shm.unlink()
+        except (OSError, FileNotFoundError):
+            # Shared memory already cleaned up
+            pass
+
+        # Mark as closed
+        self._closed = True
 
     def render(self) -> Optional[list]:
         mode = self.render_mode

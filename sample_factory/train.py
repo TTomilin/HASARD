@@ -7,6 +7,7 @@ from sample_factory.algo.utils.misc import ExperimentStatus
 from sample_factory.cfg.arguments import maybe_load_from_checkpoint
 from sample_factory.pbt.population_based_training import PopulationBasedTraining
 from sample_factory.utils.typing import Config
+from sample_factory.utils.utils import configure_logging_level
 
 
 def make_runner(cfg: Config) -> Tuple[Config, Runner]:
@@ -29,6 +30,9 @@ def make_runner(cfg: Config) -> Tuple[Config, Runner]:
 
 
 def run_rl(cfg: Config):
+    # Configure logging level based on the configuration
+    configure_logging_level(cfg)
+
     cfg, runner = make_runner(cfg)
 
     # here we can register additional message or summary handlers

@@ -621,13 +621,19 @@ class Runner(EventLoopObject, Configurable):
 
         def is_file_locked(file_path):
             """Check if the file is locked by another process."""
+            # First check if there's a .lock file (new locking mechanism)
+            lock_file_path = file_path + '.lock'
+            if os.path.exists(lock_file_path):
+                return True  # File is locked
+
+            # Fallback to the old locking mechanism
             try:
                 with open(file_path, 'rb') as f:
                     fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     fcntl.flock(f, fcntl.LOCK_UN)
                 return False  # File is not locked
-            except IOError:
-                return True  # File is locked
+            except (IOError, FileNotFoundError):
+                return True  # File is locked or doesn't exist yet
 
         # Log new videos to wandb
         for step_number, video_file in sorted(new_videos):
