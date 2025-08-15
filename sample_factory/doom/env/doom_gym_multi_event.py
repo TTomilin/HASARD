@@ -78,6 +78,8 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
     existing_shm = shared_memory.SharedMemory(name=shm_name)
     observations = np.ndarray(obs_shape, dtype=np.uint8, buffer=existing_shm.buf)
 
+    previous_health = game.get_game_variable(vzd.GameVariable.HEALTH)
+
     try:
         while True:
             # Wait for the step event
@@ -96,8 +98,12 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
                     else:
                         game.make_action(action)
                     state = game.get_state()
-                    reward = game.get_last_reward()
                     done = game.is_episode_finished()
+
+                    # Works only for Remedy Rush
+                    health = game.get_game_variable(vzd.GameVariable.HEALTH)
+                    reward = health - previous_health
+                    previous_health = health
 
                     if state and state.screen_buffer is not None:
                         observation = np.transpose(state.screen_buffer, (1, 2, 0))
