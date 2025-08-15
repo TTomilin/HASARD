@@ -333,6 +333,9 @@ def make_doom_ma_env_impl(
         num_agents=num_agents,
         host_address=host_address,
         port=port,
+        env_config=env_config,
+        netmode=cfg.netmode,
+        vizdoom_async_mode=cfg.vizdoom_async_mode,
     )
 
     record_to = cfg.record_to if "record_to" in cfg else None

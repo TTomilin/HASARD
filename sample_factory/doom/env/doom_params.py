@@ -39,11 +39,24 @@ def add_doom_env_args(parser):
     p.add_argument('--constraint', type=str, default='soft', choices=['soft', 'hard'], help='Soft/Hard safety constraint')
     p.add_argument('--render_mode', type=str, default='rgb_array', help='Rendering mode')
     p.add_argument("--video_dir", default='videos', type=str, help="Record episodes to this folder after an interval.")
-    p.add_argument("--video_length", default=2100, type=int, help="Length of recorded video.")
-    p.add_argument("--record_every", default=5000, type=int, help="Interval after how many steps to record a video.")
+    p.add_argument("--video_length", default=500, type=int, help="Length of recorded video.")
+    p.add_argument("--record_every", default=10000, type=int, help="Interval after how many steps to record a video.")
     p.add_argument("--record", default=True, type=str2bool, help="Whether to record gameplay.")
     p.add_argument('--resolution', type=str, default='160x120', choices=['1600x1200', '1280x720', '800x600', '640x480', '320x240', '160x120'], help='Screen resolution of the game')
     p.add_argument('--resolution_eval', type=str, default='1280x720', help='Screen resolution of the evaluation video')
+    p.add_argument(
+        "--netmode", 
+        default=0, 
+        type=int, 
+        choices=[0, 1],
+        help="VizDoom networking mode: 0=P2P (faster locally), 1=PacketServer (for clusters)"
+    )
+    p.add_argument(
+        "--vizdoom_async_mode",
+        default=False,
+        type=str2bool,
+        help="Use VizDoom ASYNC_PLAYER mode instead of PLAYER mode for multiplayer"
+    )
 
 
 def add_doom_env_eval_args(parser):

@@ -35,8 +35,11 @@ def get_screen_resolution(resolution: str) -> ScreenResolution:
 
 
 def game_process(config_path, resolution, skip_frames, shared_command, step_event, all_done_event,
-                 num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape):
+                 num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape, worker_idx, env_id, netmode, async_mode):
     # Initialize VizDoom game
+    role = "HOST" if is_host else "PEER"
+    print(f"[Worker {worker_idx}, Env {env_id}] Starting VizDoom {role} (Agent {instance_id}) on port {port}")
+
     game = vzd.DoomGame()
     game.load_config(config_path)
 
@@ -45,24 +48,31 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
     game.set_sound_enabled(False)
     game.set_console_enabled(False)
     game.set_screen_resolution(get_screen_resolution(resolution))
-    # game.set_mode(Mode.ASYNC_PLAYER)  # Use ASYNC_PLAYER for multiplayer
-    game.set_mode(Mode.PLAYER)
+    # Configure game mode based on async_mode parameter
+    if async_mode:
+        game.set_mode(Mode.ASYNC_PLAYER)  # Use ASYNC_PLAYER for multiplayer
+    else:
+        game.set_mode(Mode.PLAYER)
     game.set_ticrate(1000)
 
     if is_host:
         # Host game instance
+        print(f"[Worker {worker_idx}, Env {env_id}] Configuring HOST for {num_agents} agents on port {port}")
         game.add_game_args(
-            f"-host {num_agents} -port {port} -netmode 1 +timelimit 10.0 +sv_spawnfarthest 1"
+            f"-host {num_agents} -port {port} -netmode {netmode} +timelimit 10.0 +sv_spawnfarthest 1"
         )
         game.add_game_args(f"+name Player{instance_id} +colorset {instance_id}")
         game.add_game_args(f"+playernumber {instance_id}")
     else:
         # Join game instance
-        game.add_game_args(f"-join 127.0.0.1 -port {port} -netmode 1")
+        print(f"[Worker {worker_idx}, Env {env_id}] Configuring PEER (Agent {instance_id}) to join port {port}")
+        game.add_game_args(f"-join 127.0.0.1 -port {port} -netmode {netmode}")
         game.add_game_args(f"+name Player{instance_id} +colorset {instance_id}")
         game.add_game_args(f"+playernumber {instance_id}")
 
+    print(f"[Worker {worker_idx}, Env {env_id}] Initializing VizDoom {role} (Agent {instance_id})...")
     game.init()
+    print(f"[Worker {worker_idx}, Env {env_id}] VizDoom {role} (Agent {instance_id}) initialization complete!")
 
     # Connect to shared memory
     existing_shm = shared_memory.SharedMemory(name=shm_name)
@@ -181,6 +191,9 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             num_agents: int = 2,
             host_address: str = "127.0.0.1",
             port: int = 5029,
+            env_config=None,
+            netmode: int = 0,
+            vizdoom_async_mode: bool = False,
     ):
         super().__init__(config_file, action_space, safety_bound, unsafe_reward, timeout, level, constraint,
                          coord_limits, max_histogram_length, show_automap, use_depth_buffer, render_depth_buffer,
@@ -190,6 +203,13 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         self.host_address = host_address
         self.port = port
         self.resolution = resolution
+        self.env_config = env_config
+        self.netmode = netmode
+        self.vizdoom_async_mode = vizdoom_async_mode
+
+        # Extract worker and environment information for logging
+        self.worker_idx = env_config.worker_index if env_config else -1
+        self.env_id = env_config.env_id if env_config else -1
 
         # Initialize pygame screen for rendering
         self.screen = None
@@ -241,7 +261,8 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                     self.config_path, self.resolution, self.skip_frames,
                     shared_command, self.step_event, self.all_done_event,
                     self.num_completed, self.num_agents, i, is_host, self.port,
-                    self.shm.name, multi_obs_shape
+                    self.shm.name, multi_obs_shape, self.worker_idx, self.env_id,
+                    self.netmode, self.vizdoom_async_mode
                 ),
             )
             process.daemon = True
@@ -249,7 +270,8 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             self.processes.append(process)
 
         # Wait a bit to ensure all processes are ready
-        time.sleep(1.0)
+        # time.sleep(1.0)
+        time.sleep(1.0 + (self.port - 5029))  # Staggered delays
 
     def reset(self, **kwargs) -> Tuple[np.ndarray, Dict]:
         if "seed" in kwargs and kwargs["seed"]:
