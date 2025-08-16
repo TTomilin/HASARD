@@ -35,7 +35,7 @@ def get_screen_resolution(resolution: str) -> ScreenResolution:
 
 
 def game_process(config_path, resolution, skip_frames, shared_command, step_event, all_done_event,
-                 num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape, worker_idx, env_id, netmode, async_mode):
+                 num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape, worker_idx, env_id, netmode, async_mode, ticrate=1000):
     # Initialize VizDoom game
     role = "HOST" if is_host else "PEER"
     print(f"[Worker {worker_idx}, Env {env_id}] Starting VizDoom {role} (Agent {instance_id}) on port {port}")
@@ -53,7 +53,7 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
         game.set_mode(Mode.ASYNC_PLAYER)  # Use ASYNC_PLAYER for multiplayer
     else:
         game.set_mode(Mode.PLAYER)
-    game.set_ticrate(1000)
+    game.set_ticrate(ticrate)
 
     if is_host:
         # Host game instance
@@ -80,6 +80,9 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
 
     starting_health = 100
     previous_health = starting_health
+
+    episode_id = 0
+    step_id = 0
 
     try:
         while True:
@@ -139,9 +142,16 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
                         all_done_event.set()
                 # Continue to next iteration, waiting for next step_event
 
+                step_id += 1
+
             elif cmd == 'reset':
                 # Reset the environment
+                role = "[HOST]" if is_host else "[PEER]"
+                print(f"BEFORE: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
                 game.new_episode()
+                game.respawn_player()
+                print(f"AFTER: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
+
                 # Get initial state
                 state = game.get_state()
                 if state and state.screen_buffer is not None:
@@ -160,6 +170,9 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
                         # Last agent to finish reset
                         all_done_event.set()
                 # Continue to next iteration, waiting for next step_event
+
+                episode_id += 1
+                step_id = 0
 
             elif cmd == 'close':
                 game.close()
@@ -202,6 +215,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             port: int = 5029,
             env_config=None,
             netmode: int = 0,
+            ticrate: int = 1000,
     ):
         super().__init__(config_file, action_space, safety_bound, unsafe_reward, timeout, level, constraint,
                          coord_limits, max_histogram_length, show_automap, use_depth_buffer, render_depth_buffer,
@@ -214,6 +228,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         self.env_config = env_config
         self.netmode = netmode
         self.async_mode = async_mode
+        self.ticrate = ticrate
 
         # Extract worker and environment information for logging
         self.worker_idx = env_config.worker_index if env_config else -1
@@ -270,7 +285,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                     shared_command, self.step_event, self.all_done_event,
                     self.num_completed, self.num_agents, i, is_host, self.port,
                     self.shm.name, multi_obs_shape, self.worker_idx, self.env_id,
-                    self.netmode, self.async_mode
+                    self.netmode, self.async_mode, self.ticrate
                 ),
             )
             process.daemon = True

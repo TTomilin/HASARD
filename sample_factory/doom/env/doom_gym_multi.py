@@ -28,7 +28,7 @@ def get_screen_resolution(resolution: str) -> ScreenResolution:
 
 
 def game_process(config_path, resolution, skip_frames, pipe, instance_id, is_host, num_agents, port, shm_name,
-                 obs_shape):
+                 obs_shape, ticrate=1000):
     import cProfile
 
     pr = cProfile.Profile()
@@ -44,7 +44,7 @@ def game_process(config_path, resolution, skip_frames, pipe, instance_id, is_hos
     game.set_console_enabled(False)
     game.set_screen_resolution(get_screen_resolution(resolution))
     game.set_mode(Mode.ASYNC_PLAYER)  # Use ASYNC_PLAYER for multiplayer
-    game.set_ticrate(1000)
+    game.set_ticrate(ticrate)
 
     # Multiplayer settings
     if is_host:
@@ -161,6 +161,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             num_agents: int = 2,
             host_address: str = "127.0.0.1",
             port: int = 5029,
+            ticrate: int = 1000,
     ):
         super().__init__(config_file, action_space, safety_bound, unsafe_reward, timeout, level, constraint,
                          coord_limits, max_histogram_length, show_automap, use_depth_buffer, render_depth_buffer,
@@ -170,6 +171,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         self.host_address = host_address
         self.port = port
         self.resolution = resolution
+        self.ticrate = ticrate
 
         # Initialize pygame screen for rendering
         self.screen = None
@@ -206,7 +208,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                 args=(
                     self.config_path, self.resolution, self.skip_frames, child_conn,
                     i, is_host, self.num_agents, self.port,
-                    self.shm.name, multi_obs_shape
+                    self.shm.name, multi_obs_shape, self.ticrate
                 ),
             )
             process.daemon = True

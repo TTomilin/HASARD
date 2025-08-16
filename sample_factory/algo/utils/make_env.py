@@ -131,14 +131,13 @@ class NonBatchedDictObservationsWrapper(_DictObservationsWrapper):
         # Auto-reset for multi-agent environments when any agent is done
         if self.is_multiagent:
             # Check if any agent is done (terminated or truncated)
-            any_done = False
             if isinstance(terminated, (list, tuple)):
-                any_done = any(terminated) or any(truncated)
+                all_done = all(terminated) or all(truncated)
             else:
                 # Single values for all agents
-                any_done = terminated or truncated
+                all_done = terminated or truncated
 
-            if any_done:
+            if all_done:
                 # Auto-reset the environment
                 obs, reset_info = self.env.reset()
                 # Add reset info to the info dict

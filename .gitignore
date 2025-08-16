@@ -148,4 +148,4 @@ sf_examples/vizdoom/doom/multiplayer/tests/_vizdoom/
 *.bak
 *_local.wad
 
-tests/*.png
+tests/**/*.png

@@ -334,6 +334,7 @@ def make_doom_ma_env_impl(
         env_config=env_config,
         netmode=cfg.netmode,
         async_mode=cfg.async_mode,
+        ticrate=cfg.ticrate,
     )
 
     record_to = cfg.record_to if "record_to" in cfg else None

@@ -906,6 +906,12 @@ def add_default_env_args(p: ArgumentParser):
         action='store_true',
         help="Whether to render the depth buffer instead of normal observations",
     )
+    p.add_argument(
+        "--ticrate",
+        default=1000,
+        type=int,
+        help="VizDoom ticrate setting for multiplayer environments. Higher values allow faster simulation.",
+    )
 
 
 def add_eval_args(parser):
