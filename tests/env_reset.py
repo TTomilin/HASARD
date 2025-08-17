@@ -229,7 +229,7 @@ def test_two_episodes_with_health_check():
     # Create multi-agent environment with 2 agents (host and peer)
     config_file = "remedy_rush.cfg"
     action_space = doom_action_space()
-    timeout = 50
+    timeout = 25
 
     env = VizdoomMultiAgentEnv(
         config_file=config_file,
@@ -240,7 +240,7 @@ def test_two_episodes_with_health_check():
         level=1,
         constraint='soft',
         skip_frames=1,
-        resolution="160x120",
+        resolution="800x600",
         num_agents=2,  # Host and peer
         port=5036,  # Use unique port to avoid conflicts
         env_config=MockEnvConfig(),
@@ -257,7 +257,7 @@ def test_two_episodes_with_health_check():
 
     try:
         # Run continuously for fixed steps, ignoring truncated/done
-        n_episodes = 3
+        n_episodes = 5
         print(f"Starting continuous run for {timeout * n_episodes} fixed steps...")
         results = run_continuous_fixed_steps(env, image_base_dir, timeout, n_episodes)
 

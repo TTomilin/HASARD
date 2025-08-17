@@ -1,10 +1,8 @@
 import json  # For safe serialization of 'info'
 import math
 import time
-from multiprocessing import Process, Event, shared_memory, Array, Value
-from ctypes import c_int
-from time import sleep
-from typing import Optional, Dict, Tuple, Any, List
+from multiprocessing import Process, Event, shared_memory, Array, Value, Condition
+from typing import Optional, Tuple, Any, List
 
 import cv2
 import gymnasium as gym
@@ -14,8 +12,6 @@ import vizdoom as vzd
 from vizdoom import ScreenResolution, Mode
 
 from sample_factory.doom.env.doom_gym import VizdoomEnv
-
-import json  # For safe serialization of 'info'
 
 # Define screen resolutions
 resolutions = {
@@ -35,14 +31,13 @@ def get_screen_resolution(resolution: str) -> ScreenResolution:
     return resolutions[resolution]
 
 
-def game_process(config_path, resolution, skip_frames, shared_command, step_event, all_done_event,
-                 num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape, worker_idx, env_id, netmode, async_mode, ticrate=1000):
-
-    last_cycle = -1
+def game_process(config_path, resolution, skip_frames, shared_command, cond, turn, done_count, seen_turn,
+                 num_agents, instance_id, is_host, port, shm_name, obs_shape, worker_idx, env_id,
+                 netmode, async_mode, ticrate=1000):
+    # Initialize VizDoom game
     role = "HOST" if is_host else "PEER"
     print(f"[Worker {worker_idx}, Env {env_id}] Starting VizDoom {role} (Agent {instance_id}) on port {port}")
 
-    # Initialize VizDoom game
     game = vzd.DoomGame()
     game.load_config(config_path)
 
@@ -87,18 +82,21 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
     episode_id = 0
     step_id = 0
     role = "[HOST]" if is_host else "[PEER]"
+    last_seen_turn = 0
 
     try:
         while True:
-            # Wait for the step event
-            step_event.wait()
-            # Do not clear the step_event here, the main process will clear it if necessary
+            # --- Wait for a new turn and read command atomically
+            with cond:
+                while turn.value == last_seen_turn:
+                    cond.wait()
+                current_turn = turn.value
+                cmd = shared_command['cmd'].value.decode().strip()
+                data = list(shared_command['data'][:])
 
-            cmd_bytes = shared_command['cmd'].value
-            cmd = cmd_bytes.decode().strip()
-            data = list(shared_command['data'][:])
+            should_quit = False
 
-            print(f"{role} Received command: {cmd} at step {step_id}")
+            # print(f"{role} Received command: {cmd} at step {step_id}")
 
             if cmd == 'step':
                 action = data
@@ -127,8 +125,6 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
                     observation = np.zeros(obs_shape[1:], dtype=np.uint8)
                     info = {"num_frames": skip_frames if skip_frames is not None else 1}
 
-                truncated = game.get_episode_time() >= game.get_episode_timeout()
-
                 # Write observation into shared memory
                 observations[instance_id] = observation
 
@@ -142,23 +138,14 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
                 shared_command['reward'].value = reward
                 shared_command['terminated'].value = terminated
 
-                # Increment the shared counter
-                with num_completed.get_lock():
-                    num_completed.value += 1
-                    if num_completed.value == num_agents:
-                        # Last agent to finish steps
-                        all_done_event.set()
-                # Continue to next iteration, waiting for next step_event
-
                 step_id += 1
 
             elif cmd == 'reset':
                 # Reset the environment
-                print(f"BEFORE: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
-                sleep(0.01)  # Give some time for the game to reset
+                # print(f"BEFORE: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
                 game.new_episode()
                 game.respawn_player()
-                print(f"AFTER: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
+                # print(f"AFTER: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
 
                 # Get initial state
                 state = game.get_state()
@@ -171,27 +158,37 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
 
                 previous_health = starting_health
 
-                # Increment the shared counter
-                with num_completed.get_lock():
-                    num_completed.value += 1
-                    if num_completed.value == num_agents:
-                        # Last agent to finish reset
-                        all_done_event.set()
-                # Continue to next iteration, waiting for next step_event
-
                 episode_id += 1
                 step_id = 0
 
             elif cmd == 'close':
-                game.close()
-                existing_shm.close()
-                break
+                should_quit = True  # but ACK barrier first
 
             else:
                 print(f"Unknown command: {cmd}")
                 # Wait for the next command
+
+            # --- ACK the barrier and optionally exit
+            with cond:
+                last_seen_turn = current_turn
+                seen_turn[instance_id] = current_turn
+                done_count.value += 1
+                if done_count.value == num_agents:
+                    cond.notify_all()
+
+            if should_quit:
+                game.close()
+                existing_shm.close()
+                return
     finally:
-        pass  # Cleanup if necessary
+        try:
+            game.close()
+        except Exception:
+            pass
+        try:
+            existing_shm.close()
+        except Exception:
+            pass
 
 
 class VizdoomMultiAgentEnv(VizdoomEnv):
@@ -272,6 +269,11 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         self.all_done_event = Event()
         self.num_completed = Value('i', 0)
 
+        self.cond = Condition()
+        self.turn = Value('i', 0)  # global cycle number
+        self.done_count = Value('i', 0)
+        self.seen_turn = Array('i', [0] * self.num_agents)  # per-child ack
+
         for i in range(self.num_agents):
             is_host = i == 0
 
@@ -289,14 +291,14 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             process = Process(
                 target=game_process,
                 args=(
-                    self.config_path, self.resolution, self.skip_frames,
-                    shared_command, self.step_event, self.all_done_event,
-                    self.num_completed, self.num_agents, i, is_host, self.port,
+                    self.config_path, self.resolution, self.skip_frames, shared_command,
+                    self.cond, self.turn, self.done_count, self.seen_turn,
+                    self.num_agents, i, is_host, self.port,
                     self.shm.name, multi_obs_shape, self.worker_idx, self.env_id,
                     self.netmode, self.async_mode, self.ticrate
                 ),
+                daemon=True,
             )
-            process.daemon = True
             process.start()
             self.processes.append(process)
 
@@ -307,13 +309,23 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         # Wait a bit to ensure all processes are ready
         time.sleep(1.0 + (self.port - 5029))  # Staggered delays
 
-    def _barrier(self):
-        with self.num_completed.get_lock():
-            self.num_completed.value = 0
-        self.step_event.set()
-        self.all_done_event.wait()
-        self.all_done_event.clear()
-        self.step_event.clear()
+    def _issue_and_barrier(self, cmds: List[bytes], datas: List[List[int]] = None):
+        if datas is None:
+            datas = [None] * self.num_agents
+        with self.cond:
+            # publish commands for this turn
+            for i, sc in enumerate(self.shared_commands):
+                sc['cmd'].value = cmds[i]
+                if datas[i] is not None:
+                    sc['data'][:] = datas[i]
+
+            self.turn.value += 1  # advance cycle
+            self.done_count.value = 0
+            self.cond.notify_all()  # wake children
+
+            # wait until all children ack this turn
+            while self.done_count.value < self.num_agents:
+                self.cond.wait()
 
     def reset(self, **kwargs):
         if "seed" in kwargs and kwargs["seed"]:
@@ -321,9 +333,9 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
         self._num_steps = 0
 
-        for i in range(self.num_agents):
-            self.shared_commands[i]['cmd'].value = b'reset'
-        self._barrier()
+        # All agents reset simultaneously
+        cmds = [b'reset'] * self.num_agents
+        self._issue_and_barrier(cmds)
 
         observations = [self.observations[i].copy() for i in range(self.num_agents)]
         return observations, {}
@@ -340,7 +352,9 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             sc['data'][:] = action
 
         # 2) Barrier (set -> wait -> clear)
-        self._barrier()
+        cmds = [b'step'] * self.num_agents
+        datas = actions  # list of lists
+        self._issue_and_barrier(cmds, datas)
 
         # 3) Gather results
         rewards, terminated, infos = [], [], []
@@ -370,27 +384,21 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         return observations, rewards, terminated, truncated, infos
 
     def close(self):
-        # Set 'close' command for all agents
-        for shared_command in self.shared_commands:
-            shared_command['cmd'].value = b'close'
-        # Signal all agents to proceed
-        self.step_event.set()
-        # Wait for processes to finish
-        for process in self.processes:
-            process.join()
-
-        # Clean up pygame resources
-        if hasattr(self, 'screen') and self.screen is not None:
-            pygame.quit()
-            self.screen = None
-
-        # Clean up shared memory
         try:
-            self.shm.close()
-            self.shm.unlink()
-        except FileNotFoundError:
-            # Shared memory already cleaned up, ignore
-            pass
+            # tell children to close and wait for ack
+            self._issue_and_barrier([b'close'] * self.num_agents)
+
+            for p in self.processes:
+                p.join(timeout=2.0)
+        finally:
+            if hasattr(self, 'screen') and self.screen is not None:
+                pygame.quit()
+                self.screen = None
+            try:
+                self.shm.close()
+                self.shm.unlink()
+            except FileNotFoundError:
+                pass
 
     def _calculate_grid_layout(self, num_agents: int, original_frame_w: int, max_screen_width: int = 1920) -> Tuple[
         int, int]:
