@@ -98,7 +98,7 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
             cmd = cmd_bytes.decode().strip()
             data = list(shared_command['data'][:])
 
-            print(f"{role} Received command: {cmd} at step {step_id}")
+            # print(f"{role} Received command: {cmd} at step {step_id}")
 
             if cmd == 'step':
                 action = data
@@ -154,11 +154,11 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
 
             elif cmd == 'reset':
                 # Reset the environment
-                print(f"BEFORE: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
+                # print(f"BEFORE: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
                 sleep(0.01)  # Give some time for the game to reset
                 game.new_episode()
                 game.respawn_player()
-                print(f"AFTER: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
+                # print(f"AFTER: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
 
                 # Get initial state
                 state = game.get_state()
