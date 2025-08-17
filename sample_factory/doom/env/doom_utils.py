@@ -310,8 +310,19 @@ def make_doom_ma_env_impl(
     # Host address and port
     host_address = "127.0.0.1"
     # Every env needs a separate port. If env_config is not provided, it is for a creating a mock env
-    port = 5029 + (env_config.env_id if env_config else 0)
-    print(f"Creating env on {host_address}:{port}. Env ID: {env_config.env_id if env_config else 'N/A'}")
+    # Use both worker_index and env_id to ensure unique ports across all workers
+    # Each multi-agent env might need multiple ports, so we allocate a range per env
+    if env_config:
+        # Calculate unique port: base_port + (worker_index * max_envs_per_worker * port_range_per_env) + (env_id * port_range_per_env)
+        # This ensures each worker gets a separate port range, and each env within a worker gets its own sub-range
+        max_envs_per_worker = 100  # Conservative estimate to avoid conflicts
+        port_range_per_env = 10    # Reserve 10 ports per environment (for multi-agent scenarios)
+        worker_port_offset = env_config.worker_index * max_envs_per_worker * port_range_per_env
+        env_port_offset = (env_config.env_id % max_envs_per_worker) * port_range_per_env
+        port = 5029 + worker_port_offset + env_port_offset
+    else:
+        port = 5029  # Default for mock environments
+    print(f"Creating env on {host_address}:{port}. Worker: {env_config.worker_index if env_config else 'N/A'}, Env ID: {env_config.env_id if env_config else 'N/A'}")
 
     env = VizdoomMultiAgentEnv(
         config_file,
