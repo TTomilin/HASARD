@@ -100,6 +100,7 @@ class VizdoomEnv(gym.Env):
             safety_bound: float,
             unsafe_reward: float,
             timeout: int,
+            scenario: str,
             level=1,
             constraint='soft',
             coord_limits=None,
@@ -126,6 +127,7 @@ class VizdoomEnv(gym.Env):
         self.skip_frames = skip_frames
         self.async_mode = async_mode
         self.timeout = timeout
+        self.scenario = scenario
 
         # optional - for topdown view rendering and visitation heatmaps
         self.show_automap = show_automap

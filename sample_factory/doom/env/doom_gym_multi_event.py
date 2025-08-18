@@ -2,7 +2,6 @@ import json  # For safe serialization of 'info'
 import math
 import time
 from multiprocessing import Process, Event, shared_memory, Array, Value
-from ctypes import c_int
 from time import sleep
 from typing import Optional, Dict, Tuple, Any, List
 
@@ -14,8 +13,7 @@ import vizdoom as vzd
 from vizdoom import ScreenResolution, Mode
 
 from sample_factory.doom.env.doom_gym import VizdoomEnv
-
-import json  # For safe serialization of 'info'
+from sample_factory.doom.env.wrappers.reward_calculators import create_reward_calculator
 
 # Define screen resolutions
 resolutions = {
@@ -36,8 +34,8 @@ def get_screen_resolution(resolution: str) -> ScreenResolution:
 
 
 def game_process(config_path, resolution, timeout, skip_frames, shared_command, step_event, all_done_event,
-                 num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape, worker_idx, env_id, netmode, async_mode, ticrate=1000):
-
+                 num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape, worker_idx, env_id,
+                 netmode, async_mode, ticrate, reward_config=None):
     last_cycle = -1
     role = "HOST" if is_host else "PEER"
     print(f"[Worker {worker_idx}, Env {env_id}] Starting VizDoom {role} (Agent {instance_id}) on port {port}")
@@ -82,10 +80,7 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
     existing_shm = shared_memory.SharedMemory(name=shm_name)
     observations = np.ndarray(obs_shape, dtype=np.uint8, buffer=existing_shm.buf)
 
-    starting_health = 1
-    starting_armor = 0
-    previous_health = starting_health
-    previous_armor = starting_armor
+    reward_calculator = create_reward_calculator(reward_config)
 
     episode_id = 0
     step_id = 0
@@ -113,12 +108,8 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                         game.make_action(action)
                     state = game.get_state()
 
-                    # Works only for Remedy Rush
-                    health = game.get_game_variable(vzd.GameVariable.HEALTH)
-                    armor = game.get_game_variable(vzd.GameVariable.ARMOR)
-                    reward = health - previous_health - (armor - previous_armor)
-                    previous_health = health
-                    previous_armor = armor
+                    # Calculate reward using modular reward calculator
+                    reward = reward_calculator.calculate_reward(game)
 
                     if state and state.screen_buffer is not None:
                         observation = np.transpose(state.screen_buffer, (1, 2, 0))
@@ -172,8 +163,8 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                 # Write observation into shared memory
                 observations[instance_id] = observation
 
-                previous_health = starting_health
-                previous_armor = starting_armor
+                # Reset reward calculator for new episode
+                reward_calculator.reset(game)
 
                 # Increment the shared counter
                 with num_completed.get_lock():
@@ -205,6 +196,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             safety_bound: float,
             unsafe_reward: float,
             timeout: int,
+            scenario: str,
             level=1,
             constraint='soft',
             coord_limits=None,
@@ -227,8 +219,9 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             env_config=None,
             netmode: int = 0,
             ticrate: int = 1000,
+            reward_config: Optional[Dict[str, Any]] = None
     ):
-        super().__init__(config_file, action_space, safety_bound, unsafe_reward, timeout, level, constraint,
+        super().__init__(config_file, action_space, safety_bound, unsafe_reward, timeout, scenario, level, constraint,
                          coord_limits, max_histogram_length, show_automap, use_depth_buffer, render_depth_buffer,
                          render_with_bounding_boxes, segment_objects, skip_frames, async_mode, record_to,
                          env_modification, resolution, seed, render_mode)
@@ -240,6 +233,13 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         self.netmode = netmode
         self.async_mode = async_mode
         self.ticrate = ticrate
+
+        # Set default reward config if none provided - get scenario-specific configuration
+        if reward_config is None:
+            from sample_factory.doom.env.wrappers.reward_calculators import get_scenario_reward_config
+            reward_config = get_scenario_reward_config(scenario, constraint)
+
+        self.reward_config = reward_config
 
         # Extract worker and environment information for logging
         self.worker_idx = env_config.worker_index if env_config else -1
@@ -292,11 +292,10 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             process = Process(
                 target=game_process,
                 args=(
-                    self.config_path, self.resolution, timeout * num_agents, self.skip_frames,
-                    shared_command, self.step_event, self.all_done_event,
-                    self.num_completed, self.num_agents, i, is_host, self.port,
-                    self.shm.name, multi_obs_shape, self.worker_idx, self.env_id,
-                    self.netmode, self.async_mode, self.ticrate
+                    self.config_path, self.resolution, timeout * num_agents, self.skip_frames, shared_command,
+                    self.step_event, self.all_done_event, self.num_completed, self.num_agents, i, is_host, self.port,
+                    self.shm.name, multi_obs_shape, self.worker_idx, self.env_id, self.netmode, self.async_mode,
+                    self.ticrate, self.reward_config
                 ),
             )
             process.daemon = True

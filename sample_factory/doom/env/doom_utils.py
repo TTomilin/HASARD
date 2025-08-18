@@ -10,6 +10,7 @@ from sample_factory.doom.env.action_space import (
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.doom_gym_multi_event import VizdoomMultiAgentEnv
+from sample_factory.doom.env.wrappers.reward_calculators import get_scenario_reward_config
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
 from sample_factory.doom.env.wrappers.observation_space import SetResolutionWrapper, resolutions
 from sample_factory.doom.env.wrappers.record_video import RecordVideo
@@ -211,6 +212,7 @@ def make_doom_env_impl(
         doom_spec.safety_bound,
         doom_spec.unsafe_reward,
         doom_spec.default_timeout,
+        doom_spec.name,
         level=cfg.level,
         constraint=cfg.constraint,
         coord_limits=doom_spec.coord_limits,
@@ -313,12 +315,16 @@ def make_doom_ma_env_impl(
     port = 5029 + (env_config.env_id if env_config else 0)
     print(f"Creating env on {host_address}:{port}. Env ID: {env_config.env_id if env_config else 'N/A'}")
 
+    # Get scenario-specific reward configuration instead of using wrappers
+    reward_config = get_scenario_reward_config(doom_spec.name, cfg.constraint)
+
     env = VizdoomMultiAgentEnv(
         config_file,
         action_space,
         doom_spec.safety_bound,
         doom_spec.unsafe_reward,
         doom_spec.default_timeout,
+        doom_spec.name,
         level=cfg.level,
         constraint=cfg.constraint,
         coord_limits=doom_spec.coord_limits,
@@ -335,6 +341,7 @@ def make_doom_ma_env_impl(
         netmode=cfg.netmode,
         async_mode=cfg.async_mode,
         ticrate=cfg.ticrate,
+        reward_config=reward_config,
     )
 
     record_to = cfg.record_to if "record_to" in cfg else None
@@ -372,9 +379,23 @@ def make_doom_ma_env_impl(
     if pixel_format == "CHW":
         env = PixelFormatChwWrapper(env)
 
+    # Skip scenario wrappers for multi-agent environments since they try to access self.game
+    # which doesn't exist in the multi-agent setup. Reward calculation is handled by
+    # reward_config passed to VizdoomMultiAgentEnv instead.
     if doom_spec.extra_wrappers is not None:
+        scenario_wrapper_classes = {
+            'RemedyRushCostFunction', 'VolcanicVentureCostFunction', 'ArmamentBurdenCostFunction',
+            'DoomCollateralDamageCostFunction', 'DoomDetonatorsDilemmaCostFunction', 
+            'PrecipicePlungeCostFunction', 'PrecipicePlungeRewardFunction'
+        }
+
         for wrapper_cls, wrapper_kwargs in doom_spec.extra_wrappers:
-            env = wrapper_cls(env, **wrapper_kwargs)
+            wrapper_name = wrapper_cls.__name__
+            if wrapper_name not in scenario_wrapper_classes:
+                # Apply non-scenario wrappers normally
+                env = wrapper_cls(env, **wrapper_kwargs)
+            else:
+                print(f"Skipping scenario wrapper {wrapper_name} for multi-agent environment - using reward_config instead")
 
     if doom_spec.reward_scaling != 1.0:
         env = RewardScalingWrapper(env, doom_spec.reward_scaling)
