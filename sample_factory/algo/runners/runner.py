@@ -401,6 +401,29 @@ class Runner(EventLoopObject, Configurable):
         self.print_stats(fps_stats, sample_throughput, total_env_steps)
 
     def log_heatmap(self, heatmap: np.ndarray, global_step: int, tag: str):
+        # Handle case where heatmap might be 1-dimensional (e.g., with multiple agents)
+        if heatmap.ndim == 1:
+            # If heatmap is 1D, we need to reshape it to 2D
+            # Try to make it as square as possible
+            size = heatmap.shape[0]
+            side_length = int(np.sqrt(size))
+            if side_length * side_length == size:
+                heatmap = heatmap.reshape(side_length, side_length)
+            else:
+                # If not a perfect square, find the best rectangular shape
+                # Try to find factors that are close to each other
+                factors = []
+                for i in range(1, int(np.sqrt(size)) + 1):
+                    if size % i == 0:
+                        factors.append((i, size // i))
+                if factors:
+                    # Choose the factor pair with the smallest difference
+                    best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
+                    heatmap = heatmap.reshape(best_factor[0], best_factor[1])
+                else:
+                    # Fallback: reshape to a single row
+                    heatmap = heatmap.reshape(1, size)
+
         # Transpose the heatmap
         heatmap = np.flipud(heatmap.T)
 
@@ -431,6 +454,29 @@ class Runner(EventLoopObject, Configurable):
         wandb.log({tag: wandb.Image(image)}, step=global_step)
 
     def log_overlay(self, heatmap: np.ndarray, global_step: int, tag: str):
+        # Handle case where heatmap might be 1-dimensional (e.g., with multiple agents)
+        if heatmap.ndim == 1:
+            # If heatmap is 1D, we need to reshape it to 2D
+            # Try to make it as square as possible
+            size = heatmap.shape[0]
+            side_length = int(np.sqrt(size))
+            if side_length * side_length == size:
+                heatmap = heatmap.reshape(side_length, side_length)
+            else:
+                # If not a perfect square, find the best rectangular shape
+                # Try to find factors that are close to each other
+                factors = []
+                for i in range(1, int(np.sqrt(size)) + 1):
+                    if size % i == 0:
+                        factors.append((i, size // i))
+                if factors:
+                    # Choose the factor pair with the smallest difference
+                    best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
+                    heatmap = heatmap.reshape(best_factor[0], best_factor[1])
+                else:
+                    # Fallback: reshape to a single row
+                    heatmap = heatmap.reshape(1, size)
+
         # Transpose the heatmap
         heatmap = np.flipud(heatmap.T)
 
@@ -541,7 +587,23 @@ class Runner(EventLoopObject, Configurable):
                 writer.add_scalar("perf/_sample_throughput", sample_throughput[policy_id], env_steps)
 
             if self.cfg.with_wandb and 'heatmap' in self.policy_avg_stats:
-                heatmap = np.mean(self.policy_avg_stats['heatmap'], axis=1).squeeze()
+                # Handle heatmap data structure properly for multiple agents/policies
+                heatmap_data = self.policy_avg_stats['heatmap']
+                if isinstance(heatmap_data, list) and len(heatmap_data) > 0:
+                    # Get the first policy's heatmap data (assuming all policies have similar spatial structure)
+                    policy_heatmaps = heatmap_data[0]  # Get deque for first policy
+                    if len(policy_heatmaps) > 0:
+                        # Convert deque to list and then to numpy array
+                        heatmap_list = list(policy_heatmaps)
+                        if len(heatmap_list) > 0:
+                            # Take the mean across episodes, but preserve spatial dimensions
+                            heatmap = np.mean(heatmap_list, axis=0)
+                        else:
+                            continue  # Skip if no heatmap data available
+                    else:
+                        continue  # Skip if no heatmap data available
+                else:
+                    continue  # Skip if no heatmap data available
                 if self.cumulative_heatmap is None:
                     # Initialize the cumulative heatmap to the correct shape
                     self.cumulative_heatmap = np.zeros_like(heatmap)

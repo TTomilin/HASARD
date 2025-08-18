@@ -176,7 +176,6 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                     if num_completed.value == num_agents:
                         # Last agent to finish reset
                         all_done_event.set()
-                # Continue to next iteration, waiting for next step_event
 
                 episode_id += 1
                 step_id = 0
