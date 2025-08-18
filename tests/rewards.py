@@ -127,7 +127,8 @@ def test_shared_memory_contents():
             self.env_id = 0
 
     # Create multi-agent environment with 2 agents (host and peer)
-    config_file = "remedy_rush.cfg"
+    scenario = "volcanic_venture"
+    config_file = f"{scenario}.cfg"
     action_space = doom_action_space()
 
     env = VizdoomMultiAgentEnv(
@@ -136,6 +137,7 @@ def test_shared_memory_contents():
         safety_bound=0.5,
         unsafe_reward=-1.0,
         timeout=20,  # Short timeout for faster testing
+        scenario=scenario,
         level=1,
         constraint='soft',
         skip_frames=1,
