@@ -83,7 +83,9 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
     observations = np.ndarray(obs_shape, dtype=np.uint8, buffer=existing_shm.buf)
 
     starting_health = 1
+    starting_armor = 0
     previous_health = starting_health
+    previous_armor = starting_armor
 
     episode_id = 0
     step_id = 0
@@ -113,8 +115,10 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
 
                     # Works only for Remedy Rush
                     health = game.get_game_variable(vzd.GameVariable.HEALTH)
-                    reward = health - previous_health
+                    armor = game.get_game_variable(vzd.GameVariable.ARMOR)
+                    reward = health - previous_health - (armor - previous_armor)
                     previous_health = health
+                    previous_armor = armor
 
                     if state and state.screen_buffer is not None:
                         observation = np.transpose(state.screen_buffer, (1, 2, 0))
@@ -169,6 +173,7 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                 observations[instance_id] = observation
 
                 previous_health = starting_health
+                previous_armor = starting_armor
 
                 # Increment the shared counter
                 with num_completed.get_lock():
