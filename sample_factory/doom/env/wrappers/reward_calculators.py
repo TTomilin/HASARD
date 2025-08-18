@@ -444,7 +444,7 @@ def get_scenario_reward_config(scenario_name: str, constraint: str = 'soft') -> 
         return {
             'scenario': 'remedy_rush',
             'health_weight': 1.0,
-            'armor_weight': 1.0
+            'armor_weight': 0.3
         }
     elif scenario_name == 'volcanic_venture':
         return {
