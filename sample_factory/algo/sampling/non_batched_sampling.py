@@ -562,6 +562,7 @@ class NonBatchedVectorEnvRunner(VectorEnvRunner):
                 actor = self.actor_states[env_i][agent_i]
                 rollouts.extend(actor.finalize_trajectory(self.rollout_step))
                 self.need_trajectory_buffers += int(actor.needs_buffer)
+                # print("Agent %d. Trajectory %d. Duration %d" % (agent_i, actor.curr_traj_buffer_idx, actor.last_episode_duration))
 
         return rollouts
 

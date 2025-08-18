@@ -35,7 +35,7 @@ def get_screen_resolution(resolution: str) -> ScreenResolution:
     return resolutions[resolution]
 
 
-def game_process(config_path, resolution, skip_frames, shared_command, step_event, all_done_event,
+def game_process(config_path, resolution, timeout, skip_frames, shared_command, step_event, all_done_event,
                  num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape, worker_idx, env_id, netmode, async_mode, ticrate=1000):
 
     last_cycle = -1
@@ -51,6 +51,7 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
     game.set_sound_enabled(False)
     game.set_console_enabled(False)
     game.set_screen_resolution(get_screen_resolution(resolution))
+    game.set_episode_timeout(timeout)
     # Configure game mode based on async_mode parameter
     if async_mode:
         game.set_mode(Mode.ASYNC_PLAYER)  # Use ASYNC_PLAYER for multiplayer
@@ -102,13 +103,13 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
 
             if cmd == 'step':
                 action = data
-                if not game.is_episode_finished():
+                terminated = game.is_player_dead()
+                if not terminated:
                     if skip_frames is not None:
                         game.make_action(action, skip_frames)
                     else:
                         game.make_action(action)
                     state = game.get_state()
-                    terminated = game.is_episode_finished()
 
                     # Works only for Remedy Rush
                     health = game.get_game_variable(vzd.GameVariable.HEALTH)
@@ -118,16 +119,14 @@ def game_process(config_path, resolution, skip_frames, shared_command, step_even
                     if state and state.screen_buffer is not None:
                         observation = np.transpose(state.screen_buffer, (1, 2, 0))
                     else:
+                        # print(f"{role} No state at process step {step_id}, env step {game.get_episode_time()}.")
                         observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
                     info = {"num_frames": skip_frames if skip_frames is not None else 1}
                 else:
                     reward = 0.0
-                    terminated = True
                     observation = np.zeros(obs_shape[1:], dtype=np.uint8)
                     info = {"num_frames": skip_frames if skip_frames is not None else 1}
-
-                truncated = game.get_episode_time() >= game.get_episode_timeout()
 
                 # Write observation into shared memory
                 observations[instance_id] = observation
@@ -289,7 +288,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             process = Process(
                 target=game_process,
                 args=(
-                    self.config_path, self.resolution, self.skip_frames,
+                    self.config_path, self.resolution, timeout * num_agents, self.skip_frames,
                     shared_command, self.step_event, self.all_done_event,
                     self.num_completed, self.num_agents, i, is_host, self.port,
                     self.shm.name, multi_obs_shape, self.worker_idx, self.env_id,
