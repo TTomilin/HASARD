@@ -14,7 +14,7 @@ from PIL import Image
 # Add the project root to the path
 sys.path.append('/')
 
-from sample_factory.doom.env.doom_gym_multi_event import VizdoomMultiAgentEnv
+from sample_factory.doom.env.doom_gym_multi import VizdoomMultiAgentEnv
 from sample_factory.doom.env.action_space import doom_action_space
 
 
@@ -127,7 +127,7 @@ def test_shared_memory_contents():
             self.env_id = 0
 
     # Create multi-agent environment with 2 agents (host and peer)
-    scenario = "volcanic_venture"
+    scenario = "remedy_rush"
     config_file = f"{scenario}.cfg"
     action_space = doom_action_space()
 

@@ -14,7 +14,7 @@ from PIL import Image
 # Add the project root to the path
 sys.path.insert(0, '/home/tristan/git/safety-doom')
 
-from sample_factory.doom.env.doom_gym_multi_event import VizdoomMultiAgentEnv
+from sample_factory.doom.env.doom_gym_multi import VizdoomMultiAgentEnv
 from sample_factory.doom.env.action_space import doom_action_space
 
 
@@ -179,7 +179,8 @@ def run_continuous_fixed_steps(env, image_base_dir, timeout, n_episodes):
             for i, reward in enumerate(rewards):
                 total_rewards[i].append(reward)
 
-            if any(truncated):
+            # if any(truncated):
+            if any(dones):
                 obs, info = env.reset()
 
             # Collect observations with global step counter
@@ -227,7 +228,8 @@ def test_two_episodes_with_health_check():
             self.env_id = 0
 
     # Create multi-agent environment with 2 agents (host and peer)
-    config_file = "remedy_rush.cfg"
+    scenario = "remedy_rush"
+    config_file = f"{scenario}.cfg"
     action_space = doom_action_space()
     timeout = 25
 
@@ -237,6 +239,7 @@ def test_two_episodes_with_health_check():
         safety_bound=0.5,
         unsafe_reward=-1.0,
         timeout=timeout,  # Shorter timeout to trigger internal resets
+        scenario=scenario,
         level=1,
         constraint='soft',
         skip_frames=1,
