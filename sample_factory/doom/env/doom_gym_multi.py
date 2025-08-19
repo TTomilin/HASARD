@@ -2,6 +2,7 @@ import json  # For safe serialization of 'info'
 import math
 import time
 from multiprocessing import Process, Pipe, shared_memory
+from multiprocessing.connection import wait
 from time import sleep
 from typing import Optional, Dict, Tuple, Any, List
 
@@ -248,11 +249,11 @@ def game_process(config_path, resolution, timeout, skip_frames, pipe, instance_i
                 pipe.send((reward, done, info))
 
             elif cmd == 'reset':
-                print(f"BEFORE: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
-                # sleep(0.01)  # Give some time for the game to reset
+                # print(f"BEFORE: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
+                sleep(0.01)  # Give some time for the game to reset
                 game.new_episode()
                 game.respawn_player()
-                print(f"AFTER: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
+                # print(f"AFTER: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
 
                 state = game.get_state()
                 if state and state.screen_buffer is not None:
@@ -335,6 +336,9 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         self.resolution = resolution
         self.ticrate = ticrate
 
+        self._num_steps = 0
+        self._timeout = timeout
+
         # Set default reward config if none provided - get scenario-specific configuration
         if reward_config is None:
             from sample_factory.doom.env.wrappers.reward_calculators import get_scenario_reward_config
@@ -380,6 +384,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             )
             process.daemon = True
             process.start()
+            child_conn.close()
             self.processes.append(process)
 
         # Wait a bit to ensure all processes are ready
@@ -388,6 +393,8 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
     def reset(self, **kwargs) -> Tuple[np.ndarray, Dict]:
         if "seed" in kwargs and kwargs["seed"]:
             self.seed(kwargs["seed"])
+
+        self._num_steps = 0
 
         for pipe in self.parent_pipes:
             pipe.send(('reset', None))
@@ -404,6 +411,26 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         for pipe, action in zip(self.parent_pipes, actions):
             pipe.send(('step', action))
 
+        n = len(self.parent_pipes)
+        rewards, dones, infos = [None]*n, [None]*n, [None]*n
+        pending = set(range(n))
+        pipes_left = list(self.parent_pipes)
+        deadline = time.time() + 5.0  # watchdog
+
+        while pending:
+            timeout = max(0.0, deadline - time.time())
+            ready = wait(pipes_left, timeout)
+            if not ready:
+                stuck = sorted(pending)
+                # optional: print worker states/exitcodes here
+                raise RuntimeError(f"Workers {stuck} unresponsive during step()")
+            for p in ready:
+                idx = self.parent_pipes.index(p)
+                r, d, info = p.recv()
+                rewards[idx], dones[idx], infos[idx] = r, d, info
+                pending.remove(idx)
+                pipes_left.remove(p)
+
         rewards = []
         dones = []
         infos = []
@@ -416,7 +443,15 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
         observations = [self.observations[i] for i in range(self.num_agents)]
 
-        truncated = [False] * len(dones)  # Implement proper truncation if needed
+        frames_advanced = infos[0].get("num_frames", self.skip_frames)
+        self._num_steps += int(frames_advanced)
+        # print(f"Step {self._num_steps} - Rewards: {rewards}, Dones: {dones}, Infos: {infos}")
+
+        timeout_reached = (self._timeout is not None) and (self._timeout > 0) and (self._num_steps >= self._timeout)
+        truncated = [bool(timeout_reached) for _ in range(self.num_agents)]
+        if timeout_reached:
+            for info in infos:
+                info["TimeLimit.truncated"] = True  # Gymnasium convention
 
         return observations, rewards, dones, truncated, infos
 

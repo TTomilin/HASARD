@@ -994,7 +994,7 @@ def add_logging_args(p: ArgumentParser):
     """Weights and Biases experiment monitoring."""
     p.add_argument(
         "--log_level",
-        default="INFO",
+        default="DEBUG",
         type=str,
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
