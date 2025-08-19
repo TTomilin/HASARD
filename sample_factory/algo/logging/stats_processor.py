@@ -16,10 +16,10 @@ class StatsProcessor:
     def __init__(self, config: StatsConfig, num_policies: int):
         self.config = config
         self.num_policies = num_policies
-        
+
         # Policy-specific averaged stats storage
         self.policy_avg_stats: Dict[str, List[deque]] = {}
-        
+
         # Regular (non-averaged) stats
         self.stats: Dict[str, Any] = {}
         self.avg_stats: Dict[str, deque] = {}
@@ -45,11 +45,11 @@ class StatsProcessor:
     def get_policy_stats_for_logging(self, policy_id: int, env_steps: int, total_train_seconds: float) -> Dict[str, Any]:
         """Get processed stats for a specific policy ready for logging."""
         stats_to_log = {}
-        
+
         for key, stat in self.policy_avg_stats.items():
             if key == 'heatmap':
                 continue  # Heatmaps are handled separately
-                
+
             if len(stat[policy_id]) >= stat[policy_id].maxlen or (
                     len(stat[policy_id]) > 10 and total_train_seconds > 300
             ):
@@ -110,13 +110,19 @@ class StatsProcessor:
                         else:
                             stats_to_log[f"task_stats/{stat_name}"] = float(stat_value)
 
+                elif key.startswith("env_stats/"):
+                    # Extract the actual stat name from the nested key
+                    stat_name = key.split("/", 1)[1]
+                    # Log all environment stats as env stats
+                    stats_to_log[f"env_stats/{stat_name}"] = float(stat_value)
+
         return stats_to_log
 
     def get_heatmap_data(self, policy_id: int = 0) -> np.ndarray:
         """Get heatmap data for logging."""
         if 'heatmap' not in self.policy_avg_stats:
             return None
-            
+
         heatmap_data = self.policy_avg_stats['heatmap']
         if isinstance(heatmap_data, list) and len(heatmap_data) > 0:
             # Get the specified policy's heatmap data
@@ -132,7 +138,7 @@ class StatsProcessor:
     def get_console_stats(self) -> Dict[str, Any]:
         """Get stats for console logging."""
         console_stats = {}
-        
+
         if "reward" in self.policy_avg_stats:
             policy_reward_stats = []
             for policy_id in range(self.num_policies):
@@ -148,7 +154,7 @@ class StatsProcessor:
                 if len(cost_stats) > 0:
                     policy_cost_stats.append((policy_id, f"{np.mean(cost_stats):.3f}"))
             console_stats["cost"] = policy_cost_stats
-            
+
         return console_stats
 
     def update_regular_stats(self, key: str, value: Any) -> None:

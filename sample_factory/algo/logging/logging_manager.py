@@ -179,7 +179,9 @@ class LoggingManager:
 
                     # Check if we should create and log GIF
                     if self.video_logger.should_log(env_steps) and self.frames_dir:
-                        self.video_logger.create_and_log_gif(self.frames_dir, env_steps, "traversal/evolution")
+                        # Create unique GIF tag with step number to show GIFs separately
+                        gif_tag = f"traversal/evolution_step_{env_steps:09d}"
+                        self.video_logger.create_and_log_gif(self.frames_dir, env_steps, gif_tag)
                         self.video_logger.update_last_log_step(env_steps)
 
         # Log regular and averaged stats
@@ -221,14 +223,17 @@ class LoggingManager:
                 step = int(match.group(1))
                 video_path = os.path.join(video_dir, video_file)
 
+                # Create unique video key with step number to show videos separately
+                video_key = f"videos/step_{step:09d}"
+
                 # Log to WandB backend only
                 for backend in self.backends:
                     if isinstance(backend, WandBBackend):
-                        backend.log_video("videos/episode", video_path, step)
+                        backend.log_video(video_key, video_path, step)
                     elif isinstance(backend, MultiBackend):
                         for sub_backend in backend.backends:
                             if isinstance(sub_backend, WandBBackend):
-                                sub_backend.log_video("videos/episode", video_path, step)
+                                sub_backend.log_video(video_key, video_path, step)
 
     def get_console_stats(self) -> Dict[str, Any]:
         """Get stats for console logging."""

@@ -31,10 +31,17 @@ class HeatmapLogger:
 
     def _reshape_heatmap(self, heatmap: np.ndarray) -> np.ndarray:
         """Reshape 1D heatmap to 2D if needed."""
+        # Handle edge case of empty heatmap
+        if heatmap.size == 0:
+            return np.zeros((1, 1))
+
         if heatmap.ndim == 1:
             # If heatmap is 1D, we need to reshape it to 2D
             # Try to make it as square as possible
             size = heatmap.shape[0]
+            if size == 0:
+                return np.zeros((1, 1))
+
             side_length = int(np.sqrt(size))
             if side_length * side_length == size:
                 heatmap = heatmap.reshape(side_length, side_length)
@@ -60,9 +67,16 @@ class HeatmapLogger:
     def _create_heatmap_image(self, heatmap: np.ndarray) -> Image.Image:
         """Create a heatmap image from numpy array."""
         heatmap = self._reshape_heatmap(heatmap)
-        
+
         # Determine aspect ratio of the histogram
         height, width = heatmap.shape
+
+        # Handle edge case where heatmap has zero dimensions
+        if height == 0 or width == 0:
+            # Create a minimal 1x1 heatmap as fallback
+            heatmap = np.zeros((1, 1))
+            height, width = 1, 1
+
         aspect_ratio = width / height
 
         # Define additional space for the colorbar
@@ -89,9 +103,16 @@ class HeatmapLogger:
     def _create_overlay_image(self, heatmap: np.ndarray, step: int) -> Image.Image:
         """Create an overlay image with heatmap on top of map."""
         heatmap = self._reshape_heatmap(heatmap)
-        
+
         # Determine aspect ratio of the histogram
         height, width = heatmap.shape
+
+        # Handle edge case where heatmap has zero dimensions
+        if height == 0 or width == 0:
+            # Create a minimal 1x1 heatmap as fallback
+            heatmap = np.zeros((1, 1))
+            height, width = 1, 1
+
         aspect_ratio = width / height
 
         # Define additional space for the colorbar
@@ -135,7 +156,7 @@ class HeatmapLogger:
 
         image = self._create_heatmap_image(heatmap)
         image_array = np.array(image)
-        
+
         for backend in self.backends:
             backend.log_image(tag, image_array, step)
 
@@ -146,13 +167,13 @@ class HeatmapLogger:
 
         image = self._create_overlay_image(heatmap, step)
         image_array = np.array(image)
-        
+
         # Save frame to disk if frames_dir is provided (for GIF creation)
         if frames_dir:
             os.makedirs(frames_dir, exist_ok=True)
             frame_path = os.path.join(frames_dir, f"frame_{step:09d}.png")
             image.save(frame_path)
-        
+
         for backend in self.backends:
             backend.log_image(tag, image_array, step)
 
@@ -189,7 +210,7 @@ class VideoLogger:
             glob.glob(os.path.join(frames_dir, "frame_*.png")),
             key=lambda x: int(os.path.splitext(os.path.basename(x))[0].split('_')[1])
         )
-        
+
         if not frame_files:
             return
 

@@ -515,13 +515,48 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         # Calculate combined stats from all agents
         combined_stats = self._calculate_combined_stats(agent_stats_list, rewards)
 
-        # Add combined and individual stats to each agent's info for logging
+        # Structure stats for better organization in logging panels
+        # Create separate agent stats and environment stats
+        episode_extra_stats = {}
+
+        # Add individual agent stats with proper agent IDs for separate panels
+        for i, agent_stats in enumerate(agent_stats_list):
+            if agent_stats:
+                # Create agent-specific stats for separate panels (agent_0, agent_1, etc.)
+                agent_key = f'agent_{i}'
+                episode_extra_stats[f'individual_stats/{agent_key}/health'] = agent_stats.get('health', 0)
+                episode_extra_stats[f'individual_stats/{agent_key}/armor'] = agent_stats.get('armor', 0)
+                episode_extra_stats[f'individual_stats/{agent_key}/reward'] = rewards[i] if i < len(rewards) else 0
+
+                # Add scenario-specific stats for each agent
+                for stat_name, stat_value in agent_stats.items():
+                    if stat_name not in ['agent_id', 'episode_id', 'step_id', 'reward', 'health', 'armor']:
+                        episode_extra_stats[f'individual_stats/{agent_key}/{stat_name}'] = stat_value
+
+        # Add environment-level stats (these are more appropriate as env_stats rather than policy_stats)
+        episode_extra_stats['env_stats/num_agents'] = combined_stats.get('num_agents', 0)
+        episode_extra_stats['env_stats/alive_agents'] = combined_stats.get('alive_agents', 0)
+        episode_extra_stats['env_stats/dead_agents'] = combined_stats.get('dead_agents', 0)
+
+        # Add team-level aggregated stats (these go under team_stats)
+        episode_extra_stats['combined_stats/total_reward'] = combined_stats.get('total_reward', 0)
+        episode_extra_stats['combined_stats/avg_reward'] = combined_stats.get('avg_reward', 0)
+        episode_extra_stats['combined_stats/min_reward'] = combined_stats.get('min_reward', 0)
+        episode_extra_stats['combined_stats/max_reward'] = combined_stats.get('max_reward', 0)
+        episode_extra_stats['combined_stats/total_health'] = combined_stats.get('total_health', 0)
+        episode_extra_stats['combined_stats/avg_health'] = combined_stats.get('avg_health', 0)
+        episode_extra_stats['combined_stats/total_armor'] = combined_stats.get('total_armor', 0)
+        episode_extra_stats['combined_stats/avg_armor'] = combined_stats.get('avg_armor', 0)
+
+        # Add scenario-specific combined stats
+        for key, value in combined_stats.items():
+            if key.startswith('avg_') and key not in ['avg_reward', 'avg_health', 'avg_armor']:
+                episode_extra_stats[f'combined_stats/{key}'] = value
+
+        # Add the structured stats to each agent's info for logging
         for i, info in enumerate(infos):
-            info['episode_extra_stats'] = {
-                'combined_stats': combined_stats,
-                'individual_stats': agent_stats_list[i] if i < len(agent_stats_list) else {},
-                'agent_id': i
-            }
+            info['episode_extra_stats'] = episode_extra_stats.copy()
+            info['episode_extra_stats']['agent_id'] = i
 
         observations = [self.observations[i].copy() for i in range(self.num_agents)]
 
@@ -623,14 +658,6 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             if values:
                 # For task-specific stats, only log averages (not min/max)
                 combined[f'avg_{stat_name}'] = sum(values) / len(values)
-
-        # Calculate team health and armor status
-        total_health = sum(agent_stats.get('health', 0) for agent_stats in agent_stats_list)
-        total_armor = sum(agent_stats.get('armor', 0) for agent_stats in agent_stats_list)
-        combined['team_health'] = total_health
-        combined['team_armor'] = total_armor
-        combined['avg_health'] = total_health / num_agents if num_agents > 0 else 0
-        combined['avg_armor'] = total_armor / num_agents if num_agents > 0 else 0
 
         # Count alive agents
         alive_agents = sum(1 for agent_stats in agent_stats_list if agent_stats.get('health', 0) > 0)
