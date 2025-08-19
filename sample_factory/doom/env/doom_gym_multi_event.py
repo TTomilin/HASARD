@@ -15,6 +15,64 @@ from vizdoom import ScreenResolution, Mode
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.reward_calculators import create_reward_calculator
 
+def collect_agent_stats(game, reward, agent_id, episode_id, step_id):
+    """
+    Collect comprehensive stats from a VizDoom game instance for logging.
+
+    Args:
+        game: VizDoom game instance
+        reward: Current step reward
+        agent_id: Agent identifier
+        episode_id: Episode identifier
+        step_id: Step identifier within episode
+
+    Returns:
+        Dictionary containing agent stats
+    """
+    stats = {
+        'agent_id': agent_id,
+        'episode_id': episode_id,
+        'step_id': step_id,
+        'reward': reward,
+    }
+
+    try:
+        # Basic game variables that are available in most scenarios
+        stats['health'] = game.get_game_variable(vzd.GameVariable.HEALTH)
+        stats['armor'] = game.get_game_variable(vzd.GameVariable.ARMOR)
+        stats['ammo'] = game.get_game_variable(vzd.GameVariable.AMMO2)
+        stats['kills'] = game.get_game_variable(vzd.GameVariable.KILLCOUNT)
+        stats['deaths'] = game.get_game_variable(vzd.GameVariable.DEATHCOUNT)
+        stats['frags'] = game.get_game_variable(vzd.GameVariable.FRAGCOUNT)
+
+        # Position information
+        stats['position_x'] = game.get_game_variable(vzd.GameVariable.POSITION_X)
+        stats['position_y'] = game.get_game_variable(vzd.GameVariable.POSITION_Y)
+        stats['position_z'] = game.get_game_variable(vzd.GameVariable.POSITION_Z)
+
+        # Scenario-specific user variables (may be 0 if not used)
+        stats['user1'] = game.get_game_variable(vzd.GameVariable.USER1)
+        stats['user2'] = game.get_game_variable(vzd.GameVariable.USER2)
+        stats['user3'] = game.get_game_variable(vzd.GameVariable.USER3)
+        stats['user4'] = game.get_game_variable(vzd.GameVariable.USER4)
+        stats['user5'] = game.get_game_variable(vzd.GameVariable.USER5)
+        stats['user6'] = game.get_game_variable(vzd.GameVariable.USER6)
+
+        # Episode time
+        stats['episode_time'] = game.get_episode_time()
+
+    except Exception as e:
+        # If any game variable is not available, set to 0 or None
+        print(f"Warning: Could not collect some stats for agent {agent_id}: {e}")
+        for key in ['health', 'armor', 'ammo', 'kills', 'deaths', 'frags', 
+                   'position_x', 'position_y', 'position_z',
+                   'user1', 'user2', 'user3', 'user4', 'user5', 'user6', 'episode_time']:
+            if key not in stats:
+                stats[key] = 0
+
+    return stats
+
+
 # Define screen resolutions
 resolutions = {
     '1920x1080': ScreenResolution.RES_1920X1080,
@@ -117,20 +175,69 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                         # print(f"{role} No state at process step {step_id}, env step {game.get_episode_time()}.")
                         observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
-                    info = {"num_frames": skip_frames if skip_frames is not None else 1}
+                    # Collect comprehensive stats from the game
+                    stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id)
+                    info = {
+                        "num_frames": skip_frames if skip_frames is not None else 1,
+                        "agent_stats": stats
+                    }
                 else:
                     reward = 0.0
                     observation = np.zeros(obs_shape[1:], dtype=np.uint8)
-                    info = {"num_frames": skip_frames if skip_frames is not None else 1}
+
+                    # Collect basic stats even when terminated
+                    stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id)
+                    info = {
+                        "num_frames": skip_frames if skip_frames is not None else 1,
+                        "agent_stats": stats
+                    }
 
                 # Write observation into shared memory
                 observations[instance_id] = observation
 
-                # Serialize 'info' as JSON string
-                info_json = json.dumps(info)
-                info_bytes = info_json.encode()[:256]  # Truncate if necessary
-                info_bytes += b'\x00' * (256 - len(info_bytes))  # Pad with null bytes
-                shared_command['info'][:] = info_bytes
+                # Serialize 'info' as JSON string with safe truncation
+                try:
+                    info_json = json.dumps(info)
+                    info_bytes = info_json.encode()
+
+                    # If JSON is too large, try to create a minimal version
+                    if len(info_bytes) > 1024:  # Increased buffer size
+                        # Create minimal info with just essential data
+                        minimal_info = {
+                            "num_frames": info.get("num_frames", 1),
+                            "agent_stats": {
+                                "agent_id": info.get("agent_stats", {}).get("agent_id", instance_id),
+                                "reward": info.get("agent_stats", {}).get("reward", reward),
+                                "health": info.get("agent_stats", {}).get("health", 0),
+                                "armor": info.get("agent_stats", {}).get("armor", 0)
+                            }
+                        }
+                        info_json = json.dumps(minimal_info)
+                        info_bytes = info_json.encode()
+
+                    # Truncate if still too large, but ensure valid JSON
+                    if len(info_bytes) > 1024:
+                        info_bytes = info_bytes[:1020]  # Leave room for closing
+                        # Try to find a safe truncation point (end of a complete field)
+                        safe_end = info_bytes.rfind(b',')
+                        if safe_end > 500:  # Only if we have substantial content
+                            info_bytes = info_bytes[:safe_end] + b'}'
+                        else:
+                            # Fallback to minimal JSON
+                            fallback_info = {"num_frames": 1, "error": "info_too_large"}
+                            info_bytes = json.dumps(fallback_info).encode()
+
+                    # Pad with null bytes to fill buffer
+                    info_bytes += b'\x00' * (1024 - len(info_bytes))
+                    shared_command['info'][:] = info_bytes
+
+                except Exception as e:
+                    # Fallback to minimal info if JSON serialization fails
+                    fallback_info = {"num_frames": 1, "error": f"serialization_failed: {str(e)[:50]}"}
+                    fallback_json = json.dumps(fallback_info)
+                    fallback_bytes = fallback_json.encode()
+                    fallback_bytes += b'\x00' * (1024 - len(fallback_bytes))
+                    shared_command['info'][:] = fallback_bytes
 
                 # Write results to shared_command
                 shared_command['reward'].value = reward
@@ -284,7 +391,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                 'data': Array('i', action_dims),  # Array to hold each discrete action
                 'reward': Value('d', 0.0),
                 'terminated': Value('b', False),
-                'info': Array('c', 256)  # Placeholder for info, adjust size as needed
+                'info': Array('c', 1024)  # Increased buffer size for JSON info
             }
             self.shared_commands.append(shared_command)
 
@@ -346,6 +453,8 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
         # 3) Gather results
         rewards, terminated, infos = [], [], []
+        agent_stats_list = []
+
         for i in range(self.num_agents):
             sc = self.shared_commands[i]
             rewards.append(sc['reward'].value)
@@ -354,7 +463,58 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
             info_bytes = sc['info'][:]
             info_str = bytes(info_bytes).decode().strip('\x00')
-            infos.append(json.loads(info_str) if info_str else {})
+
+            # Safe JSON parsing with error handling
+            if info_str:
+                try:
+                    info = json.loads(info_str)
+                except json.JSONDecodeError as e:
+                    # Handle corrupted JSON gracefully
+                    print(f"Warning: JSON decode error for agent {i}: {e}")
+                    print(f"Corrupted JSON string (first 100 chars): {info_str[:100]}")
+                    # Provide fallback info
+                    info = {
+                        "num_frames": self.skip_frames if self.skip_frames is not None else 1,
+                        "error": f"json_decode_failed: {str(e)[:50]}",
+                        "agent_stats": {
+                            "agent_id": i,
+                            "reward": sc['reward'].value,
+                            "health": 0,
+                            "armor": 0
+                        }
+                    }
+                except Exception as e:
+                    # Handle any other decoding errors
+                    print(f"Warning: Unexpected error decoding info for agent {i}: {e}")
+                    info = {
+                        "num_frames": self.skip_frames if self.skip_frames is not None else 1,
+                        "error": f"decode_failed: {str(e)[:50]}",
+                        "agent_stats": {
+                            "agent_id": i,
+                            "reward": sc['reward'].value,
+                            "health": 0,
+                            "armor": 0
+                        }
+                    }
+            else:
+                info = {}
+
+            # Extract agent stats if available
+            if 'agent_stats' in info:
+                agent_stats_list.append(info['agent_stats'])
+
+            infos.append(info)
+
+        # Calculate combined stats from all agents
+        combined_stats = self._calculate_combined_stats(agent_stats_list, rewards)
+
+        # Add combined and individual stats to each agent's info for logging
+        for i, info in enumerate(infos):
+            info['episode_extra_stats'] = {
+                'combined_stats': combined_stats,
+                'individual_stats': agent_stats_list[i] if i < len(agent_stats_list) else {},
+                'agent_id': i
+            }
 
         observations = [self.observations[i].copy() for i in range(self.num_agents)]
 
@@ -393,6 +553,72 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         except FileNotFoundError:
             # Shared memory already cleaned up, ignore
             pass
+
+    def _calculate_combined_stats(self, agent_stats_list, rewards):
+        """
+        Calculate combined statistics across all agents.
+
+        Args:
+            agent_stats_list: List of individual agent stats dictionaries
+            rewards: List of rewards for each agent
+
+        Returns:
+            Dictionary containing combined stats
+        """
+        if not agent_stats_list:
+            return {}
+
+        num_agents = len(agent_stats_list)
+        combined = {
+            'num_agents': num_agents,
+            'total_reward': sum(rewards),
+            'avg_reward': sum(rewards) / num_agents if num_agents > 0 else 0,
+            'min_reward': min(rewards) if rewards else 0,
+            'max_reward': max(rewards) if rewards else 0,
+        }
+
+        # Aggregate numeric stats across all agents
+        numeric_stats = ['health', 'armor', 'ammo', 'kills', 'deaths', 'frags',
+                        'position_x', 'position_y', 'position_z',
+                        'user1', 'user2', 'user3', 'user4', 'user5', 'user6',
+                        'episode_time']
+
+        for stat_name in numeric_stats:
+            values = []
+            for agent_stats in agent_stats_list:
+                if stat_name in agent_stats and agent_stats[stat_name] is not None:
+                    values.append(agent_stats[stat_name])
+
+            if values:
+                combined[f'total_{stat_name}'] = sum(values)
+                combined[f'avg_{stat_name}'] = sum(values) / len(values)
+                combined[f'min_{stat_name}'] = min(values)
+                combined[f'max_{stat_name}'] = max(values)
+            else:
+                combined[f'total_{stat_name}'] = 0
+                combined[f'avg_{stat_name}'] = 0
+                combined[f'min_{stat_name}'] = 0
+                combined[f'max_{stat_name}'] = 0
+
+        # Add scenario-specific combined metrics
+        combined['total_kills'] = sum(agent_stats.get('kills', 0) for agent_stats in agent_stats_list)
+        combined['total_deaths'] = sum(agent_stats.get('deaths', 0) for agent_stats in agent_stats_list)
+        combined['total_frags'] = sum(agent_stats.get('frags', 0) for agent_stats in agent_stats_list)
+
+        # Calculate team health and armor status
+        total_health = sum(agent_stats.get('health', 0) for agent_stats in agent_stats_list)
+        total_armor = sum(agent_stats.get('armor', 0) for agent_stats in agent_stats_list)
+        combined['team_health'] = total_health
+        combined['team_armor'] = total_armor
+        combined['avg_health'] = total_health / num_agents if num_agents > 0 else 0
+        combined['avg_armor'] = total_armor / num_agents if num_agents > 0 else 0
+
+        # Count alive agents
+        alive_agents = sum(1 for agent_stats in agent_stats_list if agent_stats.get('health', 0) > 0)
+        combined['alive_agents'] = alive_agents
+        combined['dead_agents'] = num_agents - alive_agents
+
+        return combined
 
     def _calculate_grid_layout(self, num_agents: int, original_frame_w: int, max_screen_width: int = 1920) -> Tuple[
         int, int]:
