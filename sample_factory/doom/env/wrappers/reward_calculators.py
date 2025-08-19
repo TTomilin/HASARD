@@ -81,10 +81,12 @@ class VolcanicVentureRewardCalculator(RewardCalculator):
     Tracks health loss as cost (negative reward).
     """
 
-    def __init__(self, starting_health: float = 1000.0, cost_scaler: float = 1.0):
+    def __init__(self, starting_health: float = 1000.0, reward_scaler: float = 1.0, penalty_scaler: float = 0.1):
         super().__init__()
         self.starting_health = starting_health
-        self.cost_scaler = cost_scaler
+        self.reward_scaler = reward_scaler
+        self.penalty_scaler = penalty_scaler
+        self.starting_armor = 0
         self.episode_reward = 0
         self.episode_cost = 0
 
@@ -94,18 +96,23 @@ class VolcanicVentureRewardCalculator(RewardCalculator):
             return 0.0
 
         current_health = game.get_game_variable(vzd.GameVariable.HEALTH)
+        current_armor = game.get_game_variable(vzd.GameVariable.ARMOR)
 
         # Calculate health loss as cost (negative reward)
-        cost_this_step = (self.previous_values['health'] - current_health) * self.cost_scaler
+        penalty_this_step = (self.previous_values['health'] - current_health) * self.penalty_scaler
+        reward_this_step = (current_armor - self.previous_values['armor']) * self.reward_scaler
+
         self.previous_values['health'] = current_health
+        self.previous_values['armor'] = current_armor
 
-        self.episode_cost += cost_this_step
+        self.episode_reward += reward_this_step
+        self.episode_cost += penalty_this_step
 
-        # Return negative cost as reward (cost becomes negative reward)
-        return -cost_this_step
+        return reward_this_step - penalty_this_step
 
     def reset(self, game: vzd.DoomGame):
         self.previous_values['health'] = self.starting_health
+        self.previous_values['armor'] = self.starting_armor
         self.episode_reward = 0
         self.episode_cost = 0
         self.initialized = True
@@ -397,7 +404,8 @@ def create_reward_calculator(config: Dict[str, Any]) -> RewardCalculator:
     elif scenario_name == 'volcanic_venture':
         return VolcanicVentureRewardCalculator(
             starting_health=config.get('starting_health', 1000.0),
-            cost_scaler=config.get('cost_scaler', 1.0)
+            reward_scaler=config.get('reward_scaler', 1.0),
+            penalty_scaler=config.get('penalty_scaler', 0.1)
         )
     elif scenario_name == 'armament_burden':
         return ArmamentBurdenRewardCalculator(
@@ -450,7 +458,8 @@ def get_scenario_reward_config(scenario_name: str, constraint: str = 'soft') -> 
         return {
             'scenario': 'volcanic_venture',
             'starting_health': 1000.0,
-            'cost_scaler': 1.0
+            'reward_scaler': 1.0,
+            'penalty_scaler': 0.1
         }
     elif scenario_name == 'armament_burden':
         return {

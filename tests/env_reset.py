@@ -145,7 +145,7 @@ def run_continuous_fixed_steps(env, image_base_dir, timeout, n_episodes):
     print(f"Initial reset completed. Observation shapes: {[o.shape for o in obs]}")
 
     # Render the current state
-    # env.render()
+    env.render()
 
     # Initialize tracking variables
     global_step_counter = 0
@@ -173,14 +173,13 @@ def run_continuous_fixed_steps(env, image_base_dir, timeout, n_episodes):
             obs, rewards, dones, truncated, infos = env.step(actions)
 
             # Render the current state
-            # env.render()
+            env.render()
 
             # Track rewards for analysis
             for i, reward in enumerate(rewards):
                 total_rewards[i].append(reward)
 
-            # if any(truncated):
-            if any(dones):
+            if any(truncated):
                 obs, info = env.reset()
 
             # Collect observations with global step counter
@@ -228,10 +227,10 @@ def test_two_episodes_with_health_check():
             self.env_id = 0
 
     # Create multi-agent environment with 2 agents (host and peer)
-    scenario = "remedy_rush"
+    scenario = "volcanic_venture"
     config_file = f"{scenario}.cfg"
     action_space = doom_action_space()
-    timeout = 25
+    timeout = 100
 
     env = VizdoomMultiAgentEnv(
         config_file=config_file,
@@ -242,7 +241,7 @@ def test_two_episodes_with_health_check():
         scenario=scenario,
         level=1,
         constraint='soft',
-        skip_frames=1,
+        skip_frames=4,
         resolution="800x600",
         num_agents=2,  # Host and peer
         port=5036,  # Use unique port to avoid conflicts

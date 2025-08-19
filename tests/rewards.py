@@ -127,7 +127,7 @@ def test_shared_memory_contents():
             self.env_id = 0
 
     # Create multi-agent environment with 2 agents (host and peer)
-    scenario = "remedy_rush"
+    scenario = "volcanic_venture"
     config_file = f"{scenario}.cfg"
     action_space = doom_action_space()
 
@@ -146,7 +146,8 @@ def test_shared_memory_contents():
         port=5035,  # Use unique port to avoid conflicts
         env_config=MockEnvConfig(),
         netmode=0,  # Network mode for multiplayer
-        async_mode=False
+        async_mode=False,
+        render_mode="human"
     )
 
     print("Environment created successfully!")
@@ -173,7 +174,7 @@ def test_shared_memory_contents():
     print()
 
     step_count = 0
-    max_steps = 200  # Limit steps for testing
+    max_steps = 1000  # Limit steps for testing
 
     try:
         # Run the episode until both agents are done
@@ -191,12 +192,9 @@ def test_shared_memory_contents():
             # Step the environment
             obs, rewards, dones, truncated, infos = env.step(actions)
 
-            # Collect observations at key intervals
-            collect_observations_this_step = True
+            env.render()
 
-            if collect_observations_this_step:
-                # Collect observations for later saving
-                collected_observations.append((obs.copy(), step_count, "step"))
+            collected_observations.append((obs.copy(), step_count, "step"))
 
             # Print step information
             if any(r != 0 for r in rewards):
