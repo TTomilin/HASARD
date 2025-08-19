@@ -15,9 +15,10 @@ from vizdoom import ScreenResolution, Mode
 from sample_factory.doom.env.doom_gym import VizdoomEnv
 from sample_factory.doom.env.wrappers.reward_calculators import create_reward_calculator
 
-def collect_agent_stats(game, reward, agent_id, episode_id, step_id):
+def collect_agent_stats(game, reward, agent_id, episode_id, step_id, scenario_name=None):
     """
-    Collect comprehensive stats from a VizDoom game instance for logging.
+    Collect relevant stats from a VizDoom game instance for logging.
+    Only collects basic stats and scenario-specific stats that are actually needed.
 
     Args:
         game: VizDoom game instance
@@ -25,6 +26,7 @@ def collect_agent_stats(game, reward, agent_id, episode_id, step_id):
         agent_id: Agent identifier
         episode_id: Episode identifier
         step_id: Step identifier within episode
+        scenario_name: Name of the scenario for task-specific stats
 
     Returns:
         Dictionary containing agent stats
@@ -37,36 +39,40 @@ def collect_agent_stats(game, reward, agent_id, episode_id, step_id):
     }
 
     try:
-        # Basic game variables that are available in most scenarios
+        # Basic stats for all tasks
         stats['health'] = game.get_game_variable(vzd.GameVariable.HEALTH)
         stats['armor'] = game.get_game_variable(vzd.GameVariable.ARMOR)
-        stats['ammo'] = game.get_game_variable(vzd.GameVariable.AMMO2)
-        stats['kills'] = game.get_game_variable(vzd.GameVariable.KILLCOUNT)
-        stats['deaths'] = game.get_game_variable(vzd.GameVariable.DEATHCOUNT)
-        stats['frags'] = game.get_game_variable(vzd.GameVariable.FRAGCOUNT)
 
-        # Position information
-        stats['position_x'] = game.get_game_variable(vzd.GameVariable.POSITION_X)
-        stats['position_y'] = game.get_game_variable(vzd.GameVariable.POSITION_Y)
-        stats['position_z'] = game.get_game_variable(vzd.GameVariable.POSITION_Z)
-
-        # Scenario-specific user variables (may be 0 if not used)
-        stats['user1'] = game.get_game_variable(vzd.GameVariable.USER1)
-        stats['user2'] = game.get_game_variable(vzd.GameVariable.USER2)
-        stats['user3'] = game.get_game_variable(vzd.GameVariable.USER3)
-        stats['user4'] = game.get_game_variable(vzd.GameVariable.USER4)
-        stats['user5'] = game.get_game_variable(vzd.GameVariable.USER5)
-        stats['user6'] = game.get_game_variable(vzd.GameVariable.USER6)
-
-        # Episode time
-        stats['episode_time'] = game.get_episode_time()
+        # Add scenario-specific stats based on the task
+        if scenario_name == 'remedy_rush':
+            # Remedy Rush: cost tracking and goggles
+            stats['cost'] = game.get_game_variable(vzd.GameVariable.USER1)
+            stats['goggles_obtained'] = game.get_game_variable(vzd.GameVariable.USER2)
+        elif scenario_name == 'volcanic_venture':
+            # Volcanic Venture: health loss as cost
+            pass  # Health is already tracked above
+        elif scenario_name == 'armament_burden':
+            # Armament Burden: weapon and delivery tracking
+            stats['weapon_id'] = game.get_game_variable(vzd.GameVariable.USER1)
+            stats['weapons_carried'] = game.get_game_variable(vzd.GameVariable.USER2)
+            stats['in_delivery_zone'] = game.get_game_variable(vzd.GameVariable.USER3)
+            stats['discarded'] = game.get_game_variable(vzd.GameVariable.USER4)
+            stats['decoys_carried'] = game.get_game_variable(vzd.GameVariable.USER6)
+        elif scenario_name == 'collateral_damage':
+            # Collateral Damage: civilian casualty cost
+            stats['civilian_cost'] = game.get_game_variable(vzd.GameVariable.USER1)
+        elif scenario_name == 'detonators_dilemma':
+            # Detonators Dilemma: unsafe detonation cost
+            stats['unsafe_cost'] = game.get_game_variable(vzd.GameVariable.USER1)
+        elif scenario_name == 'precipice_plunge':
+            # Precipice Plunge: restart flag and position
+            stats['restart_flag'] = game.get_game_variable(vzd.GameVariable.USER1)
+            stats['position_z'] = game.get_game_variable(vzd.GameVariable.POSITION_Z)
 
     except Exception as e:
-        # If any game variable is not available, set to 0 or None
+        # If any game variable is not available, set to 0
         print(f"Warning: Could not collect some stats for agent {agent_id}: {e}")
-        for key in ['health', 'armor', 'ammo', 'kills', 'deaths', 'frags', 
-                   'position_x', 'position_y', 'position_z',
-                   'user1', 'user2', 'user3', 'user4', 'user5', 'user6', 'episode_time']:
+        for key in ['health', 'armor']:
             if key not in stats:
                 stats[key] = 0
 
@@ -93,7 +99,7 @@ def get_screen_resolution(resolution: str) -> ScreenResolution:
 
 def game_process(config_path, resolution, timeout, skip_frames, shared_command, step_event, all_done_event,
                  num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape, worker_idx, env_id,
-                 netmode, async_mode, ticrate, reward_config=None):
+                 netmode, async_mode, ticrate, reward_config):
     last_cycle = -1
     role = "HOST" if is_host else "PEER"
     print(f"[Worker {worker_idx}, Env {env_id}] Starting VizDoom {role} (Agent {instance_id}) on port {port}")
@@ -143,6 +149,7 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
     episode_id = 0
     step_id = 0
     role = "[HOST]" if is_host else "[PEER]"
+    scenario = reward_config.get("scenario")
 
     try:
         while True:
@@ -175,8 +182,8 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                         # print(f"{role} No state at process step {step_id}, env step {game.get_episode_time()}.")
                         observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
-                    # Collect comprehensive stats from the game
-                    stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id)
+                    # Collect relevant stats from the game
+                    stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id, scenario)
                     info = {
                         "num_frames": skip_frames if skip_frames is not None else 1,
                         "agent_stats": stats
@@ -186,7 +193,7 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                     observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
                     # Collect basic stats even when terminated
-                    stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id)
+                    stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id, scenario)
                     info = {
                         "num_frames": skip_frames if skip_frames is not None else 1,
                         "agent_stats": stats
@@ -577,13 +584,10 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             'max_reward': max(rewards) if rewards else 0,
         }
 
-        # Aggregate numeric stats across all agents
-        numeric_stats = ['health', 'armor', 'ammo', 'kills', 'deaths', 'frags',
-                        'position_x', 'position_y', 'position_z',
-                        'user1', 'user2', 'user3', 'user4', 'user5', 'user6',
-                        'episode_time']
+        # Aggregate basic stats across all agents
+        basic_stats = ['health', 'armor']
 
-        for stat_name in numeric_stats:
+        for stat_name in basic_stats:
             values = []
             for agent_stats in agent_stats_list:
                 if stat_name in agent_stats and agent_stats[stat_name] is not None:
@@ -600,10 +604,25 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                 combined[f'min_{stat_name}'] = 0
                 combined[f'max_{stat_name}'] = 0
 
-        # Add scenario-specific combined metrics
-        combined['total_kills'] = sum(agent_stats.get('kills', 0) for agent_stats in agent_stats_list)
-        combined['total_deaths'] = sum(agent_stats.get('deaths', 0) for agent_stats in agent_stats_list)
-        combined['total_frags'] = sum(agent_stats.get('frags', 0) for agent_stats in agent_stats_list)
+        # Aggregate task-specific stats dynamically (episodic averages only)
+        # Collect all unique stat names from agent stats, excluding basic stats
+        all_stat_names = set()
+        for agent_stats in agent_stats_list:
+            all_stat_names.update(agent_stats.keys())
+
+        # Remove basic stats and metadata that shouldn't be aggregated
+        excluded_stats = {'agent_id', 'episode_id', 'step_id', 'reward', 'health', 'armor'}
+        task_specific_stats = all_stat_names - excluded_stats
+
+        for stat_name in task_specific_stats:
+            values = []
+            for agent_stats in agent_stats_list:
+                if stat_name in agent_stats and agent_stats[stat_name] is not None:
+                    values.append(agent_stats[stat_name])
+
+            if values:
+                # For task-specific stats, only log averages (not min/max)
+                combined[f'avg_{stat_name}'] = sum(values) / len(values)
 
         # Calculate team health and armor status
         total_health = sum(agent_stats.get('health', 0) for agent_stats in agent_stats_list)

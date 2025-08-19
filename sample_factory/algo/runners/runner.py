@@ -645,12 +645,47 @@ class Runner(EventLoopObject, Configurable):
                         min_tag = f"policy_stats/avg_{key}_min"
                         max_tag = f"policy_stats/avg_{key}_max"
 
+                    # Log to TensorBoard (WandB will read from TensorBoard)
                     writer.add_scalar(avg_tag, float(stat_value), env_steps)
 
                     # for key stats report min/max as well
                     if key in ("reward", "cost", "true_objective", "len"):
-                        writer.add_scalar(min_tag, float(min(stat[policy_id])), env_steps)
-                        writer.add_scalar(max_tag, float(max(stat[policy_id])), env_steps)
+                        min_val = float(min(stat[policy_id]))
+                        max_val = float(max(stat[policy_id]))
+
+                        # Log to TensorBoard
+                        writer.add_scalar(min_tag, min_val, env_steps)
+                        writer.add_scalar(max_tag, max_val, env_steps)
+
+                    # Log basic health and armor stats for all tasks (episodic averages only)
+                    if key in ("health", "armor"):
+                        writer.add_scalar(f"basic_stats/{key}", float(stat_value), env_steps)
+
+                    # Log multi-agent specific stats dynamically
+                    # These come from the multi-agent stats collection system
+                    if key.startswith("combined_stats/"):
+                        # Extract the actual stat name from the nested key
+                        stat_name = key.split("/", 1)[1]
+                        # Log all combined stats as team stats (dynamic approach)
+                        writer.add_scalar(f"team_stats/{stat_name}", float(stat_value), env_steps)
+
+                    elif key.startswith("individual_stats/"):
+                        # Parse individual stats key to extract agent ID and stat name
+                        # Expected format: individual_stats/agent_X/stat_name or individual_stats/stat_name
+                        key_parts = key.split("/")
+                        if len(key_parts) >= 3 and key_parts[1].startswith("agent_"):
+                            # Format: individual_stats/agent_X/stat_name
+                            agent_id = key_parts[1]  # e.g., "agent_0", "agent_1"
+                            stat_name = "/".join(key_parts[2:])  # Handle nested stat names
+                            writer.add_scalar(f"{agent_id}/{stat_name}", float(stat_value), env_steps)
+                        else:
+                            # Fallback format: individual_stats/stat_name (aggregate across agents)
+                            stat_name = "/".join(key_parts[1:])
+                            # Categorize stats dynamically based on common patterns
+                            if stat_name in ("health", "armor", "reward"):
+                                writer.add_scalar(f"agent_stats/{stat_name}", float(stat_value), env_steps)
+                            else:
+                                writer.add_scalar(f"task_stats/{stat_name}", float(stat_value), env_steps)
 
             self._observers_call(AlgoObserver.extra_summaries, self, policy_id, writer, env_steps)
 
