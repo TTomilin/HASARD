@@ -1,30 +1,23 @@
 from __future__ import annotations
 
-import fcntl
-import glob
 import json
 import math
-import os
-import re
 import shutil
 import time
 from collections import OrderedDict, deque
 from datetime import datetime
-from io import BytesIO
 from os.path import isdir, join
 from pathlib import Path
-from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
-import wandb
-from PIL import Image
-from matplotlib import pyplot as plt
 from signal_slot.signal_slot import EventLoop, EventLoopObject, EventLoopStatus, Timer, process_name, signal
 from tensorboardX import SummaryWriter
 
 from sample_factory.algo.learning.batcher import Batcher
 from sample_factory.algo.learning.learner_worker import LearnerWorker
+from sample_factory.algo.logging import LoggingManager, LoggingConfig
 from sample_factory.algo.sampling.sampler import AbstractSampler
 from sample_factory.algo.sampling.stats import samples_stats_handler, stats_msg_handler, timing_msg_handler
 from sample_factory.algo.utils.env_info import EnvInfo, obtain_env_info_in_a_separate_process
@@ -42,21 +35,16 @@ from sample_factory.algo.utils.shared_buffers import BufferMgr
 from sample_factory.cfg.arguments import cfg_dict, cfg_str, preprocess_cfg
 from sample_factory.cfg.configurable import Configurable
 from sample_factory.utils.attr_dict import AttrDict
-from sample_factory.utils.dicts import iterate_recursively
 from sample_factory.utils.gpu_utils import set_global_cuda_envvars
 from sample_factory.utils.timing import Timing
 from sample_factory.utils.typing import PolicyID, StatusCode
 from sample_factory.utils.utils import (
     cfg_file,
     debug_log_every_n,
-    ensure_dir_exists,
     experiment_dir,
     init_file_logger,
     log,
-    memory_consumption_mb,
     save_git_diff,
-    summaries_dir,
-    frames_dir,
 )
 from sample_factory.utils.wandb_utils import init_wandb
 
@@ -120,13 +108,6 @@ class Runner(EventLoopObject, Configurable):
         # samples_collected counts the total number of observations processed by the algorithm
         self.samples_collected = [0 for _ in range(self.cfg.num_policies)]
 
-        # plotting visited locations as a 2D heatmap
-        self.cumulative_heatmap = None
-        self.map_img = None
-        self.frames_dir = None
-        self.last_heatmap_log = 0  # Step at which the last heatmap overlay was logged
-        self.last_gif_log = 0  # Step at which the last GIF was logged
-
         self.total_env_steps_since_resume: Optional[int] = None
         self.start_time: float = time.time()
 
@@ -138,29 +119,25 @@ class Runner(EventLoopObject, Configurable):
         self.last_logged_step = -1
 
         self.report_interval_sec = 5.0
-        self.avg_stats_intervals = (2, 12, 60)  # by default: 10 seconds, 60 seconds, 5 minutes
         self.summaries_interval_sec = self.cfg.experiment_summaries_interval  # sec
         self.heartbeat_report_sec = self.cfg.heartbeat_reporting_interval
         self.update_training_info_every_sec = 5.0
 
-        self.fps_stats = deque([], maxlen=max(self.avg_stats_intervals))
-        self.throughput_stats = [deque([], maxlen=10) for _ in range(self.cfg.num_policies)]
-
-        self.stats = dict()  # regular (non-averaged) stats
-        self.avg_stats = dict()
-
-        self.policy_avg_stats: Dict[str, List[Deque]] = dict()
+        # Policy lag tracking (still needed for console output)
         self.policy_lag = [dict() for _ in range(self.cfg.num_policies)]
 
         self._handle_restart()
 
-        init_wandb(self.cfg)  # should be done before writers are initialized
+        # Initialize WandB before creating logging manager
+        init_wandb(self.cfg)
 
-        self.writers: Dict[int, SummaryWriter] = dict()
-        for policy_id in range(self.cfg.num_policies):
-            summary_dir = join(summaries_dir(experiment_dir(cfg=self.cfg)), str(policy_id))
-            summary_dir = ensure_dir_exists(summary_dir)
-            self.writers[policy_id] = SummaryWriter(summary_dir, flush_secs=cfg.flush_summaries_interval)
+        # LoggingManager will be created in init() after env_info is available
+        self.logging_manager = None
+
+        # Compatibility attributes for old message handlers
+        # These will delegate to the new logging system once it's initialized
+        self._avg_stats = None
+        self._stats = None
 
         # global msg handlers for messages from algo components
         self.msg_handlers: Dict[str, List[MsgHandler]] = {
@@ -203,6 +180,29 @@ class Runner(EventLoopObject, Configurable):
 
         self.components_to_stop: List[EventLoopObject] = []
         self.component_profiles: Dict[str, Timing] = dict()
+
+    @property
+    def avg_stats(self):
+        """Compatibility property for old message handlers."""
+        if self.logging_manager and self.logging_manager.stats_processor:
+            return self.logging_manager.stats_processor.avg_stats
+        else:
+            # Fallback for when logging manager isn't initialized yet
+            if self._avg_stats is None:
+                from collections import defaultdict
+                self._avg_stats = defaultdict(lambda: deque([], maxlen=50))
+            return self._avg_stats
+
+    @property
+    def stats(self):
+        """Compatibility property for old message handlers."""
+        if self.logging_manager and self.logging_manager.stats_processor:
+            return self.logging_manager.stats_processor.stats
+        else:
+            # Fallback for when logging manager isn't initialized yet
+            if self._stats is None:
+                self._stats = {}
+            return self._stats
 
     # signals emitted by the runner
     @signal
@@ -287,60 +287,41 @@ class Runner(EventLoopObject, Configurable):
 
     @staticmethod
     def _episodic_stats_handler(runner: Runner, msg: Dict, policy_id: PolicyID) -> None:
+        """Process episodic stats using the new logging system."""
         s = msg[EPISODIC]
-        for _, key, value in iterate_recursively(s):
-            if key not in runner.policy_avg_stats:
-                max_len = runner.cfg.heatmap_avg if key == 'heatmap' else runner.cfg.stats_avg
-                runner.policy_avg_stats[key] = [
-                    deque(maxlen=max_len) for _ in range(runner.cfg.num_policies)
-                ]
-
-            if isinstance(value, np.ndarray) and value.ndim > 0 and key != 'heatmap':
-                if len(value) > runner.policy_avg_stats[key][policy_id].maxlen:
-                    # increase maxlen to make sure we never ignore any stats from the environments
-                    runner.policy_avg_stats[key][policy_id] = deque(maxlen=len(value))
-
-                runner.policy_avg_stats[key][policy_id].extend(value)
-            else:
-                runner.policy_avg_stats[key][policy_id].append(value)
+        if runner.logging_manager:
+            runner.logging_manager.process_episodic_stats(s, policy_id)
 
     @staticmethod
     def _train_stats_handler(runner: Runner, msg: Dict, policy_id: PolicyID) -> None:
-        """We write the train summaries to disk right away instead of accumulating them."""
+        """Process training stats using the new logging system."""
         train_stats = msg[TRAIN_STATS]
-        for key, scalar in train_stats.items():
-            runner.writers[policy_id].add_scalar(f"train/{key}", scalar, runner.env_steps[policy_id])
+        env_steps = runner.env_steps.get(policy_id, 0)
 
+        if runner.logging_manager:
+            runner.logging_manager.process_train_stats(train_stats, policy_id, env_steps)
+
+        # Still need to track policy lag for console output
         for key in ["version_diff_min", "version_diff_max", "version_diff_avg"]:
             if key in train_stats:
                 runner.policy_lag[policy_id][key] = train_stats[key]
 
     def _get_perf_stats(self):
-        # total env steps simulated across all policies
-        fps_stats = []
-        for avg_interval in self.avg_stats_intervals:
-            fps_for_interval = math.nan
-            if len(self.fps_stats) > 1:
-                t1, x1 = self.fps_stats[max(0, len(self.fps_stats) - 1 - avg_interval)]
-                t2, x2 = self.fps_stats[-1]
-                fps_for_interval = (x2 - x1) / (t2 - t1)
+        """Get performance stats using the new logging system."""
+        if not self.logging_manager:
+            return [math.nan], {}
 
-            fps_stats.append(fps_for_interval)
-
-        # learning throughput per policy (in observations per sec)
-        sample_throughput = dict()
-        for policy_id in range(self.cfg.num_policies):
-            sample_throughput[policy_id] = math.nan
-            if len(self.throughput_stats[policy_id]) > 1:
-                t1, x1 = self.throughput_stats[policy_id][0]
-                t2, x2 = self.throughput_stats[policy_id][-1]
-                sample_throughput[policy_id] = (x2 - x1) / (t2 - t1)
+        fps_stats = self.logging_manager.performance_logger.get_fps_stats()
+        sample_throughput = self.logging_manager.performance_logger.get_throughput_stats()
 
         return fps_stats, sample_throughput
 
     def print_stats(self, fps, sample_throughput, total_env_steps):
+        # Use hardcoded intervals since we removed avg_stats_intervals
+        avg_stats_intervals = (2, 12, 60)  # by default: 10 seconds, 60 seconds, 5 minutes
+
         fps_str = []
-        for interval, fps_value in zip(self.avg_stats_intervals, fps):
+        for interval, fps_value in zip(avg_stats_intervals, fps):
             fps_str.append(f"{int(interval * self.report_interval_sec)} sec: {fps_value:.1f}")
         fps_str = f'({", ".join(fps_str)})'
 
@@ -361,21 +342,13 @@ class Runner(EventLoopObject, Configurable):
             policy_lag_str,
         )
 
-        if "reward" in self.policy_avg_stats:
-            policy_reward_stats = []
-            for policy_id in range(self.cfg.num_policies):
-                reward_stats = self.policy_avg_stats["reward"][policy_id]
-                if len(reward_stats) > 0:
-                    policy_reward_stats.append((policy_id, f"{np.mean(reward_stats):.3f}"))
-            log.debug("Avg episode reward: %r", policy_reward_stats)
-
-        if "cost" in self.policy_avg_stats:
-            policy_cost_stats = []
-            for policy_id in range(self.cfg.num_policies):
-                cost_stats = self.policy_avg_stats["cost"][policy_id]
-                if len(cost_stats) > 0:
-                    policy_cost_stats.append((policy_id, f"{np.mean(cost_stats):.3f}"))
-            log.debug("Avg episode cost: %r", policy_cost_stats)
+        # Get console stats from the new logging system
+        if self.logging_manager:
+            console_stats = self.logging_manager.get_console_stats()
+            if "reward" in console_stats:
+                log.debug("Avg episode reward: %r", console_stats["reward"])
+            if "cost" in console_stats:
+                log.debug("Avg episode cost: %r", console_stats["cost"])
 
     def _update_stats_and_print_report(self):
         """
@@ -390,363 +363,37 @@ class Runner(EventLoopObject, Configurable):
         if self.total_env_steps_since_resume is None:
             return
 
+        # Add performance samples to the new logging system
         now = time.time()
-        self.fps_stats.append((now, self.total_env_steps_since_resume))
+        total_env_steps = sum(self.env_steps.values())
+        samples_per_policy = {policy_id: self.samples_collected[policy_id] for policy_id in
+                              range(self.cfg.num_policies)}
 
-        for policy_id in range(self.cfg.num_policies):
-            self.throughput_stats[policy_id].append((now, self.samples_collected[policy_id]))
+        if self.logging_manager:
+            self.logging_manager.add_performance_sample(now, self.total_env_steps_since_resume, samples_per_policy)
+            self.logging_manager.set_env_steps(self.env_steps)
 
         fps_stats, sample_throughput = self._get_perf_stats()
-        total_env_steps = sum(self.env_steps.values())
         self.print_stats(fps_stats, sample_throughput, total_env_steps)
 
-    def log_heatmap(self, heatmap: np.ndarray, global_step: int, tag: str):
-        # Handle case where heatmap might be 1-dimensional (e.g., with multiple agents)
-        if heatmap.ndim == 1:
-            # If heatmap is 1D, we need to reshape it to 2D
-            # Try to make it as square as possible
-            size = heatmap.shape[0]
-            side_length = int(np.sqrt(size))
-            if side_length * side_length == size:
-                heatmap = heatmap.reshape(side_length, side_length)
-            else:
-                # If not a perfect square, find the best rectangular shape
-                # Try to find factors that are close to each other
-                factors = []
-                for i in range(1, int(np.sqrt(size)) + 1):
-                    if size % i == 0:
-                        factors.append((i, size // i))
-                if factors:
-                    # Choose the factor pair with the smallest difference
-                    best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
-                    heatmap = heatmap.reshape(best_factor[0], best_factor[1])
-                else:
-                    # Fallback: reshape to a single row
-                    heatmap = heatmap.reshape(1, size)
-
-        # Transpose the heatmap
-        heatmap = np.flipud(heatmap.T)
-
-        # Determine aspect ratio of the histogram
-        height, width = heatmap.shape
-        aspect_ratio = width / height
-
-        # Define additional space for the colorbar
-        colorbar_width_factor = 0.25  # Approximation of colorbar width to figure width
-
-        # Calculate figure dimensions basing the width on a fixed height
-        base_height = 2 if self.env_info.name in ['precipice_plunge', 'detonators_dilemma'] else 7
-        fig_width = base_height * aspect_ratio * (1 + colorbar_width_factor)
-
-        # Create a BytesIO buffer to save image
-        buf = BytesIO()
-        plt.figure(figsize=(fig_width, base_height))
-        plt.imshow(heatmap, cmap='viridis', interpolation='nearest', aspect='auto')
-        plt.colorbar()
-        plt.xticks([])
-        plt.yticks([])
-        plt.savefig(buf, format='png')
-        # plt.show()
-        plt.close()
-
-        buf.seek(0)
-        image = Image.open(buf)
-        wandb.log({tag: wandb.Image(image)}, step=global_step)
-
-    def log_overlay(self, heatmap: np.ndarray, global_step: int, tag: str):
-        # Handle case where heatmap might be 1-dimensional (e.g., with multiple agents)
-        if heatmap.ndim == 1:
-            # If heatmap is 1D, we need to reshape it to 2D
-            # Try to make it as square as possible
-            size = heatmap.shape[0]
-            side_length = int(np.sqrt(size))
-            if side_length * side_length == size:
-                heatmap = heatmap.reshape(side_length, side_length)
-            else:
-                # If not a perfect square, find the best rectangular shape
-                # Try to find factors that are close to each other
-                factors = []
-                for i in range(1, int(np.sqrt(size)) + 1):
-                    if size % i == 0:
-                        factors.append((i, size // i))
-                if factors:
-                    # Choose the factor pair with the smallest difference
-                    best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
-                    heatmap = heatmap.reshape(best_factor[0], best_factor[1])
-                else:
-                    # Fallback: reshape to a single row
-                    heatmap = heatmap.reshape(1, size)
-
-        # Transpose the heatmap
-        heatmap = np.flipud(heatmap.T)
-
-        # Determine aspect ratio of the histogram
-        height, width = heatmap.shape
-        aspect_ratio = width / height
-
-        # Define additional space for the colorbar
-        colorbar_width_factor = 0.25  # Approximation of colorbar width to figure width
-
-        # Calculate figure dimensions basing the width on a fixed height
-        base_height = 2 if self.env_info.name in ['precipice_plunge', 'detonators_dilemma'] else 4
-        fig_width = base_height * aspect_ratio * (1 + colorbar_width_factor)
-
-        # Create a figure and axis to plot the map and heatmap
-        fig, ax = plt.subplots(figsize=(fig_width, base_height))
-
-        # Display the map
-        ax.imshow(self.map_img, extent=[0, width, 0, height])
-
-        # Overlay the heatmap: adjust 'alpha' for transparency, cmap for the color map
-        ax.imshow(heatmap, cmap='viridis', alpha=0.5, interpolation='nearest', extent=[0, width, 0, height])
-
-        # Remove x and y ticks as they are meaningless here
-        plt.xticks([])
-        plt.yticks([])
-
-        # Add a step counter on the frame
-        plt.text(0.99, 0.99, f'Step: {global_step:09d}', fontsize=12, color='white',
-                 horizontalalignment='right', verticalalignment='top', transform=plt.gca().transAxes)
-
-        # Save the plot to a buffer
-        buf = BytesIO()
-        plt.savefig(buf, format='png')
-        buf.seek(0)
-
-        if not self.frames_dir:
-            self.frames_dir = join(frames_dir(experiment_dir(cfg=self.cfg)))  # Create a directory for storing frames
-        frame_path = os.path.join(self.frames_dir, f"frame_{global_step:09d}.png")
-        plt.savefig(frame_path, format='png')
-        plt.show()
-        plt.close()
-
-        # Log to Weights & Biases
-        image = Image.open(buf)
-
-        wandb.log({tag: wandb.Image(image)}, step=global_step)
-
-    def create_and_upload_gif(self, tag):
-        # List all the frames, sorted by extracted step number
-        frame_files = sorted(
-            glob.glob(os.path.join(self.frames_dir, "frame_*.png")),
-            key=lambda x: int(os.path.splitext(os.path.basename(x))[0].split('_')[1])
-        )
-        frames = [Image.open(frame) for frame in frame_files]
-
-        # Create a BytesIO buffer to hold the GIF
-        gif_buffer = BytesIO()
-
-        if frames:
-            # Total GIF duration in seconds
-            total_duration_secs = self.cfg.gif_duration
-
-            # Calculate the duration each frame should be displayed to fit the total
-            frame_duration = int((total_duration_secs * 1000) / len(frames))  # Convert seconds to milliseconds
-
-            # Enforce minimum and maximum duration limits
-            frame_duration = max(10, min(frame_duration, 100))
-
-            # Create GIF in the buffer
-            frames[0].save(
-                gif_buffer, format='GIF',
-                append_images=frames[1:],
-                save_all=True,
-                duration=frame_duration, loop=0
-            )
-            gif_buffer.seek(0)  # Rewind to the start of the GIF buffer
-
-            # Log the GIF to wandb
-            wandb.log({tag: wandb.Video(gif_buffer, format="gif")})
-            print(f"{total_duration_secs} second GIF uploaded at {self.last_gif_log} steps to wandb as {tag}")
-
-            # Clear the buffer if no longer needed
-            gif_buffer.close()
-
     def _report_experiment_summaries(self):
-        memory_mb = memory_consumption_mb()
-
-        fps_stats, sample_throughput = self._get_perf_stats()
-        fps = fps_stats[0]
-
-        default_policy = 0
-        for policy_id, env_steps in self.env_steps.items():
-            writer = self.writers[policy_id]
-            if policy_id == default_policy:
-                if not math.isnan(fps):
-                    writer.add_scalar("perf/_fps", fps, env_steps)
-
-                writer.add_scalar("stats/master_process_memory_mb", float(memory_mb), env_steps)
-                for key, value in self.avg_stats.items():
-                    if len(value) >= value.maxlen or (len(value) > 10 and self.total_train_seconds > 300):
-                        writer.add_scalar(f"stats/{key}", np.mean(value), env_steps)
-
-                for key, value in self.stats.items():
-                    writer.add_scalar(f"stats/{key}", value, env_steps)
-
-            if not math.isnan(sample_throughput[policy_id]):
-                writer.add_scalar("perf/_sample_throughput", sample_throughput[policy_id], env_steps)
-
-            if self.cfg.with_wandb and 'heatmap' in self.policy_avg_stats:
-                # Handle heatmap data structure properly for multiple agents/policies
-                heatmap_data = self.policy_avg_stats['heatmap']
-                if isinstance(heatmap_data, list) and len(heatmap_data) > 0:
-                    # Get the first policy's heatmap data (assuming all policies have similar spatial structure)
-                    policy_heatmaps = heatmap_data[0]  # Get deque for first policy
-                    if len(policy_heatmaps) > 0:
-                        # Convert deque to list and then to numpy array
-                        heatmap_list = list(policy_heatmaps)
-                        if len(heatmap_list) > 0:
-                            # Take the mean across episodes, but preserve spatial dimensions
-                            heatmap = np.mean(heatmap_list, axis=0)
-                        else:
-                            continue  # Skip if no heatmap data available
-                    else:
-                        continue  # Skip if no heatmap data available
-                else:
-                    continue  # Skip if no heatmap data available
-                if self.cumulative_heatmap is None:
-                    # Initialize the cumulative heatmap to the correct shape
-                    self.cumulative_heatmap = np.zeros_like(heatmap)
-
-                # Accumulate the heatmap data
-                self.cumulative_heatmap += heatmap
-                if env_steps - self.last_heatmap_log >= self.cfg.heatmap_log_interval:
-                    if self.cfg.log_overlay:
-                        self.log_overlay(heatmap, env_steps, 'traversal/overlay')
-                    if self.cfg.log_heatmap:
-                        self.log_heatmap(self.cumulative_heatmap, env_steps, "traversal/cumulative")
-                        self.log_heatmap(heatmap, env_steps, "traversal/window")
-                    self.last_heatmap_log = env_steps
-
-                if env_steps - self.last_gif_log >= self.cfg.gif_log_interval:
-                    self.last_gif_log = env_steps
-                    self.create_and_upload_gif("traversal/evolution")
-
-            for key, stat in self.policy_avg_stats.items():
-                if key == 'heatmap':
-                    continue  # Skip if it's histogram, already logged
-                if len(stat[policy_id]) >= stat[policy_id].maxlen or (
-                        len(stat[policy_id]) > 10 and self.total_train_seconds > 300
-                ):
-                    stat_value = np.mean(stat[policy_id])
-
-                    if "/" in key:
-                        # custom summaries have their own sections in tensorboard
-                        avg_tag = key
-                        min_tag = f"{key}_min"
-                        max_tag = f"{key}_max"
-                    elif key in ("reward", "len"):
-                        # reward and length get special treatment
-                        avg_tag = f"{key}/{key}"
-                        min_tag = f"{key}/{key}_min"
-                        max_tag = f"{key}/{key}_max"
-                    else:
-                        avg_tag = f"policy_stats/avg_{key}"
-                        min_tag = f"policy_stats/avg_{key}_min"
-                        max_tag = f"policy_stats/avg_{key}_max"
-
-                    # Log to TensorBoard (WandB will read from TensorBoard)
-                    writer.add_scalar(avg_tag, float(stat_value), env_steps)
-
-                    # for key stats report min/max as well
-                    if key in ("reward", "cost", "true_objective", "len"):
-                        min_val = float(min(stat[policy_id]))
-                        max_val = float(max(stat[policy_id]))
-
-                        # Log to TensorBoard
-                        writer.add_scalar(min_tag, min_val, env_steps)
-                        writer.add_scalar(max_tag, max_val, env_steps)
-
-                    # Log basic health and armor stats for all tasks (episodic averages only)
-                    if key in ("health", "armor"):
-                        writer.add_scalar(f"basic_stats/{key}", float(stat_value), env_steps)
-
-                    # Log multi-agent specific stats dynamically
-                    # These come from the multi-agent stats collection system
-                    if key.startswith("combined_stats/"):
-                        # Extract the actual stat name from the nested key
-                        stat_name = key.split("/", 1)[1]
-                        # Log all combined stats as team stats (dynamic approach)
-                        writer.add_scalar(f"team_stats/{stat_name}", float(stat_value), env_steps)
-
-                    elif key.startswith("individual_stats/"):
-                        # Parse individual stats key to extract agent ID and stat name
-                        # Expected format: individual_stats/agent_X/stat_name or individual_stats/stat_name
-                        key_parts = key.split("/")
-                        if len(key_parts) >= 3 and key_parts[1].startswith("agent_"):
-                            # Format: individual_stats/agent_X/stat_name
-                            agent_id = key_parts[1]  # e.g., "agent_0", "agent_1"
-                            stat_name = "/".join(key_parts[2:])  # Handle nested stat names
-                            writer.add_scalar(f"{agent_id}/{stat_name}", float(stat_value), env_steps)
-                        else:
-                            # Fallback format: individual_stats/stat_name (aggregate across agents)
-                            stat_name = "/".join(key_parts[1:])
-                            # Categorize stats dynamically based on common patterns
-                            if stat_name in ("health", "armor", "reward"):
-                                writer.add_scalar(f"agent_stats/{stat_name}", float(stat_value), env_steps)
-                            else:
-                                writer.add_scalar(f"task_stats/{stat_name}", float(stat_value), env_steps)
-
-            self._observers_call(AlgoObserver.extra_summaries, self, policy_id, writer, env_steps)
-
-        # Video logging
-        if self.cfg.with_wandb:
-            self.log_new_videos_to_wandb()
-            # Ensure to flush/write all accumulated wandb logs
-            wandb.log({})
-
-        for w in self.writers.values():
-            w.flush()
-
-    def log_new_videos_to_wandb(self):
-        # List all video files in the directory
-        video_dir = join(experiment_dir(cfg=self.cfg), self.cfg.video_dir)
-        # Ensure the directory exists
-        if not os.path.exists(video_dir):
+        """Report experiment summaries using the new centralized logging system."""
+        if not self.logging_manager:
             return
-        video_files = [f for f in os.listdir(video_dir) if f.endswith('.mp4')]
 
-        # Filter files based on episode number being greater than last_logged_episode
-        episode_pattern = re.compile(r"doom-step-(\d+).mp4")
-        new_videos = []
-        for video_file in video_files:
-            match = episode_pattern.search(video_file)
-            if match:
-                step_number = int(match.group(1))
-                if step_number > self.last_logged_step:
-                    new_videos.append((step_number, video_file))
+        # Update the logging manager with current env steps and total training time
+        self.logging_manager.set_env_steps(self.env_steps)
 
-        def is_file_locked(file_path):
-            """Check if the file is locked by another process."""
-            # First check if there's a .lock file (new locking mechanism)
-            lock_file_path = file_path + '.lock'
-            if os.path.exists(lock_file_path):
-                return True  # File is locked
+        # Let the logging manager handle all the complex logging logic
+        self.logging_manager.log_episode_summaries(self.total_train_seconds)
 
-            # Fallback to the old locking mechanism
-            try:
-                with open(file_path, 'rb') as f:
-                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    fcntl.flock(f, fcntl.LOCK_UN)
-                return False  # File is not locked
-            except (IOError, FileNotFoundError):
-                return True  # File is locked or doesn't exist yet
-
-        # Log new videos to wandb
-        for step_number, video_file in sorted(new_videos):
-            video_path = join(video_dir, video_file)
-            video_tag = f"video/step_{step_number}"
-
-            if not is_file_locked(video_path):
-                # Video has been stored and is ready to be uploaded
-                wandb.log({video_tag: wandb.Video(video_path, format='mp4')})
-
-                # Now that we've successfully logged it, update last_logged_step
-                self.last_logged_step = max(self.last_logged_step, step_number)
-                log.info(f"Logged video at step {step_number} to wandb as {video_tag}. New last_logged_step: {self.last_logged_step}")
-            else:
-                log.warning(f"Video at step {step_number} is locked and cannot be uploaded to wandb. Last logged step: {self.last_logged_step}")
-
+        # Call observers for any additional summaries
+        for policy_id, env_steps in self.env_steps.items():
+            # Create a dummy writer for observers that still expect it
+            # In the future, observers should be updated to use the logging manager
+            if hasattr(self.logging_manager, 'writers') and policy_id in self.logging_manager.writers:
+                writer = self.logging_manager.writers[policy_id]
+                self._observers_call(AlgoObserver.extra_summaries, self, policy_id, env_steps, writer)
 
     def _propagate_training_info(self):
         """
@@ -787,15 +434,18 @@ class Runner(EventLoopObject, Configurable):
         if len(self.env_steps) < self.cfg.num_policies:
             return
 
+        if not self.logging_manager:
+            return
+
         metric = self.cfg.save_best_metric
-        if metric in self.policy_avg_stats:
+        if metric in self.logging_manager.stats_processor.policy_avg_stats:
             for policy_id in range(self.cfg.num_policies):
                 # check if number of samples collected is greater than cfg.save_best_after
                 env_steps = self.env_steps[policy_id]
                 if env_steps < self.cfg.save_best_after:
                     continue
 
-                stats = self.policy_avg_stats[metric][policy_id]
+                stats = self.logging_manager.stats_processor.policy_avg_stats[metric][policy_id]
                 if len(stats) > 0:
                     avg_metric = np.mean(stats)
                     self.save_best.emit(policy_id, metric, avg_metric)
@@ -874,6 +524,18 @@ class Runner(EventLoopObject, Configurable):
         # # Optional: Verify the new size
         # print(f"Resized map image to: {self.map_img.shape[1]}x{self.map_img.shape[0]} pixels")
 
+        # Create centralized logging manager now that env_info is available
+        logging_config = LoggingConfig.from_cfg(self.cfg)
+        self.logging_manager = LoggingManager(
+            logging_config,
+            experiment_dir(self.cfg),
+            self.cfg.num_policies,
+            self.env_info
+        )
+
+        # Set the map image for heatmap overlays if available
+        if self.map_img is not None:
+            self.logging_manager.set_map_image(self.map_img)
 
         for policy_id in range(self.cfg.num_policies):
             self.reward_shaping[policy_id] = self.env_info.reward_shaping_scheme
@@ -1091,8 +753,9 @@ class Runner(EventLoopObject, Configurable):
         for component, profile in self.component_profiles:
             log.info(profile)
 
-        for w in self.writers.values():
-            w.flush()
+        # Flush all logging backends
+        if self.logging_manager:
+            self.logging_manager.flush()
 
         assert self.event_loop.owner is self
         self.event_loop.stop()
