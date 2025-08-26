@@ -15,7 +15,7 @@ setup(
     description="Egocentric 3D Safe Reinforcement Learning Benchmark",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version="0.1.0",
+    version="0.2.0",
     url="https://github.com/TTomilin/HASARD",
     author="Tristan Tomilin",
     author_email='tristan.tomilin@hotmail.com',
