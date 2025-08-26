@@ -391,7 +391,7 @@ Sample Factory uses command-line arguments to configure training and evaluation.
 
 ### High Performance Training
 ```bash
---num_workers=32 --num_envs_per_worker=16 --batch_size=2048 --train_for_env_steps=100000000
+--num_workers=72 --num_envs_per_worker=16 --batch_size=2048 --train_for_env_steps=100000000
 ```
 
 ### Population-Based Training
@@ -399,9 +399,9 @@ Sample Factory uses command-line arguments to configure training and evaluation.
 --with_pbt=True --num_policies=8 --pbt_period_env_steps=5000000 --pbt_start_mutation=20000000
 ```
 
-### Safe RL with Monitoring
+### Monitoring
 ```bash
---constraint=hard --with_wandb=True --save_video=True --record_every=10000
+--with_wandb=True --save_video=True --record_every=10000
 ```
 
 For more detailed information about specific parameters, refer to the source code in `cfg.py` or use the `--help` flag with the training scripts.
