@@ -56,7 +56,7 @@ Creates detailed plots for individual environments, allowing focused analysis of
 - Detailed performance analysis
 
 **Example Output:**
-![Single Environment](../figures/PPOPID_armament_burden_level_1_main.png)
+![Single Environment](../figures/PPOPID_precipice_plunge_level_2_depth.png)
 
 #### `single_env_gif.py`
 Generates animated GIFs showing the evolution of metrics over training time for single environments.
@@ -125,7 +125,7 @@ Compares performance across different action space configurations.
 - Statistical significance indicators
 
 **Example Output:**
-![Action Spaces](../figures/action_spaces_PPOLag_level_1.png)
+![Action Spaces](../figures/actions_level_1_bar.png)
 
 ### Performance Comparisons
 
@@ -158,13 +158,7 @@ Compares the rate of policy updates between HASARD and Safety-Gymnasium framewor
 ### Utility Scripts
 
 #### `partial_plot.py`
-Creates selective visualizations by allowing users to specify which algorithms to plot while loading data for all algorithms.
-
-**Key Features:**
-- Selective algorithm plotting
-- Full data loading with filtered visualization
-- Useful for creating focused comparisons
-- Customizable algorithm selection
+Made for ppt presentations to add results method by method.
 
 ## Common Arguments
 

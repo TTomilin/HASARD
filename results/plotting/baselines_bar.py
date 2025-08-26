@@ -11,7 +11,7 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data, create_default_paths, save_plot
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data, create_default_paths, save_plot, create_common_parser
 from sample_factory.doom.doom_utils import DOOM_ENVS
 
 
@@ -203,25 +203,29 @@ def plot_bars(data, args):
 
 
 def common_plot_args():
-    p = argparse.ArgumentParser(description="Plot bars of average final returns/cost.")
+    parser = create_common_parser("Plot bars of average final returns/cost.")
 
     # Create default path dynamically
     default_main = create_default_paths(__file__, 'main')
 
-    p.add_argument("--input", type=str, default=default_main)
-    p.add_argument("--level", type=int, default=1)
-    p.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3])
-    p.add_argument("--algos", type=str, nargs='+', default=[
+    # Set defaults for common arguments
+    parser.set_defaults(
+        input=default_main,
+        level=1,
+        seeds=[1, 2, 3],
+        envs=["armament_burden", "volcanic_venture", "remedy_rush",
+              "collateral_damage", "precipice_plunge", "detonators_dilemma"],
+        metrics=["reward", "cost"],
+        hard_constraint=False
+    )
+
+    # Add specific arguments for this script
+    parser.add_argument("--algos", type=str, nargs='+', default=[
         "PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O",
-    ])
-    p.add_argument("--envs", type=str, nargs='+', default=[
-        "armament_burden", "volcanic_venture", "remedy_rush",
-        "collateral_damage", "precipice_plunge", "detonators_dilemma"
-    ])
-    p.add_argument("--metrics", type=str, nargs='+', default=["reward", "cost"])
-    p.add_argument("--hard_constraint", action='store_true', default=False)
-    p.add_argument("--total_iterations", type=int, default=int(5e8))
-    return p
+    ], help="Algorithms to analyze")
+    parser.add_argument("--total_iterations", type=int, default=int(5e8),
+                        help="Total number of environment iterations")
+    return parser
 
 
 if __name__ == "__main__":

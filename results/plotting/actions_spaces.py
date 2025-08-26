@@ -1,11 +1,10 @@
 import argparse
 import os
 import sys
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.lines import Line2D
 
 # Add the parent directory to the path so we can import results.commons
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,7 +12,8 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import ENV_INITIALS, TRANSLATIONS, load_full_data, check_multiple_paths_data_availability, create_default_paths, save_plot
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data, \
+    check_multiple_paths_data_availability, create_default_paths, save_plot
 
 
 def reshape_data_if_needed(runs, num_seeds):
@@ -64,9 +64,9 @@ def reshape_data_if_needed(runs, num_seeds):
     return runs
 
 
-def load_action_space_data(action_spaces: List[str], algo: str, environments: List[str], 
-                          seeds: List[int], metrics: List[str], level: int, 
-                          hard_constraint: bool) -> Dict[str, Dict[Tuple[str, str, str], List[float]]]:
+def load_action_space_data(action_spaces: List[str], algo: str, environments: List[str],
+                           seeds: List[int], metrics: List[str], level: int,
+                           hard_constraint: bool) -> Dict[str, Dict[Tuple[str, str, str], List[float]]]:
     """
     Load training curve data for different action spaces.
 
@@ -83,7 +83,7 @@ def load_action_space_data(action_spaces: List[str], algo: str, environments: Li
         Dictionary mapping action space paths to data dictionaries
     """
     action_space_data = {}
-    
+
     for action_space in action_spaces:
         # Check if data is available for this action space
         if check_multiple_paths_data_availability([action_space], algo, environments, seeds, metrics, level):
@@ -91,12 +91,12 @@ def load_action_space_data(action_spaces: List[str], algo: str, environments: Li
             action_space_data[action_space] = data
         else:
             print(f"Warning: No data found for action space '{action_space}'. Skipping.")
-    
+
     return action_space_data
 
 
-def plot_action_space_training_curves(action_space_data: Dict[str, Dict[Tuple[str, str, str], List[float]]], 
-                                     args: argparse.Namespace) -> None:
+def plot_action_space_training_curves(action_space_data: Dict[str, Dict[Tuple[str, str, str], List[float]]],
+                                      args: argparse.Namespace) -> None:
     """
     Plot training curves comparing different action spaces across environments.
 
@@ -109,92 +109,88 @@ def plot_action_space_training_curves(action_space_data: Dict[str, Dict[Tuple[st
         return
 
     plt.style.use('seaborn-v0_8-paper')
-    
-    envs = args.envs
-    n_envs = len(envs)
-    n_metrics = len(args.metrics)
-    
-    # Create subplots: one row per environment, one column per metric
-    fig, axs = plt.subplots(n_envs, n_metrics, figsize=(6 * n_metrics, 3 * n_envs))
-    
-    # Handle case where we have only one environment or one metric
-    if n_envs == 1 and n_metrics == 1:
-        axs = [[axs]]
-    elif n_envs == 1:
-        axs = [axs]
-    elif n_metrics == 1:
-        axs = [[ax] for ax in axs]
-    
-    fig.subplots_adjust(left=0.08, right=0.95, top=0.92, bottom=0.15, hspace=0.4, wspace=0.3)
-    
+    fig, axs = plt.subplots(3, 4, figsize=(12, 8))  # Adjust figsize for better fit
+
+    fig.subplots_adjust(left=0.055, right=0.99, top=0.95, bottom=0.12, hspace=0.5, wspace=0.3)
+
     lines = []
     labels = []
-    
-    # Get action space names for legend
-    action_space_names = list(action_space_data.keys())
-    
-    for env_idx, env in enumerate(envs):
-        for metric_idx, metric in enumerate(args.metrics):
-            ax = axs[env_idx][metric_idx]
-            
+
+    title_axes = [fig.add_subplot(3, 2, i + 1, frame_on=False) for i in
+                  range(6)]  # Update to match the number of environments
+    for ax in title_axes:
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+
+    for env_index, env in enumerate(args.envs):
+        row = env_index // 2  # Keeps same row indexing
+        col_base = (env_index % 2) * 2  # Same as before
+
+        title_axes[env_index].set_title(TRANSLATIONS[env], fontsize=14)
+
+        for metric_index, metric in enumerate(args.metrics):
+            ax = axs[row, col_base + metric_index]
+
             # Plot each action space
-            for action_space_idx, (action_space, data) in enumerate(action_space_data.items()):
+            for action_space, data in action_space_data.items():
                 key = (env, args.algo, metric)
-                
                 if key in data and data[key]:
                     runs = data[key]
                     runs = reshape_data_if_needed(runs, len(args.seeds))
                     all_runs = np.array(runs)
-                    
+
                     if all_runs.size == 0 or len(all_runs.shape) < 2:
                         continue
-                    
+
                     num_data_points = all_runs.shape[1]
                     iterations_per_point = args.total_iterations / num_data_points
                     mean = np.mean(all_runs, axis=0)
                     ci = 1.96 * np.std(all_runs, axis=0) / np.sqrt(len(all_runs))
                     x = np.arange(num_data_points) * iterations_per_point
-                    
+
                     # Get readable label for action space
-                    label = TRANSLATIONS.get(action_space, action_space.replace('data/', '').replace('_', ' ').title())
-                    
-                    line = ax.plot(x, mean, label=label, linewidth=2)
+                    label = action_space.split('/')[-1]
+                    label = "Original" if label == 'main' else "Simplfied"
+                    label += " Action Space"
+
+                    line = ax.plot(x, mean, label=label)
                     ax.fill_between(x, mean - ci, mean + ci, alpha=0.2)
-                    
-                    # Store line and label for legend (only from first subplot)
-                    if env_idx == 0 and metric_idx == 0:
+
+                    if env_index == 1 and metric_index == 1:  # Adjust if needed
                         lines.append(line[0])
                         labels.append(label)
-            
-            # Set axis properties
+
+            # Set axis properties once per subplot (outside the action space loop)
             ax.set_xlim(-args.total_iterations / 60, args.total_iterations)
             ax.set_ylim(0, None)
             ax.set_xlabel('Steps', fontsize=12)
-            ax.set_ylabel(TRANSLATIONS.get(metric, metric.title()), fontsize=12)
-            
-            # Add environment name as title for first column
-            if metric_idx == 0:
-                ax.set_title(f"{TRANSLATIONS.get(env, env.replace('_', ' ').title())}", 
-                           fontsize=14, fontweight='bold', pad=20)
-            
-            # Add metric name as column title for first row
-            if env_idx == 0:
-                ax.text(0.5, 1.15, TRANSLATIONS.get(metric, metric.title()), 
-                       transform=ax.transAxes, ha='center', va='bottom', 
-                       fontsize=12, fontweight='bold')
-    
-    # Add legend
-    if lines:
-        fig.legend(lines, labels, loc='lower center', ncol=len(labels), 
-                  fontsize=12, fancybox=True, shadow=True, bbox_to_anchor=(0.5, 0.02))
-    
-    # Save plot
+            ax.set_ylabel(TRANSLATIONS[metric], fontsize=12)
+
+            # Add safety threshold for cost metrics
+            if metric == 'cost' and not args.hard_constraint:
+                threshold_line = ax.axhline(y=SAFETY_THRESHOLDS[env], color='red', linestyle='--',
+                                            label='Safety Threshold')
+                ax.text(0.5, SAFETY_THRESHOLDS[env], 'Safety Threshold', horizontalalignment='center',
+                        verticalalignment='top', transform=ax.get_yaxis_transform(), fontsize=10,
+                        style='italic', color='darkred')
+
+    fontsize = 12 if len(action_space_data) < 9 else 11
+    fig.legend(lines, labels, loc='lower center', ncol=len(action_space_data), fontsize=fontsize, fancybox=True,
+               shadow=True,
+               bbox_to_anchor=(0.5, 0.0))
+
+    # Save to results/figures directory (not results/plotting/figures)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     results_dir = os.path.dirname(script_dir)
     folder = os.path.join(results_dir, 'figures')
-    filename = f'actions_level_{args.level}'
-    
-    save_plot(filename, folder)
+    file_name = 'hard' if args.hard_constraint else f'actions_level_{args.level}'
+
+    # Save using the common save_plot function
+    save_plot(file_name, folder)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -206,14 +202,14 @@ def main(args: argparse.Namespace) -> None:
     """
     # Load data for different action spaces
     action_space_data = load_action_space_data(
-        args.action_spaces, args.algo, args.envs, args.seeds, 
+        args.action_spaces, args.algo, args.envs, args.seeds,
         args.metrics, args.level, args.hard_constraint
     )
-    
+
     if not action_space_data:
         print("Error: No data found for any action space. Please check your data paths and parameters.")
         return
-    
+
     # Plot the training curves
     plot_action_space_training_curves(action_space_data, args)
 
@@ -228,71 +224,71 @@ def get_parser() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Plot training curves comparing different action spaces across environments."
     )
-    
+
     # Create default paths
     default_main = create_default_paths(__file__, 'main')
     default_full_actions = create_default_paths(__file__, 'full_actions')
-    
+
     parser.add_argument(
-        "--action_spaces", 
-        type=str, 
+        "--action_spaces",
+        type=str,
         nargs='+',
         default=[default_main, default_full_actions],
         help="Paths to different action space data directories"
     )
-    
+
     parser.add_argument(
-        "--algo", 
-        type=str, 
+        "--algo",
+        type=str,
         default="PPOLag",
         help="Algorithm to plot (default: PPOLag)"
     )
-    
+
     parser.add_argument(
-        "--envs", 
-        type=str, 
+        "--envs",
+        type=str,
         nargs='+',
-        default=["armament_burden", "volcanic_venture", "remedy_rush", 
-                "collateral_damage", "precipice_plunge", "detonators_dilemma"],
+        default=["armament_burden", "volcanic_venture", "remedy_rush",
+                 "collateral_damage", "precipice_plunge", "detonators_dilemma"],
         help="Environments to plot (default: all 6 environments)"
     )
-    
+
     parser.add_argument(
-        "--seeds", 
-        type=int, 
-        nargs='+', 
+        "--seeds",
+        type=int,
+        nargs='+',
         default=[1, 2, 3],
         help="Seeds to aggregate over (default: [1, 2, 3])"
     )
-    
+
     parser.add_argument(
-        "--metrics", 
-        type=str, 
+        "--metrics",
+        type=str,
         nargs='+',
         default=['reward', 'cost'],
         help="Metrics to plot (default: ['reward', 'cost'])"
     )
-    
+
     parser.add_argument(
-        "--level", 
-        type=int, 
+        "--level",
+        type=int,
         default=1,
         help="Environment difficulty level (default: 1)"
     )
-    
+
     parser.add_argument(
-        "--hard_constraint", 
+        "--hard_constraint",
         action='store_true',
         help="Use hard constraint metrics"
     )
-    
+
     parser.add_argument(
-        "--total_iterations", 
-        type=float, 
+        "--total_iterations",
+        type=float,
         default=5e8,
         help="Total number of environment iterations (default: 5e8)"
     )
-    
+
     return parser
 
 

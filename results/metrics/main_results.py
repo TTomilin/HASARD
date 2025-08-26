@@ -11,7 +11,7 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS, load_data, check_data_availability_multiple_levels, create_default_paths
+from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS, load_data, check_data_availability_multiple_levels, create_default_paths, create_common_parser
 
 
 # Data Processing
@@ -171,23 +171,26 @@ def main(args):
 
 
 def common_plot_args() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
+    parser = create_common_parser("Generate a LaTeX table from RL data.")
 
     # Create default path dynamically
     default_main = create_default_paths(__file__, 'main')
 
-    parser.add_argument("--input", type=str, default=default_main, help="Base input directory containing the data")
+    # Set defaults for common arguments
+    parser.set_defaults(
+        input=default_main,
+        seeds=[1, 2, 3],
+        envs=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
+              "precipice_plunge", "detonators_dilemma"],
+        metrics=['reward', 'cost'],
+        n_data_points=10
+    )
+
+    # Add specific arguments for this script
     parser.add_argument("--levels", type=int, nargs='+', default=[1, 2, 3], help="Level(s) of the run(s) to compute")
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
-    parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
     parser.add_argument("--constraints", type=str, nargs='+', default=["Soft"], choices=["Soft", "Hard"], help="Constraints to analyze")
     parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O"],
                         help="Algorithms to analyze")
-    parser.add_argument("--envs", type=str, nargs='+',
-                        default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
-                                 "precipice_plunge", "detonators_dilemma"],
-                        help="Environments to analyze")
-    parser.add_argument("--metrics", type=str, nargs='+', default=['reward', 'cost'], help="Metrics to aggregate")
     return parser
 
 

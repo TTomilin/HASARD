@@ -13,14 +13,14 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS, create_default_paths
+from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS, create_default_paths, create_common_parser
 from sample_factory.doom.doom_utils import DOOM_ENVS
 
 
 def main(args):
     if len(args.num_datapoints) != len(args.inputs):
         raise ValueError("The number of num_datapoints must match the number of inputs.")
-    data = load_data(args.inputs, args.env, args.algo, args.seeds, args.metrics, args.level)
+    data = load_data(args.inputs, args.env, args.method, args.seeds, args.metrics, args.level)
     animate_metrics(data, args)
 
 
@@ -74,7 +74,7 @@ def animate_metrics(data, args):
             effective_len = min(r.shape[0] for r in sliced_runs)
             sliced_runs = [r[:effective_len] for r in sliced_runs]
             arr = np.stack(sliced_runs, axis=0)
-            if args.algo == "PPOCost" and metric == "reward":
+            if args.method == "PPOCost" and metric == "reward":
                 cost_runs = data.get('cost', {}).get(base_path, [])
                 if cost_runs:
                     cost_sliced = []
@@ -168,51 +168,41 @@ def animate_metrics(data, args):
     os.makedirs(folder, exist_ok=True)
     metrics_str = f'_{args.metrics[0]}' if len(args.metrics) == 1 else ''
     shift_str = f'_shifting' if args.shift_x_axis else ''
-    file_name = f'{args.algo}_{args.env}_level_{args.level}{metrics_str}{shift_str}'
+    file_name = f'{args.method}_{args.env}_level_{args.level}{metrics_str}{shift_str}'
 
     # Save animated GIF
     gif_path = os.path.join(folder, f'{file_name}.gif')
     anim.save(gif_path, writer='pillow', fps=args.fps, dpi=300)
     print(f"GIF saved to: {gif_path}")
-
-    # Also save static versions in both PDF and PNG formats
-    static_folder = os.path.join(results_dir, 'figures')
-    os.makedirs(static_folder, exist_ok=True)
-    pdf_path = os.path.join(static_folder, f'{file_name}.pdf')
-    png_path = os.path.join(static_folder, f'{file_name}.png')
-    plt.savefig(pdf_path, dpi=300)
-    plt.savefig(png_path, dpi=300)
-    print(f"Static plot saved to: {pdf_path}")
-    print(f"Static plot saved to: {png_path}")
     plt.show()
 
 
 def common_plot_args():
-    parser = argparse.ArgumentParser(
-        description="Animate metrics from structured data, using a fixed y-axis and configurable x-axis behavior."
+    parser = create_common_parser(
+        "Animate metrics from structured data, using a fixed y-axis and configurable x-axis behavior."
     )
 
     # Create default path dynamically
     default_main = create_default_paths(__file__, 'main')
 
-    parser.add_argument("--inputs", type=str, nargs='+', default=[default_main],
-                        help="Base input directories")
-    parser.add_argument("--level", type=int, default=1, help="Level")
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3],
-                        help="Seeds")
-    parser.add_argument("--algo", type=str, default='PPO',
-                        choices=["PPO", "PPOCost", "PPOLag", "PPOSaute",
-                                 "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"])
+    # Set defaults for common arguments
+    parser.set_defaults(
+        inputs=[default_main],
+        level=1,
+        seeds=[1, 2, 3],
+        method='PPO'
+    )
+
+    # Add animation-specific arguments
     parser.add_argument("--env", type=str, default="armament_burden",
                         choices=["armament_burden", "volcanic_venture", "remedy_rush",
-                                 "collateral_damage", "precipice_plunge", "detonators_dilemma"])
-    parser.add_argument("--metrics", type=str, nargs='+', default=['reward', 'cost'])
+                                 "collateral_damage", "precipice_plunge", "detonators_dilemma"],
+                        help="Single environment to animate (overrides --envs)")
     parser.add_argument("--num_datapoints", type=float, nargs='+', default=[100],
                         help="Number of datapoints per input directory to consider (each datapoint represents multiple steps)")
     parser.add_argument("--steps_per_dp", type=float, default=1e6,
                         help="Number of environment steps represented by one datapoint")
     parser.add_argument("--fps", type=float, default=20, help="Number of datapoints to animate per second")
-    parser.add_argument("--hard_constraint", action='store_true')
     parser.add_argument("--plot_legend", action='store_true')
     parser.add_argument("--shift_x_axis", action='store_true',
                         help="Shift the x-axis with new data (otherwise remains fixed)")

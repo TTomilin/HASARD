@@ -13,7 +13,7 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import ENV_INITIALS, TRANSLATIONS, load_data, check_multiple_paths_data_availability, create_default_paths, save_plot
+from results.commons import ENV_INITIALS, TRANSLATIONS, load_data, check_multiple_paths_data_availability, create_default_paths, save_plot, create_common_parser
 
 TRANSLATIONS['data/main'] = 'Simplified Actions'
 
@@ -240,7 +240,7 @@ def main(args: argparse.Namespace) -> None:
         None (generates and saves plot, may print error messages)
     """
     # Validate that data is available for the specified configuration
-    if not check_multiple_paths_data_availability(args.inputs, args.algo, args.envs, args.seeds, args.metrics, args.level):
+    if not check_multiple_paths_data_availability(args.inputs, args.method, args.envs, args.seeds, args.metrics, args.level):
         paths_str = "', '".join(args.inputs)
         print(f"Error: No data found at the specified paths ['{paths_str}']. "
               f"Please check that at least one path contains data for the specified "
@@ -248,7 +248,7 @@ def main(args: argparse.Namespace) -> None:
         return
 
     # Process the data to compute metrics for action space comparison
-    results = process_data(args.inputs, args.algo, args.envs, args.seeds, args.metrics, args.level, args.n_data_points,
+    results = process_data(args.inputs, args.method, args.envs, args.seeds, args.metrics, args.level, args.n_data_points,
                            args.total_iterations)
 
     # Generate and save the comparison plot
@@ -267,36 +267,28 @@ def get_parser() -> argparse.ArgumentParser:
         argparse.ArgumentParser: Configured argument parser with all required
                                 and optional arguments for the script
     """
-    parser = argparse.ArgumentParser(
-        description="Plot bar charts for reward & cost comparing simplified vs. original action spaces."
+    parser = create_common_parser(
+        "Plot bar charts for reward & cost comparing simplified vs. original action spaces."
     )
 
     # Get the script's directory and construct default paths
     default_main, default_full_actions = create_default_paths(__file__, 'main', 'full_actions')
 
-    # Data source configuration
-    parser.add_argument("--inputs", type=str, nargs='+', default=[default_main, default_full_actions],
-                        help="Directories: 'data/main' = Simplified, 'data/full_actions' = Original.")
-    parser.add_argument("--level", type=int, default=1, 
-                        help="Which environment difficulty level to plot.")
-    parser.add_argument("--algo", type=str, default="PPOLag", 
-                        help="Name of the reinforcement learning algorithm")
+    # Set defaults for common arguments
+    parser.set_defaults(
+        inputs=[default_main, default_full_actions],
+        level=1,
+        method="PPOLag",
+        seeds=[1, 2, 3],
+        envs=["armament_burden", "volcanic_venture", "remedy_rush",
+              "collateral_damage", "precipice_plunge", "detonators_dilemma"],
+        metrics=["reward", "cost"],
+        n_data_points=10
+    )
 
-    # Experimental configuration
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3],
-                        help="Which random seeds to include in the analysis.")
-    parser.add_argument("--n_data_points", type=int, default=10,
-                        help="Number of final data points to average at the cutoff.")
+    # Add specific arguments for this script
     parser.add_argument("--total_iterations", type=float, default=2e8,
                         help="Data cutoff in environment steps (e.g., 200M steps).")
-
-    # Environment and metric selection
-    parser.add_argument("--envs", type=str, nargs='+', default=[
-        "armament_burden", "volcanic_venture", "remedy_rush",
-        "collateral_damage", "precipice_plunge", "detonators_dilemma"
-    ], help="List of safety-critical environments to compare.")
-    parser.add_argument("--metrics", type=str, nargs='+', default=["reward", "cost"],
-                        help="Which performance metrics to compare (e.g., reward, cost).")
 
     return parser
 

@@ -10,7 +10,7 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import load_data, TRANSLATIONS, check_multiple_paths_data_availability
+from results.commons import load_data, TRANSLATIONS, check_multiple_paths_data_availability, create_common_parser
 
 TRANSLATIONS['data/main'] = 'Simplified Actions'
 
@@ -113,18 +113,18 @@ def generate_latex_table(data, row_headers, caption=''):
 
 def main(args):
     # Check if any data is available for the specified paths
-    if not check_multiple_paths_data_availability(args.inputs, args.algo, args.envs, args.seeds, args.metrics, 1):
+    if not check_multiple_paths_data_availability(args.inputs, args.method, args.envs, args.seeds, args.metrics, 1):
         paths_str = "', '".join(args.inputs)
         print(f"Error: No data found at the specified paths ['{paths_str}']. Please check that at least one path contains data for the specified environments, algorithm, seeds, and metrics.")
         return
 
-    data = process_data(args.inputs, args.algo, args.envs, args.seeds, args.metrics, args.n_data_points)
+    data = process_data(args.inputs, args.method, args.envs, args.seeds, args.metrics, args.n_data_points)
     table = generate_latex_table(data, args.inputs)
     print(table)
 
 
 def common_plot_args() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
+    parser = create_common_parser("Generate a LaTeX table from RL data.")
 
     # Get the script's directory and construct default paths
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -132,18 +132,18 @@ def common_plot_args() -> argparse.ArgumentParser:
     default_main = os.path.join(default_data_dir, 'main')
     default_full_actions = os.path.join(default_data_dir, 'full_actions')
 
-    parser.add_argument("--inputs", type=str, nargs='+', default=[default_main, default_full_actions],
-                        help="Base input directories containing the data")
-    parser.add_argument("--algo", type=str, default='PPOLag',
-                        choices=["PPO", "PPOCost", "PPOLag", "PPOSaute",
-                                 "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"])
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
-    parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
-    parser.add_argument("--envs", type=str, nargs='+',
-                        default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
-                                 "precipice_plunge", "detonators_dilemma"],
-                        help="Environments to analyze")
-    parser.add_argument("--metrics", type=str, nargs='+', default=['reward', 'cost'], help="Metrics to aggregate")
+    # Set defaults for common arguments
+    parser.set_defaults(
+        inputs=[default_main, default_full_actions],
+        method='PPOLag',
+        seeds=[1, 2, 3],
+        envs=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
+              "precipice_plunge", "detonators_dilemma"],
+        metrics=['reward', 'cost'],
+        n_data_points=10
+    )
+
+    # Add specific arguments for this script (--algo is mapped to --method by common parser)
     return parser
 
 

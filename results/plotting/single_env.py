@@ -13,7 +13,7 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, create_default_paths, create_common_parser
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, create_default_paths, create_common_parser, save_plot
 from sample_factory.doom.doom_utils import DOOM_ENVS
 
 
@@ -202,8 +202,8 @@ def plot_metrics(data: Dict[str, Dict[str, List[List[float]]]], args: argparse.N
                 # If there are multiple inputs, distinguish them; otherwise just show method name
                 if len(args.inputs) > 1:
                     # Use method name + data source description
-                    data_source = TRANSLATIONS.get(base_path, os.path.basename(base_path))
-                    label = f"{args.method} ({data_source})"
+                    data_source = TRANSLATIONS.get(base_path, TRANSLATIONS.get(os.path.basename(base_path)))
+                    label = f"{data_source}"
                 else:
                     # Single input: just show method name
                     label = args.method
@@ -225,20 +225,11 @@ def plot_metrics(data: Dict[str, Dict[str, List[List[float]]]], args: argparse.N
                         style='italic', color='darkred')
         ax.legend()
     plt.tight_layout()
-    # Save to results/figures directory (not results/plotting/figures)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     results_dir = os.path.dirname(script_dir)
     folder = os.path.join(results_dir, 'figures')
-    file = f'{args.method}_{args.envs[0]}_level_{args.level}_{args.inputs[-1].split("/")[-1]}'
-    os.makedirs(folder, exist_ok=True)
-
-    # Save both PDF and PNG formats
-    pdf_path = f'{folder}/{file}.pdf'
-    png_path = f'{folder}/{file}.png'
-    plt.savefig(pdf_path, dpi=300)
-    plt.savefig(png_path, dpi=300)
-    print(f"Plot saved to: {pdf_path}")
-    print(f"Plot saved to: {png_path}")
+    file_name = f'{folder}/{args.method}_{args.envs[0]}_level_{args.level}_{args.inputs[-1].split("/")[-1]}'
+    save_plot(file_name, folder)
     plt.show()
 
 
@@ -248,17 +239,19 @@ def common_plot_args() -> argparse.ArgumentParser:
 
     # Create default path dynamically
     default_main = create_default_paths(__file__, 'main')
+    default_depth = create_default_paths(__file__, 'depth')
 
     # Override specific arguments for single_env.py
     parser.set_defaults(
-        inputs=[default_main],
-        method="PPO",
-        envs=["armament_burden"],  # Single environment for this script
+        inputs=[default_main, default_depth],
+        method="PPOPID",
+        level=2,
+        envs=["precipice_plunge"],
         seeds=[1, 2, 3]
     )
 
     # Add script-specific arguments
-    parser.add_argument("--total_iterations", type=float, nargs='+', default=[5e8],
+    parser.add_argument("--total_iterations", type=float, nargs='+', default=[5e8, 2e8],
                         help="Total number of environment iterations for each input directory")
 
     return parser

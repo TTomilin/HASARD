@@ -26,6 +26,8 @@ TRANSLATIONS = {
     'reward': 'Reward',
     'cost': 'Cost',
     'diff': 'Difference',
+    'main': 'Default Obs',
+    'depth': 'Default Obs + Depth Buffer',
     'data/main': 'Default Obs',
     'data/depth': 'Default Obs + Depth Buffer',
     'data/segment': 'Segmentation',
