@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data
-from sample_factory.doom.env.doom_utils import DOOM_ENVS
+from sample_factory.doom.doom_utils import DOOM_ENVS
 
 BUFFER_PERCENTAGE = 0.05  # 5% buffer
 

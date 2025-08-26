@@ -1,7 +1,7 @@
 import gymnasium as gym
 import numpy as np
 
-from sample_factory.doom.env.wrappers.reward_shaping import NUM_WEAPONS
+from sample_factory.doom.wrappers.reward_shaping import NUM_WEAPONS
 
 
 class DoomAdditionalInput(gym.Wrapper):

@@ -1,10 +1,17 @@
 import argparse
 import json
 import os
+import sys
 
 import numpy as np
 
-from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS, load_data
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS, load_data, check_data_availability_multiple_levels, create_default_paths
 
 
 # Data Processing
@@ -153,6 +160,11 @@ def generate_latex_table(data, constraints, caption=''):
 
 
 def main(args):
+    # Check if any data is available for the specified path
+    if not check_data_availability_multiple_levels(args.input, args.algos[0], args.envs, args.seeds, args.metrics, args.levels):
+        print(f"Error: No data found at the specified path '{args.input}'. Please check that the path contains data for the specified environments, algorithms, seeds, metrics, and levels.")
+        return
+
     data = process_data(args.input, args.envs, args.algos, args.seeds, args.levels, args.metrics, args.constraints, args.n_data_points)
     table = generate_latex_table(data, args.constraints)
     print(table)
@@ -160,7 +172,11 @@ def main(args):
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
-    parser.add_argument("--input", type=str, default='data/main', help="Base input directory containing the data")
+
+    # Create default path dynamically
+    default_main = create_default_paths(__file__, 'main')
+
+    parser.add_argument("--input", type=str, default=default_main, help="Base input directory containing the data")
     parser.add_argument("--levels", type=int, nargs='+', default=[1, 2, 3], help="Level(s) of the run(s) to compute")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
     parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")

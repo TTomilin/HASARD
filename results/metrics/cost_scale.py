@@ -1,10 +1,14 @@
-import argparse
-import json
 import os
-
+import sys
 import numpy as np
 
-from results.commons import TRANSLATIONS, load_data
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import TRANSLATIONS, load_data, create_common_parser, generate_latex_table_header, generate_latex_table_footer, check_data_availability_with_scales, create_default_paths
 
 
 # Data Loading
@@ -72,19 +76,8 @@ def process_metric(results, base_path, algo, env, scale, seeds, metric, n_data_p
 def generate_latex_table(data, scales, caption=''):
     environments = list(data.keys())
 
-    # Prepare headers with corrected approach for backslashes
-    headers = []
-    for env in environments:
-        translated_env = TRANSLATIONS[env].replace(' ', '\\\\ ')
-        headers.append(f"\\multicolumn{{2}}{{c}}{{\\makecell{{{translated_env}}}}}")
-
-    # Start the LaTeX table construction
-    latex_str = "\\begin{table}[h!]\n\\centering\n\\small{\n\\begin{tabularx}{\\textwidth}{c " + "X@{\\hspace{0.5cm}}X" * len(
-        environments) + "}\n"
-    latex_str += "\\toprule\n"
-    latex_str += "\\multirow{2}{*}{Cost Scale} & " + " & ".join(headers) + " \\\\\n"
-    subheader_row = "& " + "\\textbf{R $\\uparrow$} & \\textbf{C $\\downarrow$} & " * len(environments)
-    latex_str += subheader_row.rstrip(' & ') + "\\\\\n\\midrule\n"
+    # Use common header function
+    latex_str = generate_latex_table_header(environments, "Cost Scale")
 
     # Iterate over each constraint type, method, and environment to fill the table
     for j, scale in enumerate(scales):
@@ -93,36 +86,39 @@ def generate_latex_table(data, scales, caption=''):
             for metric_type in ['reward', 'cost']:
                 key = f"{metric_type}_scale_{scale}"
                 metric = data[env][scale].get(key, {'mean': None, 'ci': None})
-                mean = max(0, metric['mean'])
+                mean = max(0, metric['mean']) if metric['mean'] is not None else None
                 mean_str = f"{mean:.2f}" if mean is not None else "N/A"
                 latex_str += mean_str + " & "
         latex_str = latex_str.rstrip(' & ') + " \\\\\n"
 
-    latex_str += "\\bottomrule\n\\end{tabularx}\n}"
-    latex_str += f"\\caption{{{caption}}}\n"
-    latex_str += "\\end{table}\n"
+    # Use common footer function
+    latex_str += generate_latex_table_footer(caption)
     return latex_str
 
 
 def main(args):
-    data = process_data(args.input, args.algo, args.envs, args.scales, args.seeds, args.metrics, args.n_data_points)
+    # Check if any data is available for the specified path
+    if not check_data_availability_with_scales(args.input, args.method, args.envs, args.seeds, args.metrics, args.scales, 1):
+        print(f"Error: No data found at the specified path '{args.input}'. Please check that the path contains data for the specified environments, method, seeds, metrics, and scales.")
+        return
+
+    data = process_data(args.input, args.method, args.envs, args.scales, args.seeds, args.metrics, args.n_data_points)
     table = generate_latex_table(data, args.scales)
     print(table)
 
 
-def common_plot_args() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
-    parser.add_argument("--input", type=str, default='data/cost_scale', help="Base input directory containing the data")
-    parser.add_argument("--algo", type=str, default='PPOCost')
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2], help="Seed(s) of the run(s) to compute")
+def common_plot_args():
+    parser = create_common_parser("Generate a LaTeX table from RL data.")
+
+    # Create default path dynamically
+    default_cost_scale = create_default_paths(__file__, 'cost_scale')
+
+    parser.set_defaults(
+        input=default_cost_scale,
+        method='PPOCost'
+    )
     parser.add_argument("--scales", type=float, nargs='+', default=[0.1, 0.5, 1, 2],
-                        help="Seed(s) of the run(s) to compute")
-    parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
-    parser.add_argument("--envs", type=str, nargs='+',
-                        default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
-                                 "precipice_plunge", "detonators_dilemma"],
-                        help="Environments to analyze")
-    parser.add_argument("--metrics", type=str, nargs='+', default=['reward', 'cost'], help="Metrics to aggregate")
+                        help="Cost scales to analyze")
     return parser
 
 

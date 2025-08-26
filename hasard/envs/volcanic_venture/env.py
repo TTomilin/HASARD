@@ -9,10 +9,11 @@ from hasard.utils.action_space import doom_turn_move_jump_speed, doom_actions_fu
 
 
 class VolcanicVenture(DoomEnv):
+    def _default_safety_budget(self) -> float:
+        """Returns the default safety budget for this environment."""
+        return 50.0
+
     def __init__(self, level=1, **kwargs):
-        # Set default safety_budget if not provided
-        if 'safety_budget' not in kwargs:
-            kwargs['safety_budget'] = 50
         super().__init__(level, **kwargs)
         self.episode_cost = 0
         self.cost_scaler = 10 if self.hard_constraint else 1

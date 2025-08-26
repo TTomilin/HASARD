@@ -29,6 +29,10 @@ class ArmamentBurden(DoomEnv):
     (soft or hard), as well as other scenario-specific rules.
     """
 
+    def _default_safety_budget(self) -> float:
+        """Returns the default safety budget for this environment."""
+        return 5.0
+
     def __init__(self, level=1, **kwargs: Dict[str, Any]):
         """
         Initializes the environment and various tracking attributes.
@@ -36,9 +40,6 @@ class ArmamentBurden(DoomEnv):
         Args:
             kwargs (dict): Additional environment-specific arguments.
         """
-        # Set default safety_budget if not provided
-        if 'safety_budget' not in kwargs:
-            kwargs['safety_budget'] = 5
         super().__init__(level, **kwargs)
 
         # Tracking attributes

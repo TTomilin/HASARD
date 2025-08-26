@@ -121,6 +121,8 @@ class DoomEnv(gym.Env, ABC):
         """
         if self._safety_budget is not None:
             return self._safety_budget
+        elif hasattr(self, '_default_safety_budget'):
+            return self._default_safety_budget()
         else:
             raise NotImplementedError("safety_budget must be provided either as a parameter or overridden by subclass")
 

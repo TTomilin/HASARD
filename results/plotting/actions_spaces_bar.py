@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 
-from results.commons import ENV_INITIALS, TRANSLATIONS, load_data
+from results.commons import ENV_INITIALS, TRANSLATIONS, load_data, check_multiple_paths_data_availability
 
 TRANSLATIONS['data/main'] = 'Simplified Actions'
 
@@ -108,6 +108,12 @@ def plot_action_space_comparison(results, args):
 
 
 def main(args):
+    # Check if any data is available for the specified paths
+    if not check_multiple_paths_data_availability(args.inputs, args.algo, args.envs, args.seeds, args.metrics, args.level):
+        paths_str = "', '".join(args.inputs)
+        print(f"Error: No data found at the specified paths ['{paths_str}']. Please check that at least one path contains data for the specified environments, algorithm, seeds, metrics, and level.")
+        return
+
     results = process_data(args.inputs, args.algo, args.envs, args.seeds, args.metrics, args.level, args.n_data_points,
                            args.total_iterations)
     plot_action_space_comparison(results, args)

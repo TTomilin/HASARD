@@ -77,28 +77,32 @@ $ pip install .
 ```
 
 ## Getting Started
-Below we provide a short code snippet to run a HASARD task.
+To get started with HASARD, here's a minimal example of running a task environment.
+This script can also be found in [`run_env.py`](hasard/examples/run_env.py):
 
 ```python
 import hasard
 
-env = hasard.make('ArmamentBurdenLevel1-v0')
+env = hasard.make('RemedyRushLevel1-v0')
 env.reset()
 terminated = truncated = False
 steps = total_cost = total_reward = 0
 while not (terminated or truncated):
     action = env.action_space.sample()
-    state, reward, cost, terminated, truncated, info = env.step(action)
+    state, reward, terminated, truncated, info = env.step(action)
     env.render()
     steps += 1
-    total_cost += cost
+    total_cost += info['cost']
     total_reward += reward
 print(f"Episode finished in {steps} steps. Reward: {total_reward:.2f}. Cost: {total_cost:.2f}")
 env.close()
 ```
 
-# Acknowledgements
+## Training
+For highly parallelized training of Safe RL agents on HASARD environments, and to reproduce the results from the paper, 
+refer to [`sample_factory`](sample_factory/) for detailed usage instructions and examples.
 
+# Acknowledgements
 HASARD environments are built on top of the [ViZDoom](https://github.com/mwydmuch/ViZDoom) platform.  
 Our Safe RL baseline methods are implemented in [Sample-Factory](https://github.com/alex-petrenko/sample-factory).  
 Our experiments were managed using [WandB](https://wandb.ai).

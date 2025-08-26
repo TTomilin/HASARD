@@ -143,7 +143,7 @@ wandb/
 
 cmake-build*
 sf_examples/vizdoom/doom/multiplayer/tests/_vizdoom/
-/sample_factory/doom/env/scenarios/detonators_dilemma_dtc.wad
+/sample_factory/doom/scenarios/detonators_dilemma_dtc.wad
 /results/data/
 *.bak
 *_local.wad

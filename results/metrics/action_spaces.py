@@ -1,10 +1,32 @@
 import argparse
+import os
+import sys
 
 import numpy as np
 
-from results.commons import load_data, TRANSLATIONS
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import load_data, TRANSLATIONS, check_multiple_paths_data_availability
 
 TRANSLATIONS['data/main'] = 'Simplified Actions'
+
+def get_path_translation(path):
+    """Get a human-readable translation for a path."""
+    # Extract the last directory name from the path
+    path_name = os.path.basename(os.path.normpath(path))
+
+    # Check if we have a specific translation
+    if path in TRANSLATIONS:
+        return TRANSLATIONS[path]
+    elif f'data/{path_name}' in TRANSLATIONS:
+        return TRANSLATIONS[f'data/{path_name}']
+    else:
+        # Generate a readable name from the path
+        return path_name.replace('_', ' ').title()
 
 
 # Data Processing
@@ -24,13 +46,17 @@ def process_data(base_paths, algo, environments, seeds, metrics, n_data_points):
     for env in environments:
         results[env] = {}
         for metric in metrics:
-            simplified = action_space_data[('data/main', env, metric)]['mean']
-            full = action_space_data[('data/full_actions', env, metric)]['mean']
+            # Use the first base_path as simplified and second as full
+            simplified_path = base_paths[0]
+            full_path = base_paths[1] if len(base_paths) > 1 else base_paths[0]
+
+            simplified = action_space_data[(simplified_path, env, metric)]['mean']
+            full = action_space_data[(full_path, env, metric)]['mean']
             if simplified and full:
                 percent_decrease = -((simplified - full) / simplified) * 100
                 results[env][metric] = {
-                    'data/main': simplified,
-                    'data/full_actions': full,
+                    simplified_path: simplified,
+                    full_path: full,
                     'diff': percent_decrease
                 }
     return results
@@ -70,7 +96,8 @@ def generate_latex_table(data, row_headers, caption=''):
 
     # Iterate over each constraint type, method, and environment to fill the table
     for j, header in enumerate(row_headers):
-        latex_str += f"{TRANSLATIONS[header]} & "
+        header_translation = TRANSLATIONS.get(header, get_path_translation(header))
+        latex_str += f"{header_translation} & "
         for env in environments:
             for metric_type in ['reward', 'cost']:
                 metric = data[env][metric_type][header]
@@ -85,6 +112,12 @@ def generate_latex_table(data, row_headers, caption=''):
 
 
 def main(args):
+    # Check if any data is available for the specified paths
+    if not check_multiple_paths_data_availability(args.inputs, args.algo, args.envs, args.seeds, args.metrics, 1):
+        paths_str = "', '".join(args.inputs)
+        print(f"Error: No data found at the specified paths ['{paths_str}']. Please check that at least one path contains data for the specified environments, algorithm, seeds, and metrics.")
+        return
+
     data = process_data(args.inputs, args.algo, args.envs, args.seeds, args.metrics, args.n_data_points)
     table = generate_latex_table(data, args.inputs)
     print(table)
@@ -92,7 +125,14 @@ def main(args):
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
-    parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/full_actions'],
+
+    # Get the script's directory and construct default paths
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    default_data_dir = os.path.join(script_dir, '..', 'data')
+    default_main = os.path.join(default_data_dir, 'main')
+    default_full_actions = os.path.join(default_data_dir, 'full_actions')
+
+    parser.add_argument("--inputs", type=str, nargs='+', default=[default_main, default_full_actions],
                         help="Base input directories containing the data")
     parser.add_argument("--algo", type=str, default='PPOLag',
                         choices=["PPO", "PPOCost", "PPOLag", "PPOSaute",

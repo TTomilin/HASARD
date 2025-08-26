@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from collections import deque
 from typing import Dict, Tuple
@@ -20,7 +21,7 @@ from sample_factory.algo.utils.make_env import make_env_func_batched
 from sample_factory.algo.utils.misc import ExperimentStatus
 from sample_factory.algo.utils.rl_utils import make_dones, prepare_and_normalize_obs
 from sample_factory.algo.utils.tensor_utils import unsqueeze_tensor
-from sample_factory.cfg.arguments import load_from_checkpoint
+from sample_factory.cfg.arguments import load_from_checkpoint, parse_full_cfg, parse_sf_args
 from sample_factory.model.actor_critic import create_actor_critic
 from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
@@ -292,3 +293,66 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
     return ExperimentStatus.SUCCESS, sum([sum(episode_rewards[i]) for i in range(env.num_agents)]) / sum(
         [len(episode_rewards[i]) for i in range(env.num_agents)]
     )
+
+
+def register_vizdoom_components():
+    """Register VizDoom environments and models."""
+    try:
+        import functools
+        from sample_factory.algo.utils.context import global_model_factory
+        from sample_factory.envs.env_utils import register_env
+        from sample_factory.doom.doom_model import make_vizdoom_encoder
+        from sample_factory.doom.doom_utils import DOOM_ENVS, make_doom_env_from_spec
+
+        # Register VizDoom environments
+        for env_spec in DOOM_ENVS:
+            make_env_func = functools.partial(make_doom_env_from_spec, env_spec)
+            register_env(env_spec.name, make_env_func)
+
+        # Register VizDoom models
+        global_model_factory().register_encoder_factory(make_vizdoom_encoder)
+    except ImportError:
+        # VizDoom components not available, skip registration
+        pass
+
+
+def parse_vizdoom_cfg(argv=None, evaluation=True):
+    """Parse configuration with VizDoom-specific parameters."""
+    try:
+        from sample_factory.doom.doom_params import add_doom_env_args, add_doom_env_eval_args, doom_override_defaults
+
+        parser, _ = parse_sf_args(argv=argv, evaluation=evaluation)
+        # parameters specific to Doom envs
+        add_doom_env_args(parser)
+        add_doom_env_eval_args(parser)
+        # override Doom default values for algo parameters
+        doom_override_defaults(parser)
+        # second parsing pass yields the final configuration
+        final_cfg = parse_full_cfg(parser, argv)
+        return final_cfg
+    except ImportError:
+        # VizDoom not available, use standard parsing
+        parser, cfg = parse_sf_args(argv=argv, evaluation=evaluation)
+        return parse_full_cfg(parser, argv)
+
+
+def main():
+    """Script entry point."""
+    # Try to register VizDoom components if available
+    register_vizdoom_components()
+
+    # Check if we should use VizDoom-specific parsing
+    try:
+        from sample_factory.doom.doom_params import add_doom_env_args
+        cfg = parse_vizdoom_cfg()
+    except ImportError:
+        # Fall back to standard parsing
+        parser, _ = parse_sf_args(evaluation=True)
+        cfg = parse_full_cfg(parser)
+
+    status, _ = enjoy(cfg)
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())

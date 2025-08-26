@@ -1,15 +1,26 @@
 import argparse
-import json
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data
-from sample_factory.doom.env.doom_utils import DOOM_ENVS
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data, check_data_availability, create_default_paths
+from sample_factory.doom.doom_utils import DOOM_ENVS
 
 
 def main(args):
+    # Check if any data is available for the specified path
+    if not check_data_availability(args.input, args.algos[0], args.envs, args.seeds, args.metrics, args.level):
+        print(f"Error: No data found at the specified path '{args.input}'. Please check that the path contains data for the specified environments, algorithms, seeds, metrics, and level.")
+        return
+
     data = load_full_data(args.input, args.envs, args.algos, args.seeds, args.metrics, args.level, args.hard_constraint)
     plot_metrics(data, args)
 
@@ -100,7 +111,11 @@ def plot_metrics(data, args):
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plot metrics from structured data directory.")
-    parser.add_argument("--input", type=str, default='data/main', help="Base input directory containing the data")
+
+    # Create default path dynamically
+    default_main = create_default_paths(__file__, 'main')
+
+    parser.add_argument("--input", type=str, default=default_main, help="Base input directory containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
     parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O"],

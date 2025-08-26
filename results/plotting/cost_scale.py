@@ -1,32 +1,19 @@
-import argparse
-import json
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS, load_data
+from results.commons import TRANSLATIONS, load_data, load_full_data_with_scales, create_common_parser, check_data_availability_with_scales
 
 
 def main(args):
-    data = load_full_data(args.input, args.envs, args.algo, args.seeds, args.metrics, args.scales, args.level)
+    # Check if any data is available for the specified path
+    if not check_data_availability_with_scales(args.input, args.method, args.envs, args.seeds, args.metrics, args.scales, args.level):
+        print(f"Error: No data found at the specified path '{args.input}'. Please check that the path contains data for the specified environments, method, seeds, metrics, and scales.")
+        return
+
+    data = load_full_data_with_scales(args.input, args.envs, args.method, args.seeds, args.metrics, args.scales, args.level)
     plot_metrics(data, args)
-
-
-def load_full_data(base_path, environments, method, seeds, metrics, scales, level):
-    """Load data from structured directory."""
-    data = {}
-    for env in environments:
-        for seed in seeds:
-            for metric in metrics:
-                for scale in scales:
-                    key = (env, scale, metric)
-                    if key not in data:
-                        data[key] = []
-                    exp_data = load_data(base_path, method, env, seed, level, metric, "scale", scale)
-                    if exp_data:
-                        data[key].append(exp_data)
-    return data
 
 
 def plot_metrics(data, args):
@@ -109,19 +96,14 @@ def plot_metrics(data, args):
     plt.show()
 
 
-def common_plot_args() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Plot metrics from structured data directory.")
-    parser.add_argument("--input", type=str, default='data/cost_scale', help="Base input directory containing the data")
-    parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--scales", type=float, nargs='+', default=[0.1, 0.5, 1, 2], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--algo", type=str, default="PPOCost", help="Name of the algorithm")
-    parser.add_argument("--envs", type=str, nargs='+',
-                        default=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
-                                 "precipice_plunge", "detonators_dilemma"],
-                        help="Environments to download/plot")
-    parser.add_argument("--metrics", type=str, default=['reward', 'cost'], help="Name of the metrics to download/plot")
-    parser.add_argument('--hard_constraint', default=False, action='store_true', help='Soft/Hard safety constraint')
+def common_plot_args():
+    parser = create_common_parser("Plot metrics from structured data directory.")
+    parser.set_defaults(
+        input='data/cost_scale',
+        method='PPOCost'
+    )
+    parser.add_argument("--scales", type=float, nargs='+', default=[0.1, 0.5, 1, 2], 
+                        help="Cost scales to plot")
     parser.add_argument("--total_iterations", type=int, default=5e8,
                         help="Total number of environment iterations corresponding to 500 data points")
     return parser

@@ -9,10 +9,11 @@ from hasard.utils.action_space import doom_actions_full, doom_action_space_full,
 
 
 class PrecipicePlunge(DoomEnv):
+    def _default_safety_budget(self) -> float:
+        """Returns the default safety budget for this environment."""
+        return 50.0
+
     def __init__(self, level=1, **kwargs):
-        # Set default safety_budget if not provided
-        if 'safety_budget' not in kwargs:
-            kwargs['safety_budget'] = 50
         super().__init__(level, **kwargs)
         self.reward_scaler = 0.05
         self.prev_z = self.starting_z = 0

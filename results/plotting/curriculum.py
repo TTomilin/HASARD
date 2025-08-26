@@ -1,29 +1,12 @@
-import argparse
-import json
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 
-from results.commons import ENV_INITIALS, TRANSLATIONS, load_data
+from results.commons import ENV_INITIALS, TRANSLATIONS, load_data, process_metric_data, create_common_parser
 
 TRANSLATIONS['data/main'] = 'Regular'
-
-
-def process_metric(base_path, method, env, seeds, metric, level, n_data_points):
-    metric_vals = []
-    for seed in seeds:
-        data = load_data(base_path, method, env, seed, level, metric)
-        if data and len(data) >= n_data_points:
-            if base_path == 'data/main':
-                data = data[:300]
-            metric_vals.extend(data[-n_data_points:])
-    if not metric_vals:
-        return {'mean': None, 'ci': None}
-    mean_val = np.mean(metric_vals)
-    ci_val = 1.96 * np.std(metric_vals) / np.sqrt(len(metric_vals))
-    return {'mean': mean_val, 'ci': ci_val}
 
 
 def process_data(base_paths, method, environments, seeds, metrics, level, n_data_points):
@@ -31,7 +14,7 @@ def process_data(base_paths, method, environments, seeds, metrics, level, n_data
     for env in environments:
         for base_path in base_paths:
             for metric in metrics:
-                stats = process_metric(base_path, method, env, seeds, metric, level, n_data_points)
+                stats = process_metric_data(base_path, method, env, seeds, metric, level, n_data_points)
                 results[metric][env][base_path] = stats
     return results
 
@@ -89,19 +72,14 @@ def main(args):
 
 
 def common_plot_args():
-    parser = argparse.ArgumentParser(description="Plot reward and cost side by side.")
+    parser = create_common_parser("Plot reward and cost side by side.")
+    parser.set_defaults(
+        method="PPOPID",
+        level=3,
+        seeds=[1, 2, 3],
+        envs=["remedy_rush", "collateral_damage"]
+    )
     parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/curriculum'])
-    parser.add_argument("--method", type=str, default="PPOPID",
-                        choices=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"])
-    parser.add_argument("--level", type=int, default=3, choices=[1, 2, 3])
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3])
-    parser.add_argument("--n_data_points", type=int, default=10)
-    parser.add_argument("--envs", type=str, nargs='+',
-                        default=["remedy_rush", "collateral_damage"],
-                        choices=["armament_burden", "volcanic_venture", "remedy_rush",
-                                 "collateral_damage", "precipice_plunge", "detonators_dilemma"],
-                        help="Environments to analyze")
-    parser.add_argument("--metrics", type=str, nargs='+', default=['reward', 'cost'])
     return parser
 
 

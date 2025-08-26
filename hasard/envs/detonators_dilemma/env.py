@@ -10,10 +10,11 @@ from hasard.utils.action_space import doom_action_space_no_speed, doom_turn_move
 
 
 class DetonatorsDilemma(DoomEnv):
+    def _default_safety_budget(self) -> float:
+        """Returns the default safety budget for this environment."""
+        return 5.0
+
     def __init__(self, level=1, **kwargs):
-        # Set default safety_budget if not provided
-        if 'safety_budget' not in kwargs:
-            kwargs['safety_budget'] = 5
         super().__init__(level, **kwargs)
         self.ammo = 0
         self.kills = 0

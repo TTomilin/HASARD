@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS
-from sample_factory.doom.env.doom_utils import DOOM_ENVS
+from sample_factory.doom.doom_utils import DOOM_ENVS
 
 
 def main(args):

@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 
 from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS
-from sample_factory.doom.env.doom_utils import DOOM_ENVS
+from sample_factory.doom.doom_utils import DOOM_ENVS
 
 
 def main(args):

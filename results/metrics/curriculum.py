@@ -1,8 +1,14 @@
-import argparse
-
+import os
+import sys
 import numpy as np
 
-from results.commons import TRANSLATIONS, load_data
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import TRANSLATIONS, load_data, process_metric_data, create_common_parser, generate_latex_table_header, generate_latex_table_footer, check_multiple_paths_data_availability, get_path_translation, create_default_paths
 
 TRANSLATIONS['data/main'] = 'Regular'
 
@@ -15,7 +21,7 @@ def process_data(base_paths, method, environments, seeds, metrics, level, n_data
     for env in environments:
         for base_path in base_paths:
             for metric in metrics:
-                processed_data = process_metric(base_path, method, env, seeds, metric, level, n_data_points)
+                processed_data = process_metric_data(base_path, method, env, seeds, metric, level, n_data_points)
                 key = (base_path, env, metric)
                 data[key] = processed_data
 
@@ -23,53 +29,33 @@ def process_data(base_paths, method, environments, seeds, metrics, level, n_data
     for env in environments:
         results[env] = {}
         for metric in metrics:
-            regular = data[('data/main', env, metric)]['mean']
-            curriculum = data[('data/curriculum', env, metric)]['mean']
+            # Use the first base_path as regular and second as curriculum
+            regular_path = base_paths[0]
+            curriculum_path = base_paths[1] if len(base_paths) > 1 else base_paths[0]
+
+            regular = data[(regular_path, env, metric)]['mean']
+            curriculum = data[(curriculum_path, env, metric)]['mean']
             if regular and curriculum:
                 percent_decrease = -((regular - curriculum) / regular) * 100
                 results[env][metric] = {
-                    'data/main': regular,
-                    'data/curriculum': curriculum,
+                    regular_path: regular,
+                    curriculum_path: curriculum,
                     'diff': percent_decrease
                 }
     return results
-
-
-def process_metric(base_path, method, env, seeds, metric, level, n_data_points):
-    metric_values = []
-    for seed in seeds:
-        data = load_data(base_path, method, env, seed, level, metric)
-        if data and len(data) >= n_data_points:
-            if base_path == 'data/main':
-                data = data[:300]
-            last_data_points = data[-n_data_points:]
-            metric_values.extend(last_data_points)
-    mean = np.mean(metric_values)
-    ci = 1.96 * np.std(metric_values) / np.sqrt(len(metric_values))
-    return {'mean': mean, 'ci': ci}
 
 
 def generate_latex_table(data, row_headers, caption=''):
     environments = list(data.keys())
     row_headers.append('diff')
 
-    # Prepare headers with corrected approach for backslashes
-    headers = []
-    for env in environments:
-        translated_env = TRANSLATIONS[env].replace(' ', '\\\\ ')
-        headers.append(f"\\multicolumn{{2}}{{c}}{{\\makecell{{{translated_env}}}}}")
-
-    # Start the LaTeX table construction
-    latex_str = "\\begin{table}[h!]\n\\centering\n\\small{\n\\begin{tabularx}{\\textwidth}{c " + "X@{\\hspace{0.5cm}}X" * len(
-        environments) + "}\n"
-    latex_str += "\\toprule\n"
-    latex_str += "\\multirow{2}{*}{Training} & " + " & ".join(headers) + " \\\\\n"
-    subheader_row = "& " + "\\textbf{R $\\uparrow$} & \\textbf{C $\\downarrow$} & " * len(environments)
-    latex_str += subheader_row.rstrip(' & ') + "\\\\\n\\midrule\n"
+    # Use common header function
+    latex_str = generate_latex_table_header(environments, "Training")
 
     # Iterate over each constraint type, method, and environment to fill the table
     for j, header in enumerate(row_headers):
-        latex_str += f"{TRANSLATIONS[header]} & "
+        header_translation = TRANSLATIONS.get(header, get_path_translation(header))
+        latex_str += f"{header_translation} & "
         for env in environments:
             for metric_type in ['reward', 'cost']:
                 metric = data[env][metric_type][header]
@@ -77,34 +63,36 @@ def generate_latex_table(data, row_headers, caption=''):
                 latex_str += f"{metric:.2f}{percentage_sign} & "
         latex_str = latex_str.rstrip(' & ') + " \\\\\n"
 
-    latex_str += "\\bottomrule\n\\end{tabularx}\n}"
-    latex_str += f"\\caption{{{caption}}}\n"
-    latex_str += "\\end{table}\n"
+    # Use common footer function
+    latex_str += generate_latex_table_footer(caption)
     return latex_str
 
 
 def main(args):
+    # Check if any data is available for the specified paths
+    if not check_multiple_paths_data_availability(args.inputs, args.method, args.envs, args.seeds, args.metrics, args.level):
+        paths_str = "', '".join(args.inputs)
+        print(f"Error: No data found at the specified paths ['{paths_str}']. Please check that at least one path contains data for the specified environments, method, seeds, and metrics.")
+        return
+
     data = process_data(args.inputs, args.method, args.envs, args.seeds, args.metrics, args.level, args.n_data_points)
     table = generate_latex_table(data, args.inputs)
     print(table)
 
 
-def common_plot_args() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate a LaTeX table from RL data.")
-    parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/curriculum'],
-                        help="Base input directories containing the data")
-    parser.add_argument("--method", type=str, default="PPOPID",
-                        choices=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
-                        help="Algorithm to analyze")
-    parser.add_argument("--level", type=int, default=3, choices=[1, 2, 3], help="Level of the run(s) to compute")
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
-    parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
-    parser.add_argument("--envs", type=str, nargs='+',
-                        default=["remedy_rush", "collateral_damage"],
-                        choices=["armament_burden", "volcanic_venture", "remedy_rush", "collateral_damage",
-                                 "precipice_plunge", "detonators_dilemma"],
-                        help="Environments to analyze")
-    parser.add_argument("--metrics", type=str, nargs='+', default=['reward', 'cost'], help="Metrics to aggregate")
+def common_plot_args():
+    parser = create_common_parser("Generate a LaTeX table from RL data.")
+
+    # Create default paths dynamically
+    default_main, default_curriculum = create_default_paths(__file__, 'main', 'curriculum')
+
+    parser.set_defaults(
+        method="PPOPID",
+        level=3,
+        seeds=[1, 2, 3],
+        envs=["remedy_rush", "collateral_damage"],
+        inputs=[default_main, default_curriculum]
+    )
     return parser
 
 

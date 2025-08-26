@@ -3,28 +3,28 @@ import os
 from os.path import join
 from typing import Optional
 
-from sample_factory.doom.env.action_space import (
+from sample_factory.doom.action_space import (
     doom_turn_attack, doom_turn_move_jump_accelerate,
     doom_turn_move_jump_accelerate_attack, doom_turn_move_look_jump, doom_turn_move_use_jump_speed,
     doom_action_space, doom_action_space_no_move,
 )
-from sample_factory.doom.env.doom_gym import VizdoomEnv
-from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
-from sample_factory.doom.env.wrappers.multiplayer_stats import MultiplayerStatsWrapper
-from sample_factory.doom.env.wrappers.observation_space import SetResolutionWrapper, resolutions
-from sample_factory.doom.env.wrappers.record_video import RecordVideo
-from sample_factory.doom.env.wrappers.saute import Saute
-from sample_factory.doom.env.wrappers.scenario_wrappers.armament_burden_cost_function import ArmamentBurdenCostFunction
-from sample_factory.doom.env.wrappers.scenario_wrappers.collateral_damage_cost_function import \
+from sample_factory.doom.doom_gym import VizdoomEnv
+from sample_factory.doom.wrappers.cost_penalty import CostPenalty
+from sample_factory.doom.wrappers.multiplayer_stats import MultiplayerStatsWrapper
+from sample_factory.doom.wrappers.observation_space import SetResolutionWrapper, resolutions
+from sample_factory.doom.wrappers.record_video import RecordVideo
+from sample_factory.doom.wrappers.saute import Saute
+from sample_factory.doom.wrappers.scenario_wrappers.armament_burden_cost_function import ArmamentBurdenCostFunction
+from sample_factory.doom.wrappers.scenario_wrappers.collateral_damage_cost_function import \
     DoomCollateralDamageCostFunction
-from sample_factory.doom.env.wrappers.scenario_wrappers.detonators_dilemma_cost_function import \
+from sample_factory.doom.wrappers.scenario_wrappers.detonators_dilemma_cost_function import \
     DoomDetonatorsDilemmaCostFunction
-from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_cost_function import \
+from sample_factory.doom.wrappers.scenario_wrappers.precipice_plunge_cost_function import \
     PrecipicePlungeCostFunction
-from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_reward_function import \
+from sample_factory.doom.wrappers.scenario_wrappers.precipice_plunge_reward_function import \
     PrecipicePlungeRewardFunction
-from sample_factory.doom.env.wrappers.scenario_wrappers.remedy_rush_cost_function import RemedyRushCostFunction
-from sample_factory.doom.env.wrappers.scenario_wrappers.volcanic_venture_cost_function import \
+from sample_factory.doom.wrappers.scenario_wrappers.remedy_rush_cost_function import RemedyRushCostFunction
+from sample_factory.doom.wrappers.scenario_wrappers.volcanic_venture_cost_function import \
     VolcanicVentureCostFunction
 from sample_factory.envs.env_wrappers import (
     PixelFormatChwWrapper,

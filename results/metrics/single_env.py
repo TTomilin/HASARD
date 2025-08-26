@@ -1,16 +1,42 @@
 import argparse
 import json
 import os
+import sys
 import numpy as np
 
-from results.commons import TRANSLATIONS
-from sample_factory.doom.env.doom_utils import DOOM_ENVS
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import TRANSLATIONS, create_default_paths
+from sample_factory.doom.doom_utils import DOOM_ENVS
 
 
 def main(args):
     if len(args.total_iterations) != len(args.inputs):
         raise ValueError("The number of total_iterations must match the number of inputs.")
     data = load_data(args.inputs, args.env, args.algos, args.seeds, args.metrics, args.level)
+
+    # Check if any data was loaded
+    data_found = False
+    for metric in args.metrics:
+        for method in args.algos:
+            for base_path in args.inputs:
+                if data.get(metric, {}).get(method, {}).get(base_path, []):
+                    data_found = True
+                    break
+            if data_found:
+                break
+        if data_found:
+            break
+
+    if not data_found:
+        paths_str = "', '".join(args.inputs)
+        print(f"Error: No data found at the specified paths ['{paths_str}']. Please check that at least one path contains data for the specified environment '{args.env}', algorithms, seeds, metrics, and level {args.level}.")
+        return
+
     compute_and_print_metrics(data, args)
 
 def load_data(base_paths, environment, methods, seeds, metrics, level):
@@ -139,7 +165,11 @@ def print_markdown_table(headers, rows):
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Compute metrics from structured data directory.")
-    parser.add_argument("--inputs", type=str, nargs='+', default=['data/main'], help="Base input directories containing the data")
+
+    # Create default path dynamically
+    default_main = create_default_paths(__file__, 'main')
+
+    parser.add_argument("--inputs", type=str, nargs='+', default=[default_main], help="Base input directories containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level of the run(s) to compute")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
     parser.add_argument("--algos", type=str, nargs='+', default=['PPO'],
