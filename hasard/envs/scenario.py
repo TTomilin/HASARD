@@ -10,7 +10,14 @@ from vizdoom import ScreenResolution
 
 from hasard.utils.rendering import segment_and_draw_boxes
 from hasard.utils.utils import get_screen_resolution
-from sample_factory.algo.utils.spaces.discretized import Discretized
+
+# Optional import for sample_factory functionality
+try:
+    from sample_factory.algo.utils.spaces.discretized import Discretized
+    HAS_SAMPLE_FACTORY = True
+except ImportError:
+    Discretized = None
+    HAS_SAMPLE_FACTORY = False
 
 
 class DoomEnv(gym.Env, ABC):
@@ -339,7 +346,7 @@ class DoomEnv(gym.Env, ABC):
 
         actions_flattened = []
         for i, action in enumerate(actions):
-            if isinstance(spaces[i], Discretized):
+            if HAS_SAMPLE_FACTORY and Discretized is not None and isinstance(spaces[i], Discretized):
                 # Discretized continuous action
                 # Convert discretized action to continuous value
                 continuous_action = spaces[i].to_continuous(action)

@@ -57,23 +57,27 @@ environment displaying only depth from surroundings.
 </p>
 
 ## Installation
-To install HASARD from PyPi, just run:
+HASARD supports modular installation to install only the dependencies you need:
+
 ```bash
-$ pip install HASARD
+# Core dependencies only (environments and basic functionality)
+pip install HASARD
+
+# With sample-factory support for training RL agents
+pip install HASARD[sample-factory]
+
+# With results analysis and plotting tools
+pip install HASARD[results]
+
+# Full installation with all optional dependencies
+pip install HASARD[sample-factory,results]
 ```
 
-Alternatively, to install HASARD from source:
-1. Clone the repository
+To install from source:
 ```bash
-$ git clone https://github.com/TTomilin/HASARD
-```
-2. Navigate into the repository
-```bash
-$ cd HASARD
-```
-3. Install HASARD from source with pip
-```bash 
-$ pip install .
+git clone https://github.com/TTomilin/HASARD
+cd HASARD
+pip install .  # or pip install .[sample-factory,results] for extras
 ```
 
 ## Getting Started

@@ -11,7 +11,7 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data, create_default_paths
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data, create_default_paths, save_plot
 from sample_factory.doom.doom_utils import DOOM_ENVS
 
 BUFFER_PERCENTAGE = 0.05  # 5% buffer
@@ -112,12 +112,11 @@ def plot_metrics(data, args):
     results_dir = os.path.dirname(script_dir)
     folder = os.path.join(results_dir, 'figures')
     file = 'hard' if args.hard_constraint else f'level_{args.level}'
-    os.makedirs(folder, exist_ok=True)
     suffix = '_'.join(args.algos_to_plot) if args.algos_to_plot else 'empty'
-    full_path = f'{folder}/{file}_{suffix}.png'
-    plt.savefig(full_path)
-    print(f"Plot saved to: {full_path}")
-    plt.show()
+    file_name = f'{file}_{suffix}'
+
+    # Save using the common save_plot function
+    save_plot(file_name, folder)
 
 
 def common_plot_args() -> argparse.ArgumentParser:

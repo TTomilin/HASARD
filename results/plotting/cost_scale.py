@@ -10,7 +10,7 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import TRANSLATIONS, load_data, load_full_data_with_scales, create_common_parser, check_data_availability_with_scales, create_default_paths
+from results.commons import TRANSLATIONS, load_data, load_full_data_with_scales, create_common_parser, check_data_availability_with_scales, create_default_paths, save_plot
 
 
 def main(args):
@@ -100,12 +100,10 @@ def plot_metrics(data, args):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     results_dir = os.path.dirname(script_dir)
     folder = os.path.join(results_dir, 'figures')
-    file = f'cost_scales_level_{args.level}'
-    os.makedirs(folder, exist_ok=True)
-    full_path = f'{folder}/{file}.pdf'
-    plt.savefig(full_path, dpi=300)
-    print(f"Plot saved to: {full_path}")
-    plt.show()
+    file_name = f'cost_scales_level_{args.level}'
+
+    # Save using the common save_plot function
+    save_plot(file_name, folder)
 
 
 def common_plot_args():

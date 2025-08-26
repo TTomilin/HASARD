@@ -26,6 +26,9 @@ Creates comprehensive line plots showing training progress across all environmen
 
 **Usage:** `python main_results.py [--input PATH] [--algos ALGO1 ALGO2 ...] [--envs ENV1 ENV2 ...]`
 
+**Example Output:**
+![Main Results](../figures/level_1.png)
+
 #### `main_results_bar.py`
 Generates bar charts showing final performance metrics across algorithms and environments. Provides a summary view of algorithm performance.
 
@@ -36,7 +39,10 @@ Generates bar charts showing final performance metrics across algorithms and env
 - Includes safety threshold indicators
 
 #### `main_results_bar_minimal.py`
-A minimal version of the main results bar chart, focusing on essential comparisons with simplified visualization.
+A scaled down version of the main results bar chart, intended for 2 environments.
+
+**Example Output:**
+![Main Results Bar Minimal](../figures/level_1_bar_minimal.png)
 
 ### Single Environment Analysis
 
@@ -49,6 +55,9 @@ Creates detailed plots for individual environments, allowing focused analysis of
 - Customizable metrics selection
 - Detailed performance analysis
 
+**Example Output:**
+![Single Environment](../figures/PPOPID_armament_burden_level_1_main.png)
+
 #### `single_env_gif.py`
 Generates animated GIFs showing the evolution of metrics over training time for single environments.
 
@@ -59,6 +68,9 @@ Generates animated GIFs showing the evolution of metrics over training time for 
 - Saves animations to `results/figures/animated/`
 
 **Usage:** `python single_env_gif.py --env armament_burden --algo PPO --metrics reward cost`
+
+**Example Output:**
+![Single Environment GIF](../figures/animated/PPO_armament_burden_level_1.gif)
 
 ### Specialized Analysis
 
@@ -71,6 +83,9 @@ Analyzes the effect of different cost scaling factors on PPOCost algorithm perfo
 - Grid layout showing results across environments
 - Specific to PPOCost algorithm
 
+**Example Output:**
+![Cost Scale Analysis](../figures/cost_scales_level_1.png)
+
 #### `curriculum.py`
 Compares regular training versus curriculum learning approaches, specifically for PPOPID algorithm.
 
@@ -79,6 +94,9 @@ Compares regular training versus curriculum learning approaches, specifically fo
 - Bar chart visualization
 - Focuses on environments that benefit from curriculum learning
 - Includes safety threshold indicators
+
+**Example Output:**
+![Curriculum Learning](../figures/curriculum_bar.png)
 
 #### `safety_bounds.py`
 Analyzes the effect of different safety bounds on algorithm performance, particularly for PPOLag.
@@ -89,8 +107,14 @@ Analyzes the effect of different safety bounds on algorithm performance, particu
 - Includes actual safety threshold lines
 - Color-coded bound visualization
 
+**Example Output:**
+![Safety Bounds](../figures/bounds_PPOLag_level_1.png)
+
 #### `safety_bounds_minimal.py`
 A minimal version of safety bounds analysis, focusing on key environments (armament_burden, detonators_dilemma).
+
+**Example Output:**
+![Safety Bounds Minimal](../figures/bounds_PPOLag_level_1_minimal.png)
 
 #### `actions_spaces_bar.py`
 Compares performance across different action space configurations.
@@ -99,6 +123,9 @@ Compares performance across different action space configurations.
 - Bar chart comparison of action spaces
 - Performance metrics across environments
 - Statistical significance indicators
+
+**Example Output:**
+![Action Spaces](../figures/action_spaces_PPOLag_level_1.png)
 
 ### Performance Comparisons
 
@@ -113,6 +140,9 @@ Compares frames-per-second (FPS) performance between HASARD and Safety-Gymnasium
 
 **Usage:** `python fps.py --safety_gym_csv PATH --hasard_csv PATH`
 
+**Example Output:**
+![FPS Comparison](../figures/FPS.png)
+
 #### `policy_updates.py`
 Compares the rate of policy updates between HASARD and Safety-Gymnasium frameworks.
 
@@ -121,6 +151,9 @@ Compares the rate of policy updates between HASARD and Safety-Gymnasium framewor
 - Log-scale visualization
 - Parses log files for update timestamps
 - Framework performance comparison
+
+**Example Output:**
+![Policy Updates](../figures/policy_updates.png)
 
 ### Utility Scripts
 
@@ -159,7 +192,7 @@ data/
 
 ## Output
 
-All scripts save their plots to the `results/figures/` directory (not `results/plotting/figures/`). File formats include:
+All scripts save their plots to the `results/figures/` directory. File formats include:
 - PDF for publication-quality plots
 - PNG for web/presentation use
 - GIF for animated visualizations

@@ -5,6 +5,7 @@ import sys
 from typing import Dict, List, Any, Optional, Union, Tuple
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 SAFETY_THRESHOLDS = {
     "armament_burden": 50,
@@ -452,3 +453,42 @@ def check_data_availability_multiple_levels(base_path, method, environments, see
         if check_data_availability(base_path, method, environments, seeds, metrics, level):
             return True
     return False
+
+
+def save_plot(filename: str, folder: str, formats: List[str] = None, dpi: int = 300, show: bool = True) -> None:
+    """
+    Save a matplotlib plot in multiple formats with consistent messaging.
+
+    This function provides a unified interface for saving plots across all plotting scripts,
+    eliminating code duplication and ensuring consistent behavior.
+
+    Args:
+        filename: Base filename without extension (e.g., 'actions_level_1_bar')
+        folder: Directory path where the plot should be saved
+        formats: List of formats to save (default: ['pdf', 'png'])
+        dpi: Resolution for saved plots (default: 300)
+        show: Whether to display the plot after saving (default: True)
+
+    Returns:
+        None (saves files and optionally displays plot)
+
+    Examples:
+        >>> save_plot('my_plot', '/path/to/figures')  # Saves PDF and PNG
+        >>> save_plot('my_plot', '/path/to/figures', ['pdf'])  # Saves only PDF
+        >>> save_plot('my_plot', '/path/to/figures', ['png', 'svg'])  # Saves PNG and SVG
+    """
+    if formats is None:
+        formats = ['pdf', 'png']
+
+    # Ensure the output directory exists
+    os.makedirs(folder, exist_ok=True)
+
+    # Save in each requested format
+    for fmt in formats:
+        file_path = os.path.join(folder, f'{filename}.{fmt}')
+        plt.savefig(file_path, dpi=dpi)
+        print(f"Plot saved to: {file_path}")
+
+    # Display the plot if requested
+    if show:
+        plt.show()

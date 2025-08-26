@@ -112,7 +112,7 @@ data/main/
 ## Supported Environments
 
 - `armament_burden`
-- `volcanic_venture` 
+- `volcanic_venture`
 - `remedy_rush`
 - `collateral_damage`
 - `precipice_plunge`

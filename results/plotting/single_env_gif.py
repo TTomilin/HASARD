@@ -168,10 +168,22 @@ def animate_metrics(data, args):
     os.makedirs(folder, exist_ok=True)
     metrics_str = f'_{args.metrics[0]}' if len(args.metrics) == 1 else ''
     shift_str = f'_shifting' if args.shift_x_axis else ''
-    file_name = f'{args.algo}_{args.env}_level_{args.level}{metrics_str}{shift_str}.gif'
-    full_path = os.path.join(folder, file_name)
-    anim.save(full_path, writer='pillow', fps=args.fps, dpi=300)
-    print(f"GIF saved to: {full_path}")
+    file_name = f'{args.algo}_{args.env}_level_{args.level}{metrics_str}{shift_str}'
+
+    # Save animated GIF
+    gif_path = os.path.join(folder, f'{file_name}.gif')
+    anim.save(gif_path, writer='pillow', fps=args.fps, dpi=300)
+    print(f"GIF saved to: {gif_path}")
+
+    # Also save static versions in both PDF and PNG formats
+    static_folder = os.path.join(results_dir, 'figures')
+    os.makedirs(static_folder, exist_ok=True)
+    pdf_path = os.path.join(static_folder, f'{file_name}.pdf')
+    png_path = os.path.join(static_folder, f'{file_name}.png')
+    plt.savefig(pdf_path, dpi=300)
+    plt.savefig(png_path, dpi=300)
+    print(f"Static plot saved to: {pdf_path}")
+    print(f"Static plot saved to: {png_path}")
     plt.show()
 
 

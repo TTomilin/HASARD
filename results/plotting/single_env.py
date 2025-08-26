@@ -231,9 +231,14 @@ def plot_metrics(data: Dict[str, Dict[str, List[List[float]]]], args: argparse.N
     folder = os.path.join(results_dir, 'figures')
     file = f'{args.method}_{args.envs[0]}_level_{args.level}_{args.inputs[-1].split("/")[-1]}'
     os.makedirs(folder, exist_ok=True)
-    full_path = f'{folder}/{file}.png'
-    plt.savefig(full_path, dpi=300)
-    print(f"Plot saved to: {full_path}")
+
+    # Save both PDF and PNG formats
+    pdf_path = f'{folder}/{file}.pdf'
+    png_path = f'{folder}/{file}.png'
+    plt.savefig(pdf_path, dpi=300)
+    plt.savefig(png_path, dpi=300)
+    print(f"Plot saved to: {pdf_path}")
+    print(f"Plot saved to: {png_path}")
     plt.show()
 
 
