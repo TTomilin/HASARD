@@ -65,7 +65,7 @@ def compute_and_print_metrics(data, args):
     # Compute the minimum total_iterations across inputs
     min_total_iterations = min(total_iterations_dict.values())
 
-    headers = ['Algorithm', 'Input'] + [TRANSLATIONS.get(metric, metric) for metric in args.metrics]
+    headers = ['Algorithm'] + [TRANSLATIONS.get(metric, metric) for metric in args.metrics]
     table_rows = []
 
     # Initialize results dictionary
@@ -133,7 +133,7 @@ def compute_and_print_metrics(data, args):
     # Build table rows
     for algo in args.algos:
         for base_path in args.inputs:
-            row = [algo, TRANSLATIONS.get(base_path, base_path)]
+            row = [algo]
             for metric in args.metrics:
                 avg = results.get(algo, {}).get(base_path, {}).get(metric, 'N/A')
                 row.append(avg)
@@ -172,7 +172,7 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--inputs", type=str, nargs='+', default=[default_main], help="Base input directories containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level of the run(s) to compute")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
-    parser.add_argument("--algos", type=str, nargs='+', default=['PPO'],
+    parser.add_argument("--algos", type=str, nargs='+', default=['PPO', 'PPOLag', 'PPOPID'],
                         choices=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"],
                         help="Algorithms to compute")
     parser.add_argument("--env", type=str, default="armament_burden",

@@ -1,11 +1,66 @@
 import argparse
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data, create_default_paths
 from sample_factory.doom.doom_utils import DOOM_ENVS
+
+
+def reshape_data_if_needed(runs, num_seeds):
+    """
+    Helper function to reshape flat list data into separate runs per seed.
+
+    Args:
+        runs: Either a flat list of floats or a list of lists
+        num_seeds: Number of seeds to split the data into
+
+    Returns:
+        List of lists, where each inner list represents one seed's data
+    """
+    # Check if runs is a flat list of floats (due to load_full_data using extend())
+    # If so, we need to reshape it back into separate runs per seed
+    if runs and isinstance(runs[0], (int, float)):
+        # Flat list case - reshape into separate runs
+        total_length = len(runs)
+
+        # Only treat as single run if the data is clearly too small to be multi-seed
+        # or if we have only one seed requested
+        if num_seeds == 1 or total_length < num_seeds * 10:
+            runs = [runs]
+        else:
+            # Try to split into approximately equal chunks
+            # Calculate base chunk size and remainder
+            base_chunk_size = total_length // num_seeds
+            remainder = total_length % num_seeds
+
+            # Split the data, distributing remainder across first few chunks
+            new_runs = []
+            start_idx = 0
+            for i in range(num_seeds):
+                # Add one extra element to first 'remainder' chunks
+                chunk_size = base_chunk_size + (1 if i < remainder else 0)
+                end_idx = start_idx + chunk_size
+                new_runs.append(runs[start_idx:end_idx])
+                start_idx = end_idx
+
+            runs = new_runs
+
+    # Now handle the case where runs might have different lengths
+    if runs and hasattr(runs[0], '__len__'):
+        min_length = min(len(run) for run in runs)
+        for i in range(len(runs)):
+            runs[i] = runs[i][:min_length]
+
+    return runs
 
 # Add your human baseline averages here (reward/cost) for each level and environment:
 HUMAN_BASELINES = {
@@ -85,6 +140,7 @@ def plot_bars(data, args):
                     continue
 
                 runs = data[key]
+                runs = reshape_data_if_needed(runs, len(args.seeds))
                 final_values = []
                 add_cost_back = (method == "PPOCost" and metric == "reward")
                 cost_runs = None
@@ -92,6 +148,7 @@ def plot_bars(data, args):
                     cost_key = (env, method, "cost")
                     if cost_key in data:
                         cost_runs = data[cost_key]
+                        cost_runs = reshape_data_if_needed(cost_runs, len(args.seeds))
                     else:
                         values_per_method.append(0.0)
                         continue
@@ -135,20 +192,29 @@ def plot_bars(data, args):
     fig.legend(method_handles.values(), method_handles.keys(), loc='lower center',
                ncol=len(args.algos), bbox_to_anchor=(0.5, 0.0), fontsize=11)
 
-    folder = 'figures'
+    # Save to results/figures directory (not results/plotting/figures)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.dirname(script_dir)
+    folder = os.path.join(results_dir, 'figures')
     fname = 'hard_bar' if args.hard_constraint else f'level_{args.level}_bar'
     os.makedirs(folder, exist_ok=True)
-    plt.savefig(f'{folder}/{fname}.pdf', dpi=300)
+    full_path = f'{folder}/{fname}.pdf'
+    plt.savefig(full_path, dpi=300)
+    print(f"Plot saved to: {full_path}")
     plt.show()
 
 
 def common_plot_args():
     p = argparse.ArgumentParser(description="Plot bars of average final returns/cost.")
-    p.add_argument("--input", type=str, default='data/main')
+
+    # Create default path dynamically
+    default_main = create_default_paths(__file__, 'main')
+
+    p.add_argument("--input", type=str, default=default_main)
     p.add_argument("--level", type=int, default=1)
     p.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3])
     p.add_argument("--algos", type=str, nargs='+', default=[
-        "PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "TRPO", "TRPOLag", "TRPOPID"
+        "PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O",
     ])
     p.add_argument("--envs", type=str, nargs='+', default=[
         "armament_burden", "volcanic_venture", "remedy_rush",

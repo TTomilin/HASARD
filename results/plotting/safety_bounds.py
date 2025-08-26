@@ -1,11 +1,18 @@
 import argparse
 import json
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import TRANSLATIONS, create_default_paths
 
 
 def main(args):
@@ -106,16 +113,25 @@ def plot_metrics(data, args):
     fig.legend(lines, labels, loc='lower center', ncol=len(all_bounds), fontsize=12, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.0))
 
-    folder = 'figures'
+    # Save to results/figures directory (not results/plotting/figures)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.dirname(script_dir)
+    folder = os.path.join(results_dir, 'figures')
     file = f'bounds_{args.algo}_level_{args.level}'
     os.makedirs(folder, exist_ok=True)
-    plt.savefig(f'{folder}/{file}.pdf', dpi=300)
+    full_path = f'{folder}/{file}.pdf'
+    plt.savefig(full_path, dpi=300)
+    print(f"Plot saved to: {full_path}")
     plt.show()
 
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plot metrics from structured data directory.")
-    parser.add_argument("--input", type=str, default='data/safety_bound',
+
+    # Create default path dynamically
+    default_safety_bound = create_default_paths(__file__, 'safety_bound')
+
+    parser.add_argument("--input", type=str, default=default_safety_bound,
                         help="Base input directory containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2], help="Seed(s) of the run(s) to plot")

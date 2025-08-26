@@ -180,7 +180,7 @@ def common_plot_args() -> argparse.ArgumentParser:
     parser.add_argument("--levels", type=int, nargs='+', default=[1, 2, 3], help="Level(s) of the run(s) to compute")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to compute")
     parser.add_argument("--n_data_points", type=int, default=10, help="How many final data points to select")
-    parser.add_argument("--constraints", type=str, nargs='+', default=["Soft", "Hard"], help="Constraints to analyze")
+    parser.add_argument("--constraints", type=str, nargs='+', default=["Soft"], choices=["Soft", "Hard"], help="Constraints to analyze")
     parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O"],
                         help="Algorithms to analyze")
     parser.add_argument("--envs", type=str, nargs='+',

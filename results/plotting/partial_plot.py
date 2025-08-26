@@ -1,10 +1,17 @@
 import argparse
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import TRANSLATIONS, SAFETY_THRESHOLDS, load_full_data, create_default_paths
 from sample_factory.doom.doom_utils import DOOM_ENVS
 
 BUFFER_PERCENTAGE = 0.05  # 5% buffer
@@ -100,17 +107,26 @@ def plot_metrics(data, args):
     fig.legend(lines, labels, loc='lower center', ncol=len(args.algos), fontsize=fontsize, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.0))
 
-    folder = 'figures'
+    # Save to results/figures directory (not results/plotting/figures)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.dirname(script_dir)
+    folder = os.path.join(results_dir, 'figures')
     file = 'hard' if args.hard_constraint else f'level_{args.level}'
     os.makedirs(folder, exist_ok=True)
     suffix = '_'.join(args.algos_to_plot) if args.algos_to_plot else 'empty'
-    plt.savefig(f'{folder}/{file}_{suffix}.png')
+    full_path = f'{folder}/{file}_{suffix}.png'
+    plt.savefig(full_path)
+    print(f"Plot saved to: {full_path}")
     plt.show()
 
 
 def common_plot_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plot metrics from structured data directory.")
-    parser.add_argument("--input", type=str, default='data/main', help="Base input directory containing the data")
+
+    # Create default path dynamically
+    default_main = create_default_paths(__file__, 'main')
+
+    parser.add_argument("--input", type=str, default=default_main, help="Base input directory containing the data")
     parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3], help="Seed(s) of the run(s) to plot")
     parser.add_argument("--algos", type=str, nargs='+',

@@ -1,10 +1,17 @@
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 
-from results.commons import ENV_INITIALS, TRANSLATIONS, load_data, process_metric_data, create_common_parser
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import ENV_INITIALS, TRANSLATIONS, load_data, process_metric_data, create_common_parser, create_default_paths, get_path_translation
 
 TRANSLATIONS['data/main'] = 'Regular'
 
@@ -40,7 +47,7 @@ def plot_results(results, base_paths, environments):
                 yerr=errs,
                 width=bar_width,
                 capsize=5,
-                label=TRANSLATIONS[base_path],
+                label=get_path_translation(base_path),
             )
         ax.set_ylabel(TRANSLATIONS[metric], fontsize=12)
         ax.set_xticks(x_positions + bar_width * (len(base_paths) - 1) / 2)
@@ -59,10 +66,15 @@ def plot_results(results, base_paths, environments):
     fig.legend(handles=custom_handles, loc='lower center', ncol=3, bbox_to_anchor=(0.5, 0))
     fig.tight_layout(rect=[0, 0.1, 1, 1])
 
-    folder = 'figures'
+    # Save to results/figures directory (not results/plotting/figures)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.dirname(script_dir)
+    folder = os.path.join(results_dir, 'figures')
     os.makedirs(folder, exist_ok=True)
     file_name = f'curriculum_bar'
-    plt.savefig(f'{folder}/{file_name}.pdf', dpi=300)
+    full_path = f'{folder}/{file_name}.pdf'
+    plt.savefig(full_path, dpi=300)
+    print(f"Plot saved to: {full_path}")
     plt.show()
 
 
@@ -73,13 +85,17 @@ def main(args):
 
 def common_plot_args():
     parser = create_common_parser("Plot reward and cost side by side.")
+
+    # Create default paths dynamically
+    default_main, default_curriculum = create_default_paths(__file__, 'main', 'curriculum')
+
     parser.set_defaults(
         method="PPOPID",
         level=3,
         seeds=[1, 2, 3],
-        envs=["remedy_rush", "collateral_damage"]
+        envs=["remedy_rush", "collateral_damage"],
+        inputs=[default_main, default_curriculum]
     )
-    parser.add_argument("--inputs", type=str, nargs='+', default=['data/main', 'data/curriculum'])
     return parser
 
 

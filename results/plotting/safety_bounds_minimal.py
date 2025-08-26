@@ -1,15 +1,22 @@
 import argparse
 import json
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import TRANSLATIONS, create_default_paths, create_common_parser
 
 
 def main(args):
-    data = load_data(args.input, args.envs, args.algo, args.seeds, args.metrics, args.level)
+    data = load_data(args.input, args.envs, args.method, args.seeds, args.metrics, args.level)
     plot_metrics(data, args)
 
 
@@ -122,28 +129,39 @@ def plot_metrics(data, args):
     fig.legend(col_major_handles, col_major_labels, loc='lower center', ncol=ncol, fontsize=10, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.0))
 
-    folder = 'figures'
-    file = f'bounds_{args.algo}_level_{args.level}'
+    # Save to results/figures directory (not results/plotting/figures)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.dirname(script_dir)
+    folder = os.path.join(results_dir, 'figures')
+    file = f'bounds_{args.method}_level_{args.level}'
     os.makedirs(folder, exist_ok=True)
-    plt.savefig(f'{folder}/{file}_minimal.pdf', dpi=300)
+    full_path = f'{folder}/{file}_minimal.pdf'
+    plt.savefig(full_path, dpi=300)
+    print(f"Plot saved to: {full_path}")
     plt.show()
 
 
 def common_plot_args() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Plot metrics from structured data directory.")
-    parser.add_argument("--input", type=str, default='data/safety_bound',
-                        help="Base input directory containing the data")
-    parser.add_argument("--level", type=int, default=1, help="Level(s) of the run(s) to plot")
-    parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2], help="Seed(s) of the run(s) to plot")
-    parser.add_argument("--algo", type=str, default="PPOLag", help="Name of the algorithm")
-    parser.add_argument("--envs", type=str, nargs='+',
-                        default=["armament_burden", "remedy_rush", "volcanic_venture", "collateral_damage",
-                                 "precipice_plunge", "detonators_dilemma"],
-                        help="Environments to download/plot")
-    parser.add_argument("--metrics", type=str, default=['reward', 'cost'], help="Name of the metrics to download/plot")
-    parser.add_argument('--hard_constraint', default=False, action='store_true', help='Soft/Hard safety constraint')
+    # Use the main common parser from results.commons
+    parser = create_common_parser("Plot metrics from structured data directory.")
+
+    # Override specific arguments for safety bounds minimal
+    # Create default path dynamically
+    default_safety_bound = create_default_paths(__file__, 'safety_bound')
+
+    # Override input path default
+    parser.set_defaults(input=default_safety_bound)
+
+    # Set default method to PPOLag
+    parser.set_defaults(method="PPOLag")
+
+    # Override default environments to only use armament_burden and detonators_dilemma
+    parser.set_defaults(envs=["armament_burden", "detonators_dilemma"])
+
+    # Add total_iterations argument specific to this script
     parser.add_argument("--total_iterations", type=int, default=5e8,
                         help="Total number of environment iterations corresponding to 500 data points")
+
     return parser
 
 

@@ -1,12 +1,19 @@
 import argparse
 import json
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 
-from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS, create_default_paths
 from sample_factory.doom.doom_utils import DOOM_ENVS
 
 
@@ -153,12 +160,18 @@ def animate_metrics(data, args):
     max_frames = max(global_frames.values())
     anim = FuncAnimation(fig, update, frames=range(max_frames), init_func=init,
                          blit=False, interval=10)
-    folder = 'figures/animated'
+
+    # Save to results/figures/animated directory (not results/plotting/figures/animated)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.dirname(script_dir)
+    folder = os.path.join(results_dir, 'figures', 'animated')
     os.makedirs(folder, exist_ok=True)
     metrics_str = f'_{args.metrics[0]}' if len(args.metrics) == 1 else ''
     shift_str = f'_shifting' if args.shift_x_axis else ''
     file_name = f'{args.algo}_{args.env}_level_{args.level}{metrics_str}{shift_str}.gif'
-    anim.save(os.path.join(folder, file_name), writer='pillow', fps=args.fps, dpi=300)
+    full_path = os.path.join(folder, file_name)
+    anim.save(full_path, writer='pillow', fps=args.fps, dpi=300)
+    print(f"GIF saved to: {full_path}")
     plt.show()
 
 
@@ -166,7 +179,11 @@ def common_plot_args():
     parser = argparse.ArgumentParser(
         description="Animate metrics from structured data, using a fixed y-axis and configurable x-axis behavior."
     )
-    parser.add_argument("--inputs", type=str, nargs='+', default=['data/main'],
+
+    # Create default path dynamically
+    default_main = create_default_paths(__file__, 'main')
+
+    parser.add_argument("--inputs", type=str, nargs='+', default=[default_main],
                         help="Base input directories")
     parser.add_argument("--level", type=int, default=1, help="Level")
     parser.add_argument("--seeds", type=int, nargs='+', default=[1, 2, 3],

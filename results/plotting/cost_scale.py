@@ -1,9 +1,16 @@
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from results.commons import TRANSLATIONS, load_data, load_full_data_with_scales, create_common_parser, check_data_availability_with_scales
+# Add the parent directory to the path so we can import results.commons
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(script_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from results.commons import TRANSLATIONS, load_data, load_full_data_with_scales, create_common_parser, check_data_availability_with_scales, create_default_paths
 
 
 def main(args):
@@ -89,17 +96,26 @@ def plot_metrics(data, args):
     fig.legend(lines, labels, loc='lower center', ncol=len(args.scales), fontsize=12, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.0))
 
-    folder = 'figures'
+    # Save to results/figures directory (not results/plotting/figures)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.dirname(script_dir)
+    folder = os.path.join(results_dir, 'figures')
     file = f'cost_scales_level_{args.level}'
     os.makedirs(folder, exist_ok=True)
-    plt.savefig(f'{folder}/{file}.pdf', dpi=300)
+    full_path = f'{folder}/{file}.pdf'
+    plt.savefig(full_path, dpi=300)
+    print(f"Plot saved to: {full_path}")
     plt.show()
 
 
 def common_plot_args():
     parser = create_common_parser("Plot metrics from structured data directory.")
+
+    # Create default path dynamically
+    default_cost_scale = create_default_paths(__file__, 'cost_scale')
+
     parser.set_defaults(
-        input='data/cost_scale',
+        input=default_cost_scale,
         method='PPOCost'
     )
     parser.add_argument("--scales", type=float, nargs='+', default=[0.1, 0.5, 1, 2], 

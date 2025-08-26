@@ -54,22 +54,18 @@ python sample_factory/train.py \
     --num_policies=8
 ```
 
-## Environment-Specific Parameters
+## Configuration
 
-### HASARD-Specific Options
+For detailed information about all available configuration parameters, see the [Configuration Guide](cfg/README.md).
 
+### Key Parameters
+
+- `--env`: Environment name (e.g., 'ArmamentBurdenLevel1-v0')
+- `--experiment`: Experiment name for organizing results
 - `--level`: Difficulty level (1, 2, or 3)
 - `--constraint`: Safety constraint type ('soft' or 'hard')
-- `--resolution`: Screen resolution ('160x120', '320x240', '640x480', '800x600', '1280x720', '1600x1200')
-- `--wide_aspect_ratio`: Enable wide aspect ratio for better field of view
-
-### Rendering and Recording
-
-- `--record`: Enable/disable gameplay recording (default: True)
-- `--video_dir`: Directory to save recorded videos (default: 'videos')
-- `--record_every`: Record video every N steps (default: 5000)
-- `--video_length`: Length of recorded videos in steps (default: 2100)
-- `--resolution_eval`: Resolution for evaluation videos (default: '1280x720')
+- `--num_workers`: Number of parallel worker processes
+- `--batch_size`: Batch size for training
 
 ## Evaluating Trained Models
 
@@ -108,89 +104,43 @@ All HASARD environments are available with three difficulty levels:
 - `CollateralDamageLevel{1,2,3}-v0`: Complete objectives while minimizing civilian casualties
 - `RemedyRushLevel{1,2,3}-v0`: Collect medical supplies while avoiding hazards
 
-## Performance Optimization
+## Performance Tips
 
-### Parallel Training Tips
+For optimal performance:
+- Set `--num_workers` to match your CPU core count
+- Use `--num_envs_per_worker=8-16` for high throughput
+- Increase `--batch_size` for better GPU utilization
+- Monitor system resources and adjust accordingly
 
-1. **CPU Cores**: Set `--num_workers` to match your CPU core count
-2. **Environments per Worker**: Use `--num_envs_per_worker=8-16` for optimal throughput
-3. **Batch Size**: Increase `--batch_size` for better GPU utilization (try 1024, 2048, 4096)
-4. **Memory**: Monitor RAM usage; reduce workers if running out of memory
-
-### GPU Optimization
-
-```bash
-# Multi-GPU training
-python sample_factory/train.py \
-    --env=ArmamentBurdenLevel3-v0 \
-    --experiment=ab_multigpu \
-    --num_workers=64 \
-    --num_envs_per_worker=8 \
-    --batch_size=4096 \
-    --device=cuda:0
-```
-
-## Hyperparameter Recommendations
-
-### For Fast Prototyping
-```bash
---num_workers=8 --num_envs_per_worker=4 --batch_size=512 --train_for_env_steps=10000000
-```
-
-### For High Performance
-```bash
---num_workers=32 --num_envs_per_worker=16 --batch_size=2048 --train_for_env_steps=100000000
-```
-
-### For Population-Based Training
-```bash
---with_pbt=True --num_policies=8 --pbt_period_env_steps=5000000 --pbt_start_mutation=20000000
-```
+For detailed performance optimization and hyperparameter recommendations, see the [Configuration Guide](cfg/README.md).
 
 ## Logging and Monitoring
 
-### Weights & Biases Integration
-
-Enable WandB logging for comprehensive experiment tracking:
+Enable WandB logging for experiment tracking:
 
 ```bash
 python sample_factory/train.py \
     --env=ArmamentBurdenLevel1-v0 \
     --experiment=my_experiment \
     --with_wandb=True \
-    --wandb_project=hasard_training \
-    --wandb_group=armament_burden
+    --wandb_project=hasard_training
 ```
 
-### Local Logging
+Training logs and checkpoints are saved to `sample_factory/train_dir/{experiment_name}/`.
 
-Training logs and checkpoints are saved to:
-- Logs: `sample_factory/train_dir/{experiment_name}/`
-- Models: `sample_factory/train_dir/{experiment_name}/checkpoint_*.pth`
-- Videos: `{video_dir}/{experiment_name}/`
+For detailed logging configuration options, see the [Configuration Guide](cfg/README.md).
 
 ## Troubleshooting
 
-### Common Issues
+Common issues and solutions:
+- **Out of Memory**: Reduce `--num_workers` or `--num_envs_per_worker`
+- **Slow Training**: Increase `--batch_size` and ensure GPU utilization
+- **Environment Errors**: Check that HASARD is properly installed
+- **Video Recording Issues**: Ensure sufficient disk space
 
-1. **Out of Memory**: Reduce `--num_workers` or `--num_envs_per_worker`
-2. **Slow Training**: Increase `--batch_size` and ensure GPU utilization
-3. **Environment Errors**: Check that HASARD is properly installed (`pip install HASARD`)
-4. **Video Recording Issues**: Ensure sufficient disk space in `--video_dir`
+Monitor training progress: `tail -f sample_factory/train_dir/{experiment_name}/sf_log.txt`
 
-### Performance Monitoring
-
-Monitor training progress with:
-```bash
-# View training logs
-tail -f sample_factory/train_dir/{experiment_name}/sf_log.txt
-
-# Check GPU utilization
-nvidia-smi
-
-# Monitor system resources
-htop
-```
+For detailed troubleshooting and monitoring options, see the [Configuration Guide](cfg/README.md).
 
 ## Advanced Features
 

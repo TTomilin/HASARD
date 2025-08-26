@@ -25,6 +25,54 @@ def main(args):
     plot_metrics(data, args)
 
 
+def reshape_data_if_needed(runs, num_seeds):
+    """
+    Helper function to reshape flat list data into separate runs per seed.
+
+    Args:
+        runs: Either a flat list of floats or a list of lists
+        num_seeds: Number of seeds to split the data into
+
+    Returns:
+        List of lists, where each inner list represents one seed's data
+    """
+    # Check if runs is a flat list of floats (due to load_full_data using extend())
+    # If so, we need to reshape it back into separate runs per seed
+    if runs and isinstance(runs[0], (int, float)):
+        # Flat list case - reshape into separate runs
+        total_length = len(runs)
+
+        # Only treat as single run if the data is clearly too small to be multi-seed
+        # or if we have only one seed requested
+        if num_seeds == 1 or total_length < num_seeds * 10:
+            runs = [runs]
+        else:
+            # Try to split into approximately equal chunks
+            # Calculate base chunk size and remainder
+            base_chunk_size = total_length // num_seeds
+            remainder = total_length % num_seeds
+
+            # Split the data, distributing remainder across first few chunks
+            new_runs = []
+            start_idx = 0
+            for i in range(num_seeds):
+                # Add one extra element to first 'remainder' chunks
+                chunk_size = base_chunk_size + (1 if i < remainder else 0)
+                end_idx = start_idx + chunk_size
+                new_runs.append(runs[start_idx:end_idx])
+                start_idx = end_idx
+
+            runs = new_runs
+
+    # Now handle the case where runs might have different lengths
+    if runs and hasattr(runs[0], '__len__'):
+        min_length = min(len(run) for run in runs)
+        for i in range(len(runs)):
+            runs[i] = runs[i][:min_length]
+
+    return runs
+
+
 def plot_metrics(data, args):
     plt.style.use('seaborn-v0_8-paper')
     fig, axs = plt.subplots(3, 4, figsize=(12, 8))  # Adjust figsize for better fit
@@ -60,9 +108,7 @@ def plot_metrics(data, args):
 
                     # Hacky workaround for If some runs crashed and there is an uneven number of datapoints
                     runs = data[key]
-                    min_length = min(len(run) for run in runs)
-                    for i in range(len(runs)):
-                        runs[i] = runs[i][:min_length]
+                    runs = reshape_data_if_needed(runs, len(args.seeds))
                     all_runs = np.array(runs)
 
                     if all_runs.size == 0 or len(all_runs.shape) < 2:
@@ -73,7 +119,9 @@ def plot_metrics(data, args):
                     if method == "PPOCost" and metric == "reward":
                         cost_key = (env, method, "cost")
                         if cost_key in data:
-                            all_costs = np.array(data[cost_key])
+                            cost_runs = data[cost_key]
+                            cost_runs = reshape_data_if_needed(cost_runs, len(args.seeds))
+                            all_costs = np.array(cost_runs)
                             cost_scalar = doom_env_lookup[env].penalty_scaling
                             all_runs += all_costs * cost_scalar
 
@@ -102,10 +150,15 @@ def plot_metrics(data, args):
     fig.legend(lines, labels, loc='lower center', ncol=len(args.algos), fontsize=fontsize, fancybox=True, shadow=True,
                bbox_to_anchor=(0.5, 0.0))
 
-    folder = 'figures'
+    # Save to results/figures directory (not results/plotting/figures)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.dirname(script_dir)
+    folder = os.path.join(results_dir, 'figures')
     file = 'hard' if args.hard_constraint else f'level_{args.level}'
     os.makedirs(folder, exist_ok=True)
-    plt.savefig(f'{folder}/{file}.pdf', dpi=300)
+    full_path = f'{folder}/{file}.pdf'
+    plt.savefig(full_path, dpi=300)
+    print(f"Plot saved to: {full_path}")
     plt.show()
 
 
