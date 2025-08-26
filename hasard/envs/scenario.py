@@ -89,7 +89,7 @@ class DoomEnv(gym.Env, ABC):
         # Set screen resolution based on render mode or user-defined resolution
         if render_mode == 'human':  # Use a higher resolution for watching gameplay
             self.game.set_window_visible(True)
-            self.game.set_screen_resolution(ScreenResolution.RES_1280X1024)
+            self.game.set_screen_resolution(ScreenResolution.RES_1920X1080)
             self.frame_skip = 1
         elif resolution:  # User-defined resolution
             self.game.set_screen_resolution(get_screen_resolution(resolution))
