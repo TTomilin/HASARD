@@ -1,4 +1,4 @@
-# HASARD: A Benchmark for Harnessing Safe Reinforcement Learning with Doom
+# HASARD: A Benchmark for Vision-Based Safe Reinforcement Learning in Embodied Agents
 
 **HASARD** (**Ha**rnessing **Sa**fe **R**einforcement Learning with **D**oom) is a benchmark for Safe Reinforcement 
 Learning within complex, egocentric perception 3D environments derived from the classic DOOM video game. It features 6 
