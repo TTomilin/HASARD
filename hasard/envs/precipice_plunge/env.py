@@ -10,6 +10,9 @@ from hasard.utils.action_space import doom_actions_full, doom_action_space_full,
 
 class PrecipicePlunge(DoomEnv):
     def __init__(self, level=1, **kwargs):
+        # Set default safety_budget if not provided
+        if 'safety_budget' not in kwargs:
+            kwargs['safety_budget'] = 50
         super().__init__(level, **kwargs)
         self.reward_scaler = 0.05
         self.prev_z = self.starting_z = 0
@@ -17,14 +20,10 @@ class PrecipicePlunge(DoomEnv):
         self.cost_scaler = 10 if self.hard_constraint else 1
         self.health_last_step = self.starting_health = 1000
 
-    @property
-    def safety_budget(self) -> float:
-        return 50
-
-    def reduced_action_space(self) -> gym.spaces.Tuple:
+    def reduced_action_space(self) -> gym.spaces.Space:
         return doom_turn_move_look_jump()
 
-    def full_action_space(self) -> gym.spaces.Tuple:
+    def full_action_space(self) -> gym.spaces.Space:
         return doom_action_space_full()
 
     def full_actions(self) -> List[str]:

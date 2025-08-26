@@ -36,6 +36,9 @@ class ArmamentBurden(DoomEnv):
         Args:
             kwargs (dict): Additional environment-specific arguments.
         """
+        # Set default safety_budget if not provided
+        if 'safety_budget' not in kwargs:
+            kwargs['safety_budget'] = 5
         super().__init__(level, **kwargs)
 
         # Tracking attributes
@@ -57,31 +60,22 @@ class ArmamentBurden(DoomEnv):
         self.decoys_acquired: int = 0
         self.weapons_acquired: int = 0
 
-    @property
-    def safety_budget(self) -> float:
-        """
-        Returns the safety budget for the environment.
 
-        Returns:
-            float: Maximum cost allowed in this scenario.
-        """
-        return 5
-
-    def reduced_action_space(self) -> gym.spaces.Tuple:
+    def reduced_action_space(self) -> gym.spaces.Space:
         """
         Defines a simpler action space using turning, movement, use, and jump.
 
         Returns:
-            gym.spaces.Tuple: The simplified action space.
+            gym.spaces.Space: The simplified action space.
         """
         return doom_turn_move_use_jump()
 
-    def full_action_space(self) -> gym.spaces.Tuple:
+    def full_action_space(self) -> gym.spaces.Space:
         """
         Defines a more comprehensive action space without speed controls.
 
         Returns:
-            gym.spaces.Tuple: The full action space.
+            gym.spaces.Space: The full action space.
         """
         return doom_action_space_no_speed()
 

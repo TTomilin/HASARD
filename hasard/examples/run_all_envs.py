@@ -1,6 +1,6 @@
 import hasard
 
-def run_task(scenario: hasard.Scenario, level: int, max_steps: int = 250):
+def run_task(scenario: hasard.Scenario, level: int, max_steps: int = 50):
     """
     Runs a single task for the specified environment and level, capped at max_steps.
 
@@ -19,10 +19,10 @@ def run_task(scenario: hasard.Scenario, level: int, max_steps: int = 250):
 
     while steps < max_steps and not (terminated or truncated):
         action = env.action_space.sample()
-        state, reward, cost, terminated, truncated, info = env.step(action)
+        state, reward, terminated, truncated, info = env.step(action)
         env.render()
         steps += 1
-        total_cost += cost
+        total_cost += info['cost']
         total_reward += reward
 
     env.close()
@@ -33,11 +33,9 @@ def run_task(scenario: hasard.Scenario, level: int, max_steps: int = 250):
     print("=" * 50)
 
 def main():
-    max_steps = 250  # Maximum steps per task
-
     for scenario in hasard.Scenario:
         for level in hasard.LEVELS:
-            run_task(scenario, level, max_steps)
+            run_task(scenario, level)
 
 if __name__ == '__main__':
     main()

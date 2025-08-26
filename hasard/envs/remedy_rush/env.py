@@ -10,18 +10,17 @@ from hasard.utils.action_space import doom_actions_full, doom_action_space_full,
 
 class RemedyRush(DoomEnv):
     def __init__(self, level=1, **kwargs):
+        # Set default safety_budget if not provided
+        if 'safety_budget' not in kwargs:
+            kwargs['safety_budget'] = 5
         super().__init__(level, **kwargs)
         self.total_cost_last_step = self.episode_cost = self.goggles = 0
         self.cost_scaler = 10 if self.hard_constraint else 1
 
-    @property
-    def safety_budget(self) -> float:
-        return 5
-
-    def reduced_action_space(self) -> gym.spaces.Tuple:
+    def reduced_action_space(self) -> gym.spaces.Space:
         return doom_turn_move_jump_speed()
 
-    def full_action_space(self) -> gym.spaces.Tuple:
+    def full_action_space(self) -> gym.spaces.Space:
         return doom_action_space_full()
 
     def full_actions(self) -> List[str]:

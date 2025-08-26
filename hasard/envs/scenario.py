@@ -42,7 +42,8 @@ class DoomEnv(gym.Env, ABC):
                  render_segmented: bool = False,
                  full_actions: bool = False,
                  hard_constraint: bool = False,
-                 resolution: Optional[str] = None):
+                 resolution: Optional[str] = None,
+                 safety_budget: Optional[float] = None):
         """
         Initializes the Doom environment.
 
@@ -55,15 +56,17 @@ class DoomEnv(gym.Env, ABC):
             render_mode (str, optional): Mode to render the environment ('human' or 'rgb_array'). Defaults to 'rgb_array'.
             full_actions (bool, optional): Whether to use the full action space. Defaults to False.
             resolution (str, optional): Predefined resolution for the game screen. Defaults to None.
+            safety_budget (float, optional): The safety budget for the environment. If None, subclasses must provide their own default. Defaults to None.
         """
         super().__init__()
         self.level = level
         self.hard_constraint = hard_constraint
         self.scenario_name = self.__module__.split('.')[-2]
         self.frame_skip = frame_skip
+        self._safety_budget = safety_budget
 
-        # Recording
-        self.metadata['render.modes'] = ['rgb_array', 'human']
+        # Initialize metadata properly
+        self.metadata = {'render_modes': ['rgb_array', 'human']}
         self.record_every = record_every
 
         # Determine the directory of the Hasard scenario
@@ -89,7 +92,7 @@ class DoomEnv(gym.Env, ABC):
         # Set screen resolution based on render mode or user-defined resolution
         if render_mode == 'human':  # Use a higher resolution for watching gameplay
             self.game.set_window_visible(True)
-            self.game.set_screen_resolution(ScreenResolution.RES_1920X1080)
+            self.game.set_screen_resolution(ScreenResolution.RES_1280X1024)
             self.frame_skip = 1
         elif resolution:  # User-defined resolution
             self.game.set_screen_resolution(get_screen_resolution(resolution))
@@ -108,7 +111,7 @@ class DoomEnv(gym.Env, ABC):
         self.composite_action_space = hasattr(self.action_space, "spaces")
         self.delta_actions_scaling_factor = 7.5
 
-    @abstractmethod
+    @property
     def safety_budget(self) -> float:
         """
         Retrieves the safety budget for the environment.
@@ -116,25 +119,28 @@ class DoomEnv(gym.Env, ABC):
         Returns:
             float: The safety budget.
         """
-        pass
+        if self._safety_budget is not None:
+            return self._safety_budget
+        else:
+            raise NotImplementedError("safety_budget must be provided either as a parameter or overridden by subclass")
 
     @abstractmethod
-    def reduced_action_space(self) -> gym.spaces.Tuple:
+    def reduced_action_space(self) -> gym.spaces.Space:
         """
         Defines a simplified action space for the environment.
 
         Returns:
-            gym.spaces.Tuple: The simplified action space.
+            gym.spaces.Space: The simplified action space.
         """
         pass
 
     @abstractmethod
-    def full_action_space(self) -> gym.spaces.Tuple:
+    def full_action_space(self) -> gym.spaces.Space:
         """
         Defines the full action space for the environment using a predefined action space function.
 
         Returns:
-            gym.spaces.Tuple: The full action space.
+            gym.spaces.Space: The full action space.
         """
         pass
 
@@ -184,6 +190,13 @@ class DoomEnv(gym.Env, ABC):
                 - observation (np.ndarray): Initial state observation of the environment.
                 - info (Dict[str, Any]): Additional information about the initial state.
         """
+        # Call parent reset to handle seed properly
+        super().reset(seed=seed)
+
+        # Set game seed if provided
+        if seed is not None:
+            self.game.set_seed(seed)
+
         try:
             self.game.new_episode()
         except vzd.ViZDoomIsNotRunningException:

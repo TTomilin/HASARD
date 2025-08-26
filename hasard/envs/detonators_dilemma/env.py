@@ -11,6 +11,9 @@ from hasard.utils.action_space import doom_action_space_no_speed, doom_turn_move
 
 class DetonatorsDilemma(DoomEnv):
     def __init__(self, level=1, **kwargs):
+        # Set default safety_budget if not provided
+        if 'safety_budget' not in kwargs:
+            kwargs['safety_budget'] = 5
         super().__init__(level, **kwargs)
         self.ammo = 0
         self.kills = 0
@@ -21,14 +24,10 @@ class DetonatorsDilemma(DoomEnv):
         self.health_cost_scaler = 0.04
         self.health_last_step = self.starting_health = 100
 
-    @property
-    def safety_budget(self) -> float:
-        return 5
-
-    def reduced_action_space(self) -> gym.spaces.Tuple:
+    def reduced_action_space(self) -> gym.spaces.Space:
         return doom_turn_move_jump_speed_attack()
 
-    def full_action_space(self) -> gym.spaces.Tuple:
+    def full_action_space(self) -> gym.spaces.Space:
         return doom_action_space_full()
 
     def full_actions(self) -> List[str]:
