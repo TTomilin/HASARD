@@ -3,6 +3,8 @@ import os
 from os.path import join
 from typing import Optional
 
+from gymnasium.wrappers.frame_stack import FrameStack
+
 from sample_factory.doom.action_space import (
     doom_turn_attack, doom_turn_move_jump_accelerate,
     doom_turn_move_jump_accelerate_attack, doom_turn_move_look_jump, doom_turn_move_use_jump_speed,
@@ -207,6 +209,8 @@ def make_doom_env_impl(
         resolution=cfg.resolution,
         seed=cfg.seed,
     )
+
+    env = FrameStack(env, cfg.env_framestack)
 
     record_to = cfg.record_to if "record_to" in cfg else None
 
