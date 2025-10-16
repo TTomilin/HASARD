@@ -259,7 +259,7 @@ def enjoy(cfg: Config) -> Tuple[StatusCode, float]:
                     time.sleep(0.05)
 
                 if all(finished_episode):
-                    finished_episode = [False] * env.num_agents
+                    finished_episode = [False] * env.get_wrapper_attr('num_agents')
                     avg_episode_rewards_str, avg_cost_str = "", ""
                     for agent_i in range(env.num_agents):
                         avg_rew = np.mean(episode_rewards[agent_i])

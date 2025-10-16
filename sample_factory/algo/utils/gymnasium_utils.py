@@ -86,9 +86,9 @@ def _patch_env(env: Union["gym.Env", gymnasium.Env]) -> gymnasium.Env:
 
     # preserving potential multi-agent env attributes
     if hasattr(env, "num_agents"):
-        gymnasium_env.num_agents = env.num_agents
+        gymnasium_env.num_agents = env.get_wrapper_attr('num_agents')
     if hasattr(env, "is_multiagent"):
-        gymnasium_env.is_multiagent = env.is_multiagent
+        gymnasium_env.is_multiagent = env.get_wrapper_attr('is_multiagent')
 
     return gymnasium_env
 

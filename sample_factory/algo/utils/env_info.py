@@ -44,10 +44,10 @@ class EnvInfo:
 def extract_env_info(env: BatchedVecEnv | NonBatchedVecEnv, cfg: Config) -> EnvInfo:
     obs_space = env.observation_space
     action_space = env.action_space
-    num_agents = env.num_agents
+    num_agents = env.get_wrapper_attr('num_agents')
 
-    safety_bound = env.safety_bound
-    timeout = env.timeout
+    safety_bound = env.get_wrapper_attr('safety_bound')
+    timeout = env.get_wrapper_attr('timeout')
 
     gpu_actions = cfg.env_gpu_actions
     gpu_observations = cfg.env_gpu_observations
