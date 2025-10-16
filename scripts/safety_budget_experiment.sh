@@ -27,7 +27,7 @@ for algo in "${methods[@]}"; do
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate hasard
 if [ \$? -eq 0 ]; then
-    python3 ~/hasard/sample_factory/doom/train_vizdoom.py \
+    python3 ~/hasard/sample_factory/train.py \
         --algo "$algo" \
         --env "$env" \
         --level $level \
