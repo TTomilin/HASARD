@@ -3,7 +3,7 @@ import os
 from os.path import join
 from typing import Optional
 
-from gymnasium.wrappers.frame_stack import FrameStack
+from sample_factory.doom.wrappers.frame_stack import DoomFrameStack
 
 from sample_factory.doom.action_space import (
     doom_turn_attack, doom_turn_move_jump_accelerate,
@@ -257,7 +257,7 @@ def make_doom_env_impl(
 
     # === Frame stack only if >1, while still in HWC ===
     if cfg.env_framestack > 1:
-        env = FrameStack(env, cfg.env_framestack)  # stacks along last channel: (H, W, C*K)
+        env = DoomFrameStack(env, cfg.env_framestack)
 
     if cfg.algo == 'PPOCost':
         penalty_scaling = cfg.penalty_scaling if cfg.penalty_scaling else doom_spec.penalty_scaling
