@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "HASARD"
+version = "0.2.1"
+description = "Egocentric 3D Safe Reinforcement Learning Benchmark"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Tristan Tomilin", email = "tristan.tomilin@hotmail.com"}
+]
+keywords = ["safe rl", "reinforcement learning", "vizdoom", "benchmark", "safety"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.8"
+dependencies = [
+    # Core dependencies for hasard environments
+    "numpy>=1.18.1,<2.0",
+    "gymnasium>=0.27,<1.0",
+    "pyglet",  # gym dependency
+    "opencv-python",
+    "vizdoom",
+    "pillow",
+]
+
+[project.optional-dependencies]
+sample-factory = [
+    # Dependencies for sample-factory functionality
+    "torch>=1.9,<3.0,!=1.13.0",
+    "tensorboard>=1.15.0",
+    "tensorboardx>=2.0",
+    "psutil>=5.7.0",
+    "threadpoolctl>=2.0.0",
+    "colorlog",
+    # "faster-fifo>=1.4.2,<2.0",  <-- installed by signal-slot-mp
+    "signal-slot-mp>=1.0.3,<2.0",
+    "filelock",
+    "wandb>=0.12.9",
+]
+results = [
+    # Dependencies for results analysis and plotting
+    "pandas",
+    "matplotlib",
+    "torchviz",
+]
+
+[project.urls]
+Homepage = "https://sites.google.com/view/hasard-bench/"
+Repository = "https://github.com/TTomilin/HASARD"
+Issues = "https://github.com/TTomilin/HASARD/issues"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hasard*", "sample_factory*"]
