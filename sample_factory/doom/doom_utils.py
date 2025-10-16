@@ -210,8 +210,6 @@ def make_doom_env_impl(
         seed=cfg.seed,
     )
 
-    env = FrameStack(env, cfg.env_framestack)
-
     record_to = cfg.record_to if "record_to" in cfg else None
 
     if cfg.record:
@@ -256,6 +254,10 @@ def make_doom_env_impl(
 
     if doom_spec.reward_scaling != 1.0:
         env = RewardScalingWrapper(env, doom_spec.reward_scaling)
+
+    # === Frame stack only if >1, while still in HWC ===
+    if cfg.env_framestack > 1:
+        env = FrameStack(env, cfg.env_framestack)  # stacks along last channel: (H, W, C*K)
 
     if cfg.algo == 'PPOCost':
         penalty_scaling = cfg.penalty_scaling if cfg.penalty_scaling else doom_spec.penalty_scaling
