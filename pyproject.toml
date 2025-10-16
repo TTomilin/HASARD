@@ -45,10 +45,10 @@ sample-factory = [
     "psutil>=5.7.0",
     "threadpoolctl>=2.0.0",
     "colorlog",
-    # "faster-fifo>=1.4.2,<2.0",  <-- installed by signal-slot-mp
     "signal-slot-mp>=1.0.3,<2.0",
     "filelock",
     "wandb>=0.12.9",
+    "moviepy>=1.0.3,<3.0",
 ]
 results = [
     # Dependencies for results analysis and plotting
