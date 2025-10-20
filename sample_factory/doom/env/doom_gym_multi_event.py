@@ -321,7 +321,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             render_with_bounding_boxes=False,
             segment_objects=False,
             skip_frames=1,
-            async_mode=False,
+            async_mode=True,
             record_to=None,
             env_modification: str = None,
             resolution: str = "160x120",
@@ -332,7 +332,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             port: int = 5029,
             env_config=None,
             netmode: int = 0,
-            ticrate: int = 1000,
+            ticrate: int = 100,
             reward_config: Optional[Dict[str, Any]] = None
     ):
         super().__init__(config_file, action_space, safety_bound, unsafe_reward, timeout, scenario, level, constraint,
