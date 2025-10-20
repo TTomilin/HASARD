@@ -1006,7 +1006,7 @@ def add_logging_args(p: ArgumentParser):
         type=str,
         help="WandB username (entity). Must be specified from command line! Also see https://docs.wandb.ai/quickstart#1.-set-up-wandb",
     )
-    p.add_argument("--wandb_project", default="sample_factory", type=str, help='WandB "Project"')
+    p.add_argument("--wandb_project", default="marl-doom", type=str, help='WandB "Project"')
     p.add_argument(
         "--wandb_group",
         default=None,

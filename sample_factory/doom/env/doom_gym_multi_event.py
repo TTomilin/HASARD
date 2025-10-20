@@ -168,13 +168,13 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                 terminated = game.is_player_dead()
                 if not terminated:
                     if skip_frames is not None:
-                        game.make_action(action, skip_frames)
+                        reward = game.make_action(action, skip_frames)
                     else:
-                        game.make_action(action)
+                        reward = game.make_action(action)
                     state = game.get_state()
 
-                    # Calculate reward using modular reward calculator
-                    reward = reward_calculator.calculate_reward(game)
+                    # Calculate the reward
+                    reward = reward_calculator.calculate_reward(game, reward)
 
                     if state and state.screen_buffer is not None:
                         observation = np.transpose(state.screen_buffer, (1, 2, 0))

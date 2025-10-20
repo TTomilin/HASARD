@@ -163,7 +163,7 @@ def game_process(config_path, resolution, timeout, skip_frames, pipe, instance_i
                         game.make_action(action)
                     state = game.get_state()
 
-                    # Calculate reward using modular reward calculator
+                    # Calculate the reward
                     reward = reward_calculator.calculate_reward(game)
 
                     if state and state.screen_buffer is not None:

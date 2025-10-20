@@ -17,7 +17,7 @@ class RewardCalculator(ABC):
         self.initialized = False
 
     @abstractmethod
-    def calculate_reward(self, game: vzd.DoomGame) -> float:
+    def calculate_reward(self, game: vzd.DoomGame, reward: float) -> float:
         """Calculate reward based on current game state."""
         pass
 
@@ -44,7 +44,7 @@ class RemedyRushRewardCalculator(RewardCalculator):
         self.episode_reward = 0
         self.prev_cost = 0
 
-    def calculate_reward(self, game: vzd.DoomGame) -> float:
+    def calculate_reward(self, game: vzd.DoomGame, reward: float) -> float:
         if not self.initialized:
             self.reset(game)
             return 0.0
@@ -90,7 +90,7 @@ class VolcanicVentureRewardCalculator(RewardCalculator):
         self.episode_reward = 0
         self.episode_cost = 0
 
-    def calculate_reward(self, game: vzd.DoomGame) -> float:
+    def calculate_reward(self, game: vzd.DoomGame, reward: float) -> float:
         if not self.initialized:
             self.reset(game)
             return 0.0
@@ -149,10 +149,7 @@ class ArmamentBurdenRewardCalculator(RewardCalculator):
         self.total_weapons_acquired = 0
         self.reward_current_delivery = 0
 
-    def calculate_reward(self, game: vzd.DoomGame) -> float:
-        if not self.initialized:
-            self.reset(game)
-            return 0.0
+    def calculate_reward(self, game: vzd.DoomGame, reward: float) -> float:
 
         # Get game variables
         weapon_id = int(game.get_game_variable(vzd.GameVariable.USER1))
@@ -245,7 +242,6 @@ class ArmamentBurdenRewardCalculator(RewardCalculator):
         self.total_reward_delivery = 0
         self.total_decoys_acquired = 0
         self.total_weapons_acquired = 0
-        self.initialized = True
 
 
 class CollateralDamageRewardCalculator(RewardCalculator):
@@ -259,10 +255,7 @@ class CollateralDamageRewardCalculator(RewardCalculator):
         self.cost_scaler = cost_scaler
         self.episode_reward = 0
 
-    def calculate_reward(self, game: vzd.DoomGame) -> float:
-        if not self.initialized:
-            self.reset(game)
-            return 0.0
+    def calculate_reward(self, game: vzd.DoomGame, reward: float) -> float:
 
         # Get current cost from USER1 variable
         current_cost = game.get_game_variable(vzd.GameVariable.USER1)
@@ -297,11 +290,7 @@ class DetonatorsDilemmaRewardCalculator(RewardCalculator):
         self.episode_reward = 0
         self.total_health_cost = 0
 
-    def calculate_reward(self, game: vzd.DoomGame) -> float:
-        if not self.initialized:
-            self.reset(game)
-            return 0.0
-
+    def calculate_reward(self, game: vzd.DoomGame, reward: float) -> float:
         # Get current values
         current_cost = game.get_game_variable(vzd.GameVariable.USER1)
         current_health = game.get_game_variable(vzd.GameVariable.HEALTH)
@@ -320,8 +309,8 @@ class DetonatorsDilemmaRewardCalculator(RewardCalculator):
         self.previous_values['cost'] = current_cost
         self.previous_values['health'] = current_health
 
-        # Return negative cost as reward
-        return -total_cost_this_step
+        # TODO incorporate penalties
+        return reward
 
     def reset(self, game: vzd.DoomGame):
         self.previous_values['cost'] = 0
@@ -346,11 +335,7 @@ class PrecipicePlungeRewardCalculator(RewardCalculator):
         self.cost_scaler = cost_scaler
         self.episode_reward = 0
 
-    def calculate_reward(self, game: vzd.DoomGame) -> float:
-        if not self.initialized:
-            self.reset(game)
-            return 0.0
-
+    def calculate_reward(self, game: vzd.DoomGame, reward: float) -> float:
         # Get current values
         current_health = game.get_game_variable(vzd.GameVariable.HEALTH)
         current_z = game.get_game_variable(vzd.GameVariable.POSITION_Z)
