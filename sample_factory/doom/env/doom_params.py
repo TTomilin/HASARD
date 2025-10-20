@@ -53,7 +53,7 @@ def add_doom_env_args(parser):
     )
     p.add_argument(
         "--async_mode",
-        default=False,
+        default=True,
         type=str2bool,
         help="Use VizDoom ASYNC_PLAYER mode instead of PLAYER mode for multiplayer"
     )
