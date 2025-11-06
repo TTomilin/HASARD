@@ -908,7 +908,7 @@ def add_default_env_args(p: ArgumentParser):
     )
     p.add_argument(
         "--ticrate",
-        default=1000,
+        default=300,
         type=int,
         help="VizDoom ticrate setting for multiplayer environments. Higher values allow faster simulation.",
     )

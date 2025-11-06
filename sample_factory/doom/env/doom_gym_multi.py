@@ -14,7 +14,6 @@ import vizdoom as vzd
 from vizdoom import ScreenResolution, Mode
 
 from sample_factory.doom.env.doom_gym import VizdoomEnv
-from sample_factory.doom.env.wrappers.reward_calculators import create_reward_calculator
 
 
 def collect_agent_stats(game, reward, agent_id, episode_id, step_id, scenario_name=None):
@@ -37,7 +36,6 @@ def collect_agent_stats(game, reward, agent_id, episode_id, step_id, scenario_na
         'agent_id': agent_id,
         'episode_id': episode_id,
         'step_id': step_id,
-        'reward': reward,
     }
 
     try:
@@ -81,24 +79,8 @@ def collect_agent_stats(game, reward, agent_id, episode_id, step_id, scenario_na
     return stats
 
 
-# Define screen resolutions
-resolutions = {'1920x1080': ScreenResolution.RES_1920X1080,
-               '1600x1200': ScreenResolution.RES_1600X1200,
-               '1280x720': ScreenResolution.RES_1280X720,
-               '800x600': ScreenResolution.RES_800X600,
-               '640x480': ScreenResolution.RES_640X480,
-               '320x240': ScreenResolution.RES_320X240,
-               '160x120': ScreenResolution.RES_160X120}
-
-
-def get_screen_resolution(resolution: str) -> ScreenResolution:
-    if resolution not in resolutions:
-        raise ValueError(f'Invalid resolution: {resolution}')
-    return resolutions[resolution]
-
-
 def game_process(config_path, resolution, timeout, skip_frames, pipe, instance_id, is_host, num_agents, port, shm_name,
-                 obs_shape, worker_idx, env_id, netmode, async_mode, ticrate=1000, reward_config=None):
+                 obs_shape, worker_idx, env_id, netmode, async_mode, ticrate=300, reward_config=None):
     role = "HOST" if is_host else "PEER"
     print(f"[Worker {worker_idx}, Env {env_id}] Starting VizDoom {role} (Agent {instance_id}) on port {port}")
 
@@ -141,10 +123,15 @@ def game_process(config_path, resolution, timeout, skip_frames, pipe, instance_i
     existing_shm = shared_memory.SharedMemory(name=shm_name)
     observations = np.ndarray(obs_shape, dtype=np.uint8, buffer=existing_shm.buf)
 
-    reward_calculator = create_reward_calculator(reward_config)
+    # reward_calculator = create_reward_calculator(reward_config)
+
+    # Get available game variables for mapping indices to names
+    available_game_vars = game.get_available_game_variables()
 
     episode_id = 0
     step_id = 0
+    is_dead = False
+    frames_per_step = skip_frames if skip_frames else 1
     role = "[HOST]" if is_host else "[PEER]"
     scenario = reward_config.get("scenario") if reward_config else None
 
@@ -157,14 +144,17 @@ def game_process(config_path, resolution, timeout, skip_frames, pipe, instance_i
                 action = data
                 terminated = game.is_episode_finished()
                 if not terminated:
-                    if skip_frames is not None:
-                        game.make_action(action, skip_frames)
-                    else:
-                        game.make_action(action)
+                    reward = game.make_action(action, skip_frames)
                     state = game.get_state()
 
+                    # Check if player died during this step
+                    was_dead_before = is_dead
+                    is_dead = game.is_player_dead()
+                    # print(f"{role} step {step_id} dead: {is_dead}")
+                    just_died = not was_dead_before and is_dead
+
                     # Calculate the reward
-                    reward = reward_calculator.calculate_reward(game)
+                    # reward = reward_calculator.calculate_reward(game)
 
                     if state and state.screen_buffer is not None:
                         observation = np.transpose(state.screen_buffer, (1, 2, 0))
@@ -174,18 +164,31 @@ def game_process(config_path, resolution, timeout, skip_frames, pipe, instance_i
                     # Collect relevant stats from the game
                     stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id, scenario)
                     info = {
-                        "num_frames": skip_frames if skip_frames is not None else 1,
-                        "agent_stats": stats
+                        "num_frames": frames_per_step,
+                        "agent_stats": stats,
+                        "player_dead": is_dead,
+                        "just_died": just_died,
+                        "step": step_id
                     }
+                    info.update(get_flat_game_vars(state, available_game_vars))
                 else:
                     reward = 0.0
                     observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
+                    # Check if player died during this step
+                    was_dead_before = is_dead
+                    is_dead = game.is_player_dead()
+                    # print(f"{role} Agent {instance_id} episode finished at step {step_id}")
+                    just_died = not was_dead_before and is_dead
+
                     # Collect basic stats even when terminated
                     stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id, scenario)
                     info = {
-                        "num_frames": skip_frames if skip_frames is not None else 1,
-                        "agent_stats": stats
+                        "num_frames": frames_per_step,
+                        "agent_stats": stats,
+                        "player_dead": is_dead,
+                        "just_died": just_died,
+                        "step": step_id
                     }
 
                 # Write observation into shared memory
@@ -248,12 +251,43 @@ def game_process(config_path, resolution, timeout, skip_frames, pipe, instance_i
                 # Send data back via the pipe
                 pipe.send((reward, done, info))
 
+            elif cmd == 'respawn':
+                # print(f"Respawning Agent {instance_id} at step {step_id}")
+                # Only respawn if actually dead. Otherwise do a no-op action to advance the sim.
+                if is_dead:
+                    game.respawn_player()
+                    is_dead = False
+                    respawned = True
+                else:
+                    zero_action = [0.0] * len(game.get_available_buttons())
+                    _ = game.make_action(zero_action)
+                    respawned = False
+
+                state = game.get_state()
+                if state and state.screen_buffer is not None:
+                    observation = np.transpose(state.screen_buffer, (1, 2, 0))
+                else:
+                    observation = np.zeros(obs_shape[1:], dtype=np.uint8)
+
+                observations[instance_id] = observation
+
+                stats = collect_agent_stats(game, 0.0, instance_id, episode_id, step_id, scenario)
+                info = {
+                    "num_frames": frames_per_step,
+                    "agent_stats": stats,
+                    "player_dead": is_dead,
+                    "just_died": False,
+                    "step": step_id,
+                    "respawned": respawned,
+                }
+                info.update(get_flat_game_vars(state, available_game_vars))
+
+                pipe.send((0.0, False, info))
+                step_id += 1
+
             elif cmd == 'reset':
-                # print(f"BEFORE: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
-                sleep(0.01)  # Give some time for the game to reset
                 game.new_episode()
-                game.respawn_player()
-                # print(f"AFTER: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
+                # game.respawn_player()
 
                 state = game.get_state()
                 if state and state.screen_buffer is not None:
@@ -262,12 +296,25 @@ def game_process(config_path, resolution, timeout, skip_frames, pipe, instance_i
                     observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
                 # Reset reward calculator for new episode
-                reward_calculator.reset(game)
+                # reward_calculator.reset(game)
+
+                info = {
+                    "player_dead": False,
+                    "just_died": False,
+                    "step": step_id,
+                }
+                info.update(get_flat_game_vars(state, available_game_vars))
 
                 # Write observation into shared memory
                 observations[instance_id] = observation
                 # Signal that reset is done
-                pipe.send(None)
+
+                pipe.send({
+                    "obs": observation,
+                    "reward": 0.0,
+                    "terminated": False,
+                    "info": info,
+                })
 
                 episode_id += 1
                 step_id = 0
@@ -312,7 +359,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             render_with_bounding_boxes=False,
             segment_objects=False,
             skip_frames=1,
-            async_mode=False,
+            async_mode=True,
             record_to=None,
             env_modification: str = None,
             resolution: str = "160x120",
@@ -346,6 +393,9 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
         # Initialize pygame screen for rendering
         self.screen = None
+
+        # track dead agents for respawn protocol
+        self._dead_agents: set[int] = set()
 
         parts = resolution.lower().split("x")
         width = int(parts[0])
@@ -390,29 +440,30 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         # Wait a bit to ensure all processes are ready
         time.sleep(1.0)
 
-    def reset(self, **kwargs) -> Tuple[np.ndarray, Dict]:
+    def reset(self, **kwargs) -> Tuple[List[np.ndarray], List[Dict]]:
         if "seed" in kwargs and kwargs["seed"]:
             self.seed(kwargs["seed"])
 
         self._num_steps = 0
+        self._dead_agents.clear()
 
         for pipe in self.parent_pipes:
             pipe.send(('reset', None))
 
-        # Wait for all agents to acknowledge reset
-        for pipe in self.parent_pipes:
-            pipe.recv()
-
+        results = [pipe.recv() for pipe in self.parent_pipes]
         observations = [self.observations[i] for i in range(self.num_agents)]
+        infos = [res.get("info", {}) for res in results]
 
-        return observations, {}
+        return observations, infos
 
     def step(self, actions) -> Tuple[Any, Any, Any, Any, Any]:
-        for pipe, action in zip(self.parent_pipes, actions):
-            pipe.send(('step', action))
+        # send commands: respawn if dead, else normal step
+        for idx, (pipe, action) in enumerate(zip(self.parent_pipes, actions)):
+            cmd = 'respawn' if idx in self._dead_agents else 'step'
+            pipe.send((cmd, action))
 
         n = len(self.parent_pipes)
-        rewards, dones, infos = [None]*n, [None]*n, [None]*n
+        rewards, dones, infos = [None] * n, [None] * n, [None] * n
         pending = set(range(n))
         pipes_left = list(self.parent_pipes)
         deadline = time.time() + 5.0  # watchdog
@@ -431,17 +482,19 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                 pending.remove(idx)
                 pipes_left.remove(p)
 
-        rewards = []
-        dones = []
-        infos = []
-
-        for pipe in self.parent_pipes:
-            reward, done, info = pipe.recv()
-            rewards.append(reward)
-            dones.append(done)
-            infos.append(info)
-
         observations = [self.observations[i] for i in range(self.num_agents)]
+
+        # ) update dead set based on infos
+        # remove agents that successfully respawned
+        for i, info in enumerate(infos):
+            if info.get("respawned", False):
+                if i in self._dead_agents:
+                    self._dead_agents.remove(i)
+
+        # add agents that are now dead
+        for i, info in enumerate(infos):
+            if info["player_dead"]:
+                self._dead_agents.add(i)
 
         frames_advanced = infos[0].get("num_frames", self.skip_frames)
         self._num_steps += int(frames_advanced)
@@ -690,3 +743,24 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         except Exception as e:
             print(f"Rendering Error: {e}")
             return None
+
+
+def get_screen_resolution(resolution: str) -> ScreenResolution:
+    try:
+        return getattr(ScreenResolution, f"RES_{resolution.upper()}")
+    except AttributeError as e:
+        raise ValueError(f"Invalid resolution: {resolution}")
+
+
+def get_flat_game_vars(state, available_game_vars) -> Dict[str, float]:
+    """Return game variables as flat scalars suitable for info (no nested dict)."""
+    if state is None or state.game_variables is None:
+        return {}
+    game_variables = state.game_variables
+    out: Dict[str, float] = {}
+    n = min(len(available_game_vars), len(game_variables))
+    for i in range(n):
+        name = available_game_vars[i].name
+        val = game_variables[i]
+        out[name] = float(val)
+    return out

@@ -7,9 +7,10 @@ from hasard.utils.action_space import doom_turn_attack
 from sample_factory.doom.env.action_space import (
     doom_turn_move_look_jump, doom_turn_move_use_jump_speed, doom_move_attack, doom_turn_move_jump_accelerate,
     doom_turn_move_jump_accelerate_attack, doom_action_space, doom_action_space_no_move, doom_turn_attack_move,
+    doom_turn_move,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
-from sample_factory.doom.env.doom_gym_multi_event import VizdoomMultiAgentEnv
+from sample_factory.doom.env.doom_gym_multi import VizdoomMultiAgentEnv
 from sample_factory.doom.env.wrappers.reward_calculators import get_scenario_reward_config
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
 from sample_factory.doom.env.wrappers.observation_space import SetResolutionWrapper, resolutions
@@ -20,6 +21,8 @@ from sample_factory.doom.env.wrappers.scenario_wrappers.collateral_damage_cost_f
     DoomCollateralDamageCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.detonators_dilemma_cost_function import \
     DoomDetonatorsDilemmaCostFunction
+from sample_factory.doom.env.wrappers.scenario_wrappers.health_gathering_reward_function import \
+    HealthGatheringRewardFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_cost_function import \
     PrecipicePlungeCostFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_reward_function import \
@@ -75,6 +78,18 @@ def episode_trigger(episode):
 
 
 DOOM_ENVS = [
+    DoomSpec(
+        'health_gathering',
+        doom_turn_move(),
+        doom_action_space(),
+        max_histogram_len=20,
+        penalty_scaling=0.1,
+        default_timeout=2100,
+        safety_bound=5,
+        unsafe_reward=-0.005,
+        coord_limits=[0, 256, 960, 1216],
+        extra_wrappers=[(HealthGatheringRewardFunction, {})]
+    ),
     DoomSpec(
         'armament_burden',
         doom_turn_move_use_jump_speed(),
@@ -177,7 +192,6 @@ def doom_env_by_name(name):
     raise RuntimeError("Unknown Doom env")
 
 
-# noinspection PyUnusedLocal
 def make_doom_env_impl(
         doom_spec,
         cfg=None,

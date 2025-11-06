@@ -360,7 +360,7 @@ class VizdoomEnv(gym.Env):
                 raise EnvCriticalError()
 
     def initialize(self):
-        self._create_doom_game(self.mode)
+        # self._create_doom_game(self.mode)
 
         # (optional) top-down view provided by the game engine
         if self.show_automap:
@@ -382,7 +382,7 @@ class VizdoomEnv(gym.Env):
             self.game.add_game_args("+am_thingcolor_item 00ff00")
             # self.game.add_game_args("+am_thingcolor_citem 00ff00")
 
-        self._game_init()
+        # self._game_init()
         self.initialized = True
 
     def _ensure_initialized(self):

@@ -42,7 +42,6 @@ def init_wandb(cfg):
             group=wandb_group,
             job_type=cfg.algo,
             tags=cfg.wandb_tags,
-            settings=wandb.Settings(start_method="fork"),
         )
 
     log.debug("Initializing WandB...")
