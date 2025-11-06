@@ -448,11 +448,14 @@ def make_doom_env_from_spec(spec, _env_name, cfg, env_config, render_mode: Optio
         # Default to 2 agents
         num_agents = 2
 
+    return make_doom_ma_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode,
+                                 num_agents=num_agents, **kwargs)
+
     # Choose between single-agent and multi-agent environment creation
-    if num_agents > 1:
-        # Multi-agent environment
-        return make_doom_ma_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode,
-                                     num_agents=num_agents, **kwargs)
-    else:
-        # Single-agent environment
-        return make_doom_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, **kwargs)
+    # if num_agents > 1:
+    #     # Multi-agent environment
+    #     return make_doom_ma_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode,
+    #                                  num_agents=num_agents, **kwargs)
+    # else:
+    #     # Single-agent environment
+    #     return make_doom_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, **kwargs)
