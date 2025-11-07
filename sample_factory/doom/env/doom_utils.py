@@ -10,8 +10,7 @@ from sample_factory.doom.env.action_space import (
     doom_turn_move,
 )
 from sample_factory.doom.env.doom_gym import VizdoomEnv
-from sample_factory.doom.env.doom_gym_multi import VizdoomMultiAgentEnv
-from sample_factory.doom.env.wrappers.reward_calculators import get_scenario_reward_config
+from sample_factory.doom.env.doom_gym_multi_event import VizdoomMultiAgentEnv
 from sample_factory.doom.env.wrappers.cost_penalty import CostPenalty
 from sample_factory.doom.env.wrappers.observation_space import SetResolutionWrapper, resolutions
 from sample_factory.doom.env.wrappers.record_video import RecordVideo
@@ -28,8 +27,8 @@ from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_cost_fu
 from sample_factory.doom.env.wrappers.scenario_wrappers.precipice_plunge_reward_function import \
     PrecipicePlungeRewardFunction
 from sample_factory.doom.env.wrappers.scenario_wrappers.remedy_rush_cost_function import RemedyRushCostFunction
-from sample_factory.doom.env.wrappers.scenario_wrappers.volcanic_venture_cost_function import \
-    VolcanicVentureCostFunction
+from sample_factory.doom.env.wrappers.scenario_wrappers.volcanic_venture_reward_function import \
+    VolcanicVentureRewardFunction
 from sample_factory.envs.env_wrappers import (
     PixelFormatChwWrapper,
     ResizeWrapper,
@@ -52,7 +51,6 @@ class DoomSpec:
             safety_bound=None,
             unsafe_reward=None,
             coord_limits=None,
-            num_agents=1,
             respawn_delay=0,
             timelimit=4.0,
             extra_wrappers=None,
@@ -67,7 +65,6 @@ class DoomSpec:
         self.safety_bound = safety_bound
         self.unsafe_reward = unsafe_reward
         self.coord_limits = coord_limits
-        self.num_agents = num_agents
         self.respawn_delay = respawn_delay
         self.timelimit = timelimit
         self.extra_wrappers = extra_wrappers
@@ -160,7 +157,7 @@ DOOM_ENVS = [
         safety_bound=50,
         unsafe_reward=-0.01,
         coord_limits=[0, 64, 2176, 2240],
-        extra_wrappers=[(VolcanicVentureCostFunction, {})]
+        extra_wrappers=[(VolcanicVentureRewardFunction, {})]
     ),
     DoomSpec(
         'multi_duel',
@@ -179,7 +176,6 @@ DOOM_ENVS = [
         max_histogram_len=None,
         penalty_scaling=1.0,
         default_timeout=2100,
-        num_agents=4,
         extra_wrappers=[]
     ),
 ]
@@ -302,7 +298,6 @@ def make_doom_ma_env_impl(
         env_config=None,
         skip_frames=None,
         player_id=None,
-        num_agents=2,
         max_num_players=None,
         num_bots=0,  # for multi-agent
         custom_resolution=None,
@@ -329,9 +324,6 @@ def make_doom_ma_env_impl(
     port = 5029 + (env_config.env_id if env_config else 0)
     print(f"Creating env on {host_address}:{port}. Env ID: {env_config.env_id if env_config else 'N/A'}")
 
-    # Get scenario-specific reward configuration instead of using wrappers
-    reward_config = get_scenario_reward_config(doom_spec.name, cfg.constraint)
-
     env = VizdoomMultiAgentEnv(
         config_file,
         action_space,
@@ -348,14 +340,13 @@ def make_doom_ma_env_impl(
         render_mode=render_mode,
         resolution=cfg.resolution,
         seed=cfg.seed,
-        num_agents=num_agents,
+        num_agents=cfg.num_agents,
         host_address=host_address,
         port=port,
         env_config=env_config,
         netmode=cfg.netmode,
         async_mode=cfg.async_mode,
         ticrate=cfg.ticrate,
-        reward_config=reward_config,
     )
 
     record_to = cfg.record_to if "record_to" in cfg else None
@@ -399,7 +390,7 @@ def make_doom_ma_env_impl(
     if doom_spec.extra_wrappers is not None:
         scenario_wrapper_classes = {
             'RemedyRushCostFunction', 'VolcanicVentureCostFunction', 'ArmamentBurdenCostFunction',
-            'DoomCollateralDamageCostFunction', 'DoomDetonatorsDilemmaCostFunction', 
+            'DoomCollateralDamageCostFunction', 'DoomDetonatorsDilemmaCostFunction',
             'PrecipicePlungeCostFunction', 'PrecipicePlungeRewardFunction'
         }
 
@@ -409,7 +400,8 @@ def make_doom_ma_env_impl(
                 # Apply non-scenario wrappers normally
                 env = wrapper_cls(env, **wrapper_kwargs)
             else:
-                print(f"Skipping scenario wrapper {wrapper_name} for multi-agent environment - using reward_config instead")
+                print(
+                    f"Skipping scenario wrapper {wrapper_name} for multi-agent environment - using reward_config instead")
 
     if doom_spec.reward_scaling != 1.0:
         env = RewardScalingWrapper(env, doom_spec.reward_scaling)
@@ -437,19 +429,7 @@ def make_doom_env_from_spec(spec, _env_name, cfg, env_config, render_mode: Optio
     else:
         cfg.record_to = None
 
-    # Determine the number of agents - configurable from main cfg
-    if cfg.num_agents != -1:
-        # Use the configurable num_agents from cfg
-        num_agents = cfg.num_agents
-    elif hasattr(spec, 'num_agents') and spec.num_agents is not None:
-        # Use the spec's default num_agents
-        num_agents = spec.num_agents
-    else:
-        # Default to 2 agents
-        num_agents = 2
-
-    return make_doom_ma_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode,
-                                 num_agents=num_agents, **kwargs)
+    return make_doom_ma_env_impl(spec, cfg=cfg, env_config=env_config, render_mode=render_mode, **kwargs)
 
     # Choose between single-agent and multi-agent environment creation
     # if num_agents > 1:

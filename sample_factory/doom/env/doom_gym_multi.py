@@ -153,9 +153,6 @@ def game_process(config_path, resolution, timeout, skip_frames, pipe, instance_i
                     # print(f"{role} step {step_id} dead: {is_dead}")
                     just_died = not was_dead_before and is_dead
 
-                    # Calculate the reward
-                    # reward = reward_calculator.calculate_reward(game)
-
                     if state and state.screen_buffer is not None:
                         observation = np.transpose(state.screen_buffer, (1, 2, 0))
                     else:

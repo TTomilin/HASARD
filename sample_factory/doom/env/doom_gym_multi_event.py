@@ -13,9 +13,8 @@ import vizdoom as vzd
 from vizdoom import ScreenResolution, Mode
 
 from sample_factory.doom.env.doom_gym import VizdoomEnv
-from sample_factory.doom.env.wrappers.reward_calculators import create_reward_calculator
 
-def collect_agent_stats(game, reward, agent_id, episode_id, step_id, scenario_name=None):
+def collect_agent_stats(game, reward, agent_id, episode_id, step_id):
     """
     Collect relevant stats from a VizDoom game instance for logging.
     Only collects basic stats and scenario-specific stats that are actually needed.
@@ -37,45 +36,6 @@ def collect_agent_stats(game, reward, agent_id, episode_id, step_id, scenario_na
         'step_id': step_id,
         'reward': reward,
     }
-
-    try:
-        # Basic stats for all tasks
-        stats['health'] = game.get_game_variable(vzd.GameVariable.HEALTH)
-        stats['armor'] = game.get_game_variable(vzd.GameVariable.ARMOR)
-
-        # Add scenario-specific stats based on the task
-        if scenario_name == 'remedy_rush':
-            # Remedy Rush: cost tracking and goggles
-            stats['cost'] = game.get_game_variable(vzd.GameVariable.USER1)
-            stats['goggles_obtained'] = game.get_game_variable(vzd.GameVariable.USER2)
-        elif scenario_name == 'volcanic_venture':
-            # Volcanic Venture: health loss as cost
-            pass  # Health is already tracked above
-        elif scenario_name == 'armament_burden':
-            # Armament Burden: weapon and delivery tracking
-            stats['weapon_id'] = game.get_game_variable(vzd.GameVariable.USER1)
-            stats['weapons_carried'] = game.get_game_variable(vzd.GameVariable.USER2)
-            stats['in_delivery_zone'] = game.get_game_variable(vzd.GameVariable.USER3)
-            stats['discarded'] = game.get_game_variable(vzd.GameVariable.USER4)
-            stats['decoys_carried'] = game.get_game_variable(vzd.GameVariable.USER6)
-        elif scenario_name == 'collateral_damage':
-            # Collateral Damage: civilian casualty cost
-            stats['civilian_cost'] = game.get_game_variable(vzd.GameVariable.USER1)
-        elif scenario_name == 'detonators_dilemma':
-            # Detonators Dilemma: unsafe detonation cost
-            stats['unsafe_cost'] = game.get_game_variable(vzd.GameVariable.USER1)
-        elif scenario_name == 'precipice_plunge':
-            # Precipice Plunge: restart flag and position
-            stats['restart_flag'] = game.get_game_variable(vzd.GameVariable.USER1)
-            stats['position_z'] = game.get_game_variable(vzd.GameVariable.POSITION_Z)
-
-    except Exception as e:
-        # If any game variable is not available, set to 0
-        print(f"Warning: Could not collect some stats for agent {agent_id}: {e}")
-        for key in ['health', 'armor']:
-            if key not in stats:
-                stats[key] = 0
-
     return stats
 
 
@@ -99,7 +59,7 @@ def get_screen_resolution(resolution: str) -> ScreenResolution:
 
 def game_process(config_path, resolution, timeout, skip_frames, shared_command, step_event, all_done_event,
                  num_completed, num_agents, instance_id, is_host, port, shm_name, obs_shape, worker_idx, env_id,
-                 netmode, async_mode, ticrate, reward_config):
+                 netmode, async_mode, ticrate):
     last_cycle = -1
     role = "HOST" if is_host else "PEER"
     print(f"[Worker {worker_idx}, Env {env_id}] Starting VizDoom {role} (Agent {instance_id}) on port {port}")
@@ -115,10 +75,8 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
     game.set_screen_resolution(get_screen_resolution(resolution))
     game.set_episode_timeout(timeout)
     # Configure game mode based on async_mode parameter
-    if async_mode:
-        game.set_mode(Mode.ASYNC_PLAYER)  # Use ASYNC_PLAYER for multiplayer
-    else:
-        game.set_mode(Mode.PLAYER)
+    mode = Mode.ASYNC_PLAYER if async_mode else Mode.PLAYER
+    game.set_mode(mode)
     game.set_ticrate(ticrate)
 
     if is_host:
@@ -144,12 +102,14 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
     existing_shm = shared_memory.SharedMemory(name=shm_name)
     observations = np.ndarray(obs_shape, dtype=np.uint8, buffer=existing_shm.buf)
 
-    reward_calculator = create_reward_calculator(reward_config)
+    # Get available game variables for mapping indices to names
+    available_game_vars = game.get_available_game_variables()
 
     episode_id = 0
     step_id = 0
+    is_dead = False
+    frames_per_step = skip_frames if skip_frames else 1
     role = "[HOST]" if is_host else "[PEER]"
-    scenario = reward_config.get("scenario")
 
     try:
         while True:
@@ -165,16 +125,15 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
 
             if cmd == 'step':
                 action = data
-                terminated = game.is_player_dead()
+                terminated = game.is_episode_finished()
                 if not terminated:
-                    if skip_frames is not None:
-                        reward = game.make_action(action, skip_frames)
-                    else:
-                        reward = game.make_action(action)
+                    reward = game.make_action(action, skip_frames)
                     state = game.get_state()
 
-                    # Calculate the reward
-                    reward = reward_calculator.calculate_reward(game, reward)
+                    # Check if player died during this step
+                    was_dead_before = is_dead
+                    is_dead = game.is_player_dead()
+                    just_died = not was_dead_before and is_dead
 
                     if state and state.screen_buffer is not None:
                         observation = np.transpose(state.screen_buffer, (1, 2, 0))
@@ -183,20 +142,30 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                         observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
                     # Collect relevant stats from the game
-                    stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id, scenario)
+                    # stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id, scenario)
                     info = {
-                        "num_frames": skip_frames if skip_frames is not None else 1,
-                        "agent_stats": stats
+                        "num_frames": frames_per_step,
+                        "player_dead": is_dead,
+                        "just_died": just_died,
+                        "step": step_id
                     }
+                    info.update(get_flat_game_vars(state, available_game_vars))
                 else:
                     reward = 0.0
                     observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
+                    # Check if player died during this step
+                    was_dead_before = is_dead
+                    is_dead = game.is_player_dead()
+                    just_died = not was_dead_before and is_dead
+
                     # Collect basic stats even when terminated
-                    stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id, scenario)
+                    # stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id, scenario)
                     info = {
-                        "num_frames": skip_frames if skip_frames is not None else 1,
-                        "agent_stats": stats
+                        "num_frames": frames_per_step,
+                        "player_dead": is_dead,
+                        "just_died": just_died,
+                        "step": step_id
                     }
 
                 # Write observation into shared memory
@@ -260,6 +229,43 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
 
                 step_id += 1
 
+            elif cmd == 'respawn':
+                # print(f"Respawning Agent {instance_id} at step {step_id}")
+                # Only respawn if actually dead. Otherwise do a no-op action to advance the sim.
+                if is_dead:
+                    game.respawn_player()
+                    is_dead = False
+                    respawned = True
+                else:
+                    zero_action = [0.0] * len(game.get_available_buttons())
+                    _ = game.make_action(zero_action)
+                    respawned = False
+
+                state = game.get_state()
+                observation = get_obs(obs_shape, state)
+
+                observations[instance_id] = observation
+
+                # stats = collect_agent_stats(game, 0.0, instance_id, episode_id, step_id, scenario)
+                info = {
+                    "num_frames": frames_per_step,
+                    # "agent_stats": stats,
+                    "player_dead": is_dead,
+                    "just_died": False,
+                    "step": step_id,
+                    "respawned": respawned,
+                }
+                info.update(get_flat_game_vars(state, available_game_vars))
+
+                # Increment the shared counter
+                with num_completed.get_lock():
+                    num_completed.value += 1
+                    if num_completed.value == num_agents:
+                        # Last agent to finish reset
+                        all_done_event.set()
+
+                step_id += 1
+
             elif cmd == 'reset':
                 # Reset the environment
                 # print(f"BEFORE: {role} Episode finished: {game.is_episode_finished()}. Is new episode: {game.is_new_episode()}. Step ID: {step_id}, Episode ID: {episode_id}. Agent health: {game.get_game_variable(vzd.GameVariable.HEALTH)}")
@@ -270,17 +276,46 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
 
                 # Get initial state
                 state = game.get_state()
-                if state and state.screen_buffer is not None:
-                    observation = np.transpose(state.screen_buffer, (1, 2, 0))
-                else:
-                    observation = np.zeros(obs_shape[1:], dtype=np.uint8)
+                observation = get_obs(obs_shape, state)
+
+                info = {
+                    "player_dead": False,
+                    "just_died": False,
+                    "step": step_id,
+                    "episode_id": episode_id,
+                    "agent_id": instance_id,
+                }
+                info.update(get_flat_game_vars(state, available_game_vars))
+
                 # Write observation into shared memory
                 observations[instance_id] = observation
 
-                # Reset reward calculator for new episode
-                reward_calculator.reset(game)
+                # Write info JSON into the fixed-size buffer
+                try:
+                    info_json = json.dumps(info)
+                    info_bytes = info_json.encode()
+                    if len(info_bytes) > 1024:
+                        # minimal fallback
+                        minimal_info = {
+                            "num_frames": info.get("num_frames", 1),
+                            "player_dead": False,
+                            "agent_id": instance_id,
+                            "episode_id": episode_id,
+                        }
+                        info_bytes = json.dumps(minimal_info).encode()
+                    info_bytes += b'\x00' * (1024 - len(info_bytes))
+                    shared_command['info'][:] = info_bytes
+                except Exception as e:
+                    fallback_info = {"num_frames": 1, "error": f"reset_info_serialize_failed:{str(e)[:50]}", "agent_id": instance_id}
+                    fb = json.dumps(fallback_info).encode()
+                    fb += b'\x00' * (1024 - len(fb))
+                    shared_command['info'][:] = fb
 
-                # Increment the shared counter
+                # Reset reward/terminated scalars
+                shared_command['reward'].value = 0.0
+                shared_command['terminated'].value = False
+
+                # Barrier book-keeping
                 with num_completed.get_lock():
                     num_completed.value += 1
                     if num_completed.value == num_agents:
@@ -300,6 +335,13 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                 # Wait for the next command
     finally:
         pass  # Cleanup if necessary
+
+
+def get_obs(obs_shape, state):
+    if state and state.screen_buffer is not None:
+        return np.transpose(state.screen_buffer, (1, 2, 0))
+    else:
+        return np.zeros(obs_shape[1:], dtype=np.uint8)
 
 
 class VizdoomMultiAgentEnv(VizdoomEnv):
@@ -332,8 +374,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             port: int = 5029,
             env_config=None,
             netmode: int = 0,
-            ticrate: int = 100,
-            reward_config: Optional[Dict[str, Any]] = None
+            ticrate: int = 300,
     ):
         super().__init__(config_file, action_space, safety_bound, unsafe_reward, timeout, scenario, level, constraint,
                          coord_limits, max_histogram_length, show_automap, use_depth_buffer, render_depth_buffer,
@@ -348,19 +389,15 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         self.async_mode = async_mode
         self.ticrate = ticrate
 
-        # Set default reward config if none provided - get scenario-specific configuration
-        if reward_config is None:
-            from sample_factory.doom.env.wrappers.reward_calculators import get_scenario_reward_config
-            reward_config = get_scenario_reward_config(scenario, constraint)
-
-        self.reward_config = reward_config
-
         # Extract worker and environment information for logging
         self.worker_idx = env_config.worker_index if env_config else -1
         self.env_id = env_config.env_id if env_config else -1
 
         # Initialize pygame screen for rendering
         self.screen = None
+
+        # track dead agents for respawn protocol
+        self._dead_agents: set[int] = set()
 
         parts = resolution.lower().split("x")
         width = int(parts[0])
@@ -409,7 +446,7 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                     self.config_path, self.resolution, timeout * num_agents, self.skip_frames, shared_command,
                     self.step_event, self.all_done_event, self.num_completed, self.num_agents, i, is_host, self.port,
                     self.shm.name, multi_obs_shape, self.worker_idx, self.env_id, self.netmode, self.async_mode,
-                    self.ticrate, self.reward_config
+                    self.ticrate
                 ),
             )
             process.daemon = True
@@ -436,13 +473,35 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
             self.seed(kwargs["seed"])
 
         self._num_steps = 0
+        self._dead_agents.clear()  # respawn tracking
 
         for i in range(self.num_agents):
             self.shared_commands[i]['cmd'].value = b'reset'
         self._barrier()
 
         observations = [self.observations[i].copy() for i in range(self.num_agents)]
-        return observations, {}
+
+        # Parse infos from the per-agent buffers
+        infos: List[Dict] = []
+        for i in range(self.num_agents):
+            info_bytes = self.shared_commands[i]['info'][:]
+            info_str = bytes(info_bytes).decode().strip('\x00')
+            if info_str:
+                try:
+                    info = json.loads(info_str)
+                except json.JSONDecodeError as e:
+                    print(f"Warning: JSON decode error on reset for agent {i}: {e}")
+                    info = {"num_frames": self.skip_frames if self.skip_frames is not None else 1,
+                            "error": f"json_decode_failed:{str(e)[:50]}", "agent_id": i}
+                except Exception as e:
+                    print(f"Warning: Unexpected decode error on reset for agent {i}: {e}")
+                    info = {"num_frames": self.skip_frames if self.skip_frames is not None else 1,
+                            "error": f"decode_failed:{str(e)[:50]}", "agent_id": i}
+            else:
+                info = {"agent_id": i}
+            infos.append(info)
+
+        return observations, infos
 
     def step(self, actions) -> Tuple[Any, Any, Any, Any, Any]:
         # 1) Send actions to all children
@@ -479,38 +538,32 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
                     # Handle corrupted JSON gracefully
                     print(f"Warning: JSON decode error for agent {i}: {e}")
                     print(f"Corrupted JSON string (first 100 chars): {info_str[:100]}")
-                    # Provide fallback info
-                    info = {
-                        "num_frames": self.skip_frames if self.skip_frames is not None else 1,
-                        "error": f"json_decode_failed: {str(e)[:50]}",
-                        "agent_stats": {
-                            "agent_id": i,
-                            "reward": sc['reward'].value,
-                            "health": 0,
-                            "armor": 0
-                        }
-                    }
-                except Exception as e:
-                    # Handle any other decoding errors
-                    print(f"Warning: Unexpected error decoding info for agent {i}: {e}")
-                    info = {
-                        "num_frames": self.skip_frames if self.skip_frames is not None else 1,
-                        "error": f"decode_failed: {str(e)[:50]}",
-                        "agent_stats": {
-                            "agent_id": i,
-                            "reward": sc['reward'].value,
-                            "health": 0,
-                            "armor": 0
-                        }
-                    }
+                    info = {}
             else:
                 info = {}
 
-            # Extract agent stats if available
-            if 'agent_stats' in info:
-                agent_stats_list.append(info['agent_stats'])
+            # Synthesize per-agent stats from info’s flat game vars.
+            # Convention: VizDoom game vars are UPPER_CASE keys (HEALTH, ARMOR, …).
+            numeric = {k: v for k, v in info.items() if k.isupper() and isinstance(v, (int, float))}
+
+            # Always log reward alongside vars.
+            agent_stats = {"agent_id": i, "reward": float(rewards[i])}
+            agent_stats.update(numeric)
+            agent_stats_list.append(agent_stats)
 
             infos.append(info)
+
+        # update dead set based on infos
+        # remove agents that successfully respawned
+        for i, info in enumerate(infos):
+            if info.get("respawned", False):
+                if i in self._dead_agents:
+                    self._dead_agents.remove(i)
+
+        # add agents that are now dead
+        for i, info in enumerate(infos):
+            if info["player_dead"]:
+                self._dead_agents.add(i)
 
         # Calculate combined stats from all agents
         combined_stats = self._calculate_combined_stats(agent_stats_list, rewards)
@@ -555,14 +608,14 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
         # Add the structured stats to each agent's info for logging
         for i, info in enumerate(infos):
-            info['episode_extra_stats'] = episode_extra_stats.copy()
-            info['episode_extra_stats']['agent_id'] = i
+            if terminated[i]:
+                info['episode_extra_stats'] = episode_extra_stats.copy()
+                info['episode_extra_stats']['agent_id'] = i
 
         observations = [self.observations[i].copy() for i in range(self.num_agents)]
 
         # 4) High-level truncation (timeout owned by this env)
-        frames_advanced = infos[0].get("num_frames", self.skip_frames)
-        self._num_steps += int(frames_advanced)
+        self._num_steps += self.skip_frames
 
         timeout_reached = (self._timeout is not None) and (self._timeout > 0) and (self._num_steps >= self._timeout)
         truncated = [bool(timeout_reached) for _ in range(self.num_agents)]
@@ -598,71 +651,38 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
     def _calculate_combined_stats(self, agent_stats_list, rewards):
         """
-        Calculate combined statistics across all agents.
-
-        Args:
-            agent_stats_list: List of individual agent stats dictionaries
-            rewards: List of rewards for each agent
-
-        Returns:
-            Dictionary containing combined stats
+        Aggregate all numeric per-agent stats generically.
+        Produces total_/avg_/min_/max_ for each numeric key found.
         """
         if not agent_stats_list:
             return {}
 
         num_agents = len(agent_stats_list)
+
+        # Collect numeric keys across agents (exclude metadata).
+        meta = {"agent_id"}
+        all_numeric_keys = set()
+        for s in agent_stats_list:
+            for k, v in s.items():
+                if k in meta:
+                    continue
+                if isinstance(v, (int, float)):
+                    all_numeric_keys.add(k)
+
         combined = {
-            'num_agents': num_agents,
-            'total_reward': sum(rewards),
-            'avg_reward': sum(rewards) / num_agents if num_agents > 0 else 0,
-            'min_reward': min(rewards) if rewards else 0,
-            'max_reward': max(rewards) if rewards else 0,
+            "num_agents": num_agents,
+            "total_reward": float(sum(rewards)),
+            "avg_reward": float(sum(rewards) / num_agents),
+            "min_reward": float(min(rewards)) if rewards else 0.0,
+            "max_reward": float(max(rewards)) if rewards else 0.0,
         }
 
-        # Aggregate basic stats across all agents
-        basic_stats = ['health', 'armor']
-
-        for stat_name in basic_stats:
-            values = []
-            for agent_stats in agent_stats_list:
-                if stat_name in agent_stats and agent_stats[stat_name] is not None:
-                    values.append(agent_stats[stat_name])
-
-            if values:
-                combined[f'total_{stat_name}'] = sum(values)
-                combined[f'avg_{stat_name}'] = sum(values) / len(values)
-                combined[f'min_{stat_name}'] = min(values)
-                combined[f'max_{stat_name}'] = max(values)
-            else:
-                combined[f'total_{stat_name}'] = 0
-                combined[f'avg_{stat_name}'] = 0
-                combined[f'min_{stat_name}'] = 0
-                combined[f'max_{stat_name}'] = 0
-
-        # Aggregate task-specific stats dynamically (episodic averages only)
-        # Collect all unique stat names from agent stats, excluding basic stats
-        all_stat_names = set()
-        for agent_stats in agent_stats_list:
-            all_stat_names.update(agent_stats.keys())
-
-        # Remove basic stats and metadata that shouldn't be aggregated
-        excluded_stats = {'agent_id', 'episode_id', 'step_id', 'reward', 'health', 'armor'}
-        task_specific_stats = all_stat_names - excluded_stats
-
-        for stat_name in task_specific_stats:
-            values = []
-            for agent_stats in agent_stats_list:
-                if stat_name in agent_stats and agent_stats[stat_name] is not None:
-                    values.append(agent_stats[stat_name])
-
-            if values:
-                # For task-specific stats, only log averages (not min/max)
-                combined[f'avg_{stat_name}'] = sum(values) / len(values)
-
-        # Count alive agents
-        alive_agents = sum(1 for agent_stats in agent_stats_list if agent_stats.get('health', 0) > 0)
-        combined['alive_agents'] = alive_agents
-        combined['dead_agents'] = num_agents - alive_agents
+        for key in sorted(all_numeric_keys):
+            vals = [float(s.get(key, 0.0)) for s in agent_stats_list]
+            combined[f"total_{key.lower()}"] = float(sum(vals))
+            combined[f"avg_{key.lower()}"] = float(sum(vals) / num_agents)
+            combined[f"min_{key.lower()}"] = float(min(vals)) if vals else 0.0
+            combined[f"max_{key.lower()}"] = float(max(vals)) if vals else 0.0
 
         return combined
 
@@ -793,3 +813,24 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
         except Exception as e:
             print(f"Rendering Error: {e}")
             return None
+
+
+def get_screen_resolution(resolution: str) -> ScreenResolution:
+    try:
+        return getattr(ScreenResolution, f"RES_{resolution.upper()}")
+    except AttributeError as e:
+        raise ValueError(f"Invalid resolution: {resolution}")
+
+
+def get_flat_game_vars(state, available_game_vars) -> Dict[str, float]:
+    """Return game variables as flat scalars suitable for info (no nested dict)."""
+    if state is None or state.game_variables is None:
+        return {}
+    game_variables = state.game_variables
+    out: Dict[str, float] = {}
+    n = min(len(available_game_vars), len(game_variables))
+    for i in range(n):
+        name = available_game_vars[i].name
+        val = game_variables[i]
+        out[name] = float(val)
+    return out

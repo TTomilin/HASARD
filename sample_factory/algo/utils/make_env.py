@@ -378,8 +378,8 @@ class NonBatchedVecEnv(Wrapper):
     """
 
     def __init__(self, env):
-        if not is_multiagent_env(env):
-            env = NonBatchedMultiAgentWrapper(env)
+        # if not is_multiagent_env(env):
+        #     env = NonBatchedMultiAgentWrapper(env)
         if not isinstance(env.observation_space, spaces.Dict):
             env = NonBatchedDictObservationsWrapper(env)
 

@@ -23,8 +23,8 @@ class HealthGatheringRewardFunction(gym.Wrapper):
 
             if cur_h > prev_h:
                 rewards[i] += self.health_reward
-            # if info.get("just_died", False):
-            #     rewards[i] += self.death_penalty
+            if info.get("just_died", False):
+                rewards[i] += self.death_penalty
 
             self._prev_health[i] = cur_h
         return observations, rewards, terminateds, truncateds, infos
