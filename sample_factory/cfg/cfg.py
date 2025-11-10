@@ -646,7 +646,7 @@ def add_rl_args(p: ArgumentParser):
     p.add_argument(
         "--train_for_env_steps",
         default=int(1e10),
-        type=int,
+        type=float,
         help="Stop after all policies are trained for this many env steps",
     )
     p.add_argument("--train_for_seconds", default=int(1e10), type=int, help="Stop training after this many seconds")

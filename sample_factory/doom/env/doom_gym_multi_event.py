@@ -121,8 +121,6 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
             cmd = cmd_bytes.decode().strip()
             data = list(shared_command['data'][:])
 
-            # print(f"{role} Received command: {cmd} at step {step_id}")
-
             if cmd == 'step':
                 action = data
                 terminated = game.is_episode_finished()
@@ -142,7 +140,7 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                         observation = np.zeros(obs_shape[1:], dtype=np.uint8)
 
                     # Collect relevant stats from the game
-                    # stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id, scenario)
+                    # stats = collect_agent_stats(game, reward, instance_id, episode_id, step_id)
                     info = {
                         "num_frames": frames_per_step,
                         "player_dead": is_dead,
@@ -608,9 +606,8 @@ class VizdoomMultiAgentEnv(VizdoomEnv):
 
         # Add the structured stats to each agent's info for logging
         for i, info in enumerate(infos):
-            if terminated[i]:
-                info['episode_extra_stats'] = episode_extra_stats.copy()
-                info['episode_extra_stats']['agent_id'] = i
+            info['episode_extra_stats'] = episode_extra_stats.copy()
+            info['episode_extra_stats']['agent_id'] = i
 
         observations = [self.observations[i].copy() for i in range(self.num_agents)]
 

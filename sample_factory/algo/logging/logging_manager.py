@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 from tensorboardX import SummaryWriter
@@ -14,7 +13,6 @@ from sample_factory.algo.logging.loggers import HeatmapLogger, VideoLogger, Perf
 from sample_factory.algo.logging.stats_processor import StatsProcessor
 from sample_factory.utils.utils import (
     ensure_dir_exists,
-    experiment_dir,
     summaries_dir,
     frames_dir,
     memory_consumption_mb,
@@ -35,8 +33,8 @@ class LoggingManager:
 
         # Create specialized loggers
         self.heatmap_logger = HeatmapLogger(
-            config.heatmap_config, 
-            self.backends, 
+            config.heatmap_config,
+            self.backends,
             env_info
         )
         self.video_logger = VideoLogger(config.video_config, self.backends)
