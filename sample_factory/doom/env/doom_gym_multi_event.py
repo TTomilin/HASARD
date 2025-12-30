@@ -85,14 +85,13 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
         game.add_game_args(
             f"-host {num_agents} -port {port} -netmode {netmode} +timelimit 10.0 +sv_spawnfarthest 1"
         )
-        game.add_game_args(f"+name Player{instance_id} +colorset {instance_id}")
-        game.add_game_args(f"+playernumber {instance_id}")
     else:
         # Join game instance
         print(f"[Worker {worker_idx}, Env {env_id}] Configuring PEER (Agent {instance_id}) to join port {port}")
         game.add_game_args(f"-join 127.0.0.1 -port {port} -netmode {netmode}")
-        game.add_game_args(f"+name Player{instance_id} +colorset {instance_id}")
-        game.add_game_args(f"+playernumber {instance_id}")
+
+    game.add_game_args(f"+name Player{instance_id} +colorset {instance_id}")
+    game.add_game_args(f"+playernumber {instance_id}")
 
     print(f"[Worker {worker_idx}, Env {env_id}] Initializing VizDoom {role} (Agent {instance_id})...")
     game.init()
@@ -225,7 +224,7 @@ def game_process(config_path, resolution, timeout, skip_frames, shared_command, 
                         all_done_event.set()
                 # Continue to next iteration, waiting for next step_event
 
-                step_id += 1
+                step_id += frames_per_step
 
             elif cmd == 'respawn':
                 # print(f"Respawning Agent {instance_id} at step {step_id}")
