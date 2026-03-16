@@ -11,7 +11,7 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS, load_data, check_data_availability_multiple_levels, create_default_paths, create_common_parser
+from results.commons import SAFETY_THRESHOLDS, TRANSLATIONS, HUMAN_BASELINES, load_data, check_data_availability_multiple_levels, create_default_paths, create_common_parser
 
 
 # Data Processing
@@ -81,6 +81,8 @@ def generate_latex_table(data, constraints, caption=''):
         for level in levels:
             max_reward = float('-inf')
             for method in methods:
+                if method == 'Human':
+                    continue
                 reward_key = f'reward_level_{level}'
                 cost_key = f'cost_level_{level}'
                 mean_reward = data[env][method][reward_key]['mean']
@@ -101,8 +103,8 @@ def generate_latex_table(data, constraints, caption=''):
             min_costs[key] = {}
             for constraint in constraints:
                 suffix = '' if constraint == 'Soft' else '_hard'
-                all_rewards = [env_data[m][f'reward{suffix}_level_{level}']['mean'] for m in methods if env_data[m][f'reward{suffix}_level_{level}']['mean'] is not None]
-                all_costs = [env_data[m][f'cost{suffix}_level_{level}']['mean'] for m in methods if env_data[m][f'cost{suffix}_level_{level}']['mean'] is not None]
+                all_rewards = [env_data[m][f'reward{suffix}_level_{level}']['mean'] for m in methods if m != 'Human' and env_data[m][f'reward{suffix}_level_{level}']['mean'] is not None]
+                all_costs = [env_data[m][f'cost{suffix}_level_{level}']['mean'] for m in methods if m != 'Human' and env_data[m][f'cost{suffix}_level_{level}']['mean'] is not None]
                 max_rewards[key][suffix] = max(all_rewards, default=None)
                 min_costs[key][suffix] = min(all_costs, default=None)
 
@@ -159,13 +161,30 @@ def generate_latex_table(data, constraints, caption=''):
     return latex_str
 
 
+def inject_human_baselines(data, environments, levels, metrics, constraints):
+    for env in environments:
+        if "Human" not in data[env]:
+            data[env]["Human"] = {}
+        for level in levels:
+            for metric in metrics:
+                val = HUMAN_BASELINES[level][env][metric]
+                data[env]["Human"][f"{metric}_level_{level}"] = {'mean': val, 'ci': 0.0}
+                if "Hard" in constraints:
+                    data[env]["Human"][f"{metric}_hard_level_{level}"] = {'mean': None, 'ci': None}
+
+
 def main(args):
     # Check if any data is available for the specified path
-    if not check_data_availability_multiple_levels(args.input, args.algos[0], args.envs, args.seeds, args.metrics, args.levels):
+    algo_check = next((a for a in args.algos if a != "Human"), None)
+    if algo_check is None or not check_data_availability_multiple_levels(args.input, algo_check, args.envs, args.seeds, args.metrics, args.levels):
         print(f"Error: No data found at the specified path '{args.input}'. Please check that the path contains data for the specified environments, algorithms, seeds, metrics, and levels.")
         return
 
     data = process_data(args.input, args.envs, args.algos, args.seeds, args.levels, args.metrics, args.constraints, args.n_data_points)
+
+    if "Human" in args.algos:
+        inject_human_baselines(data, args.envs, args.levels, args.metrics, args.constraints)
+
     table = generate_latex_table(data, args.constraints)
     print(table)
 
@@ -189,7 +208,7 @@ def common_plot_args() -> argparse.ArgumentParser:
     # Add specific arguments for this script
     parser.add_argument("--levels", type=int, nargs='+', default=[1, 2, 3], help="Level(s) of the run(s) to compute")
     parser.add_argument("--constraints", type=str, nargs='+', default=["Soft"], choices=["Soft", "Hard"], help="Constraints to analyze")
-    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O"],
+    parser.add_argument("--algos", type=str, nargs='+', default=["PPO", "PPOCost", "PPOLag", "PPOSaute", "PPOPID", "P3O", "Human"],
                         help="Algorithms to analyze")
     return parser
 
