@@ -747,7 +747,7 @@ class Runner(EventLoopObject, Configurable):
 
         # Load the map image
         base_path = Path(__file__).parent.parent.parent.resolve()
-        map_path = join(base_path, "doom", "env", "scenarios", f"{self.env_info.name}.png")
+        map_path = join(base_path, "doom", "scenarios", f"{self.env_info.name}.png")
         self.map_img = cv2.imread(map_path)
 
         # # Check if the image was loaded successfully
