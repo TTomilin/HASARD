@@ -14,7 +14,7 @@ parent_dir = os.path.dirname(os.path.dirname(script_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from results.commons import create_default_paths, save_plot
+from results.commons import save_plot
 
 # Function to parse log file for policy updates
 def parse_log_updates(log_path):
@@ -35,74 +35,59 @@ def parse_log_updates(log_path):
 
     return timestamps
 
+def cumulative_updates_from_df(df):
+    """Compute cumulative policy updates from Time/Total and Time/Update columns."""
+    t = df['Time/Total'].values
+    u = df['Time/Update'].values
+    t = np.insert(t, 0, [10, 30, 100])
+    u = np.insert(u, 0, [10, 30, 100])
+    updates_per_interval = np.diff(t, prepend=0) / u
+    return t, np.cumsum(updates_per_interval)
+
+
 def main(args):
-    # Load Safety-Gymnasium data
     safety_gym_df = pd.read_csv(args.safety_gym_csv)
-    # safety_gym_updates = safety_gym_df['Time/Update']
-    # safety_gym_cumulative = np.cumsum(np.ones(len(safety_gym_updates)))
-    safety_gym_time = safety_gym_df['Time/Total']
-    safety_gym_update = safety_gym_df['Time/Update']
+    crax_df = pd.read_csv(args.crax_csv)
 
-    # Extract time and FPS, and prepend zeros
-    safety_gym_time = np.insert(safety_gym_time, 0, 100)
-    safety_gym_update = np.insert(safety_gym_update, 0, 100)
+    sg_time, sg_cumulative = cumulative_updates_from_df(safety_gym_df)
+    crax_time, crax_cumulative = cumulative_updates_from_df(crax_df)
 
-    # Extract time and FPS, and prepend zeros
-    safety_gym_time = np.insert(safety_gym_time, 0, 30)
-    safety_gym_update = np.insert(safety_gym_update, 0, 30)
-    #
-    # # Extract time and FPS, and prepend zeros
-    safety_gym_time = np.insert(safety_gym_time, 0, 10)
-    safety_gym_update = np.insert(safety_gym_update, 0, 10)
-    #
-    # Calculate updates per interval and their cumulative count
-    updates_per_interval = np.diff(safety_gym_time, prepend=0) / safety_gym_update
-    cumulative_updates = np.cumsum(updates_per_interval)
-
-    # Prepare time in minutes for plotting
-    time_minutes = safety_gym_time / 60  # Convert seconds to minutes
-
-    # Convert update times to a cumulative sum of time intervals
-    # safety_gym_time = np.cumsum(safety_gym_updates)
-
-    # Calculate cumulative updates for HASARD
     hasard_timestamps = parse_log_updates(args.hasard_log)
     start_time = hasard_timestamps[0]
     hasard_minutes = [(ts - start_time).total_seconds() / 60 for ts in hasard_timestamps]
     hasard_cumulative = np.arange(1, len(hasard_minutes) + 1)
 
-    # Plotting
     plt.figure(figsize=(5, 4))
     plt.xlim(-2, 120)
+    plt.plot(sg_time / 60, sg_cumulative, label='Safety-Gymnasium', color='green')
     plt.plot(hasard_minutes, hasard_cumulative, label='HASARD', color='blue')
-    plt.plot(time_minutes, cumulative_updates, label='Safety-Gymnasium', color='green')
+    plt.plot(crax_time / 60, crax_cumulative, label='CRAX', color='orange')
     plt.yscale('log')
     plt.xlabel('Time (minutes)')
     plt.ylabel('Cumulative Updates (log scale)')
-    # plt.title('Cumulative Policy Updates Over Time')
     plt.grid(True, ls=":")
     plt.legend()
 
-    # Save to results/figures directory (not results/plotting/figures)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     results_dir = os.path.dirname(script_dir)
     folder = os.path.join(results_dir, 'figures')
-
-    # Save using the common save_plot function
     save_plot('policy_updates', folder)
 
 
 def common_plot_args() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Plot policy updates comparison between HASARD and Safety-Gymnasium.")
+    parser = argparse.ArgumentParser(description="Plot policy updates comparison between HASARD, CRAX, and Safety-Gymnasium.")
 
-    # Create default paths dynamically
-    default_fps_dir = create_default_paths(__file__, 'fps')
+    from pathlib import Path
+    default_fps_dir = Path(__file__).parent.parent.resolve() / 'data' / 'fps'
 
-    parser.add_argument("--safety_gym_csv", type=str, 
-                        default=os.path.join(default_fps_dir, 'SafetyPointGoal.csv'),
+    parser.add_argument("--safety_gym_csv", type=str,
+                        default=str(default_fps_dir / 'SafetyPointGoal.csv'),
                         help="Path to Safety-Gymnasium CSV file")
-    parser.add_argument("--hasard_log", type=str, 
-                        default=os.path.join(default_fps_dir, 'VolcanicVenture_Updates.out'),
+    parser.add_argument("--crax_csv", type=str,
+                        default=str(default_fps_dir / 'CRAX.csv'),
+                        help="Path to CRAX CSV file")
+    parser.add_argument("--hasard_log", type=str,
+                        default=str(default_fps_dir / 'VolcanicVenture_Updates.out'),
                         help="Path to HASARD log file")
     return parser
 

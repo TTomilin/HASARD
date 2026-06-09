@@ -104,6 +104,7 @@ venv.bak/
 
 _vizdoom.ini
 train_dir/
+sample_factory/train_dir/
 train_dir_old/**
 trained_policies/**
 !trained_policies/*.md
