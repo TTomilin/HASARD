@@ -33,9 +33,16 @@ ListObservations = Sequence[Any]
 ListOfDictObservations = Sequence[DictObservations]
 
 
+def _get_env_attr(env, attr, default):
+    try:
+        return getattr(env, attr)
+    except AttributeError:
+        return default
+
+
 def get_multiagent_info(env: Any) -> Tuple[bool, int]:
-    num_agents = env.get_wrapper_attr('num_agents') if hasattr(env, "num_agents") else 1
-    is_multiagent = env.get_wrapper_attr('is_multiagent') if hasattr(env, "is_multiagent") else num_agents > 1
+    num_agents = _get_env_attr(env, 'num_agents', 1)
+    is_multiagent = _get_env_attr(env, 'is_multiagent', num_agents > 1)
     assert is_multiagent or num_agents == 1, f"Invalid configuration: {is_multiagent=} and {num_agents=}"
     return is_multiagent, num_agents
 
